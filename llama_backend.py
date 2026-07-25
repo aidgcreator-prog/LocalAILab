@@ -27,6 +27,7 @@ configured, GGUF models simply won't be runnable — everything else
 
 import atexit
 import contextlib
+import json
 import os
 import re
 import shlex
@@ -401,8 +402,28 @@ class LlamaCppModel:
     # consumed as structural tokens — which then confuses anything
     # downstream trying to parse the text (e.g. smolagents' code-block
     # regex, or format_llm_response()'s <think> tag matching).
+    #
+    # think/thinking/reasoning tags are included in this SAME sweep for
+    # exactly the same reason, and it matters even more for agentic tabs
+    # (general_agent.py / rag_agent.py / data_analysis.py /
+    # deep_research_agent.py): smolagents' CodeAgent finds the model's
+    # action by regex-searching the ENTIRE response for a fenced
+    # ```python ... ``` block. A reasoning-tuned model's actual
+    # "Thought: ... ```python ... ```" is very often written INSIDE its
+    # <think>...</think> block rather than after it, or the model runs
+    # out of its generation budget mid-thought and the response ends up
+    # being nothing but a stray, unmatched "</think>" — either way,
+    # leaving the raw tags in place either hides a perfectly valid code
+    # block from smolagents' parser or hands it a meaningless orphaned
+    # tag as the entire "code snippet", both of which show up as
+    # repeated "Error in code parsing" / "regex pattern ... was not
+    # found" failures on every single step, never actually managing to
+    # call a tool. Only the tag MARKERS are stripped here (not the text
+    # between them), so a real code block that happens to sit inside a
+    # <think> block is unwrapped and becomes visible to the parser,
+    # instead of being deleted along with the surrounding reasoning.
     _LEAKED_CONTROL_TOKEN_RE = re.compile(
-        r"<\|?/?(?:channel|message|start|end|return|call)\|?>",
+        r"<\|?/?(?:channel|message|start|end|return|call|think|thinking|reasoning)\|?>",
         re.IGNORECASE,
     )
 
@@ -820,21 +841,61 @@ class LlamaServerModel:
                                   json=payload, timeout=self.timeout)
             resp.raise_for_status()
             text = resp.json()["choices"][0]["message"]["content"]
-        except Exception as e:
-            # Same "surface as assistant text, don't crash the whole
-            # chat/agent turn" approach as LlamaCppModel.generate()'s
-            # ValueError handler above — a transient HTTP hiccup (server
-            # still warming up, connection reset, malformed response)
-            # shouldn't take down the whole tab.
+        except requests.exceptions.HTTPError as e:
+            body = ""
+            try:
+                body = resp.text[:2000]
+            except Exception:
+                body = str(e)
+            err = (
+                f"⚠️ llama-server returned HTTP {resp.status_code} "
+                f"({self.base_url}).\n\n"
+                f"Server response: {body}\n\n"
+                f"This is usually a model compatibility issue — the model may "
+                f"not support the chat template being sent. Check the model's "
+                f"supported chat formats or switch to the in-process "
+                f"llama-cpp-python backend."
+            )
             return ChatMessage(
                 role="assistant",
-                content=(
+                content=f"```python\nfinal_answer({json.dumps(err)})\n```"
+            )
+        except requests.exceptions.ConnectionError as e:
+            err = (
+                f"⚠️ Cannot connect to llama-server at {self.base_url}. "
+                f"Make sure llama-server is running and the address is "
+                f"correct.\n\n"
+                f"{e}"
+            )
+            return ChatMessage(
+                role="assistant",
+                content=f"```python\nfinal_answer({json.dumps(err)})\n```"
+            )
+        except Exception as e:
+            if "read timed out" in str(e).lower() or "timeout" in str(e).lower():
+                msg = (
+                    f"⚠️ llama-server didn't finish responding within "
+                    f"{self.timeout}s ({self.base_url}). This usually just "
+                    f"means the model needs more time — it does NOT mean "
+                    f"llama-server crashed.\n\n"
+                    f"Fix: raise the '⏱️ llama-server Request Timeout' "
+                    f"dropdown (under '⚙️ Model Settings' in the UI) to a "
+                    f"larger value, then retry. Large/CPU-bound models "
+                    f"with long agentic prompts (e.g. Deep Research) often "
+                    f"need 600s or more.\n\n"
+                    f"Original error: {e}"
+                )
+            else:
+                msg = (
                     f"⚠️ llama-server request failed ({self.base_url}): {e}\n\n"
                     f"If this keeps happening, check that llama-server is "
                     f"still running (see the '🖥️ llama-server.exe Path' "
                     f"section), or switch the '⚙️ LLM Backend' dropdown back "
                     f"to the in-process llama-cpp-python backend."
-                ),
+                )
+            return ChatMessage(
+                role="assistant",
+                content=f"```python\nfinal_answer({json.dumps(msg)})\n```"
             )
 
         text = LlamaCppModel._sanitize_content(text)

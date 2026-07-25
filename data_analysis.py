@@ -13,9 +13,11 @@ import time
 from pathlib import Path
 from typing import Optional
 
+import gradio as gr
 from smolagents import CodeAgent, tool
 
 import agent_memory
+import agent_streaming
 import model_registry as mr
 import models
 from hardware import DEVICE
@@ -55,13 +57,13 @@ def install_package(package_name: str) -> str:
     try:
         result = subprocess.run(
             [sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check", package_name],
-            capture_output=True, text=True, timeout=300,
+            capture_output=True, text=True,             timeout=1200,
         )
         if result.returncode == 0:
             return f"✅ Installed '{package_name}' successfully."
         return f"❌ Failed to install '{package_name}':\n{result.stderr[-2000:]}"
     except subprocess.TimeoutExpired:
-        return f"❌ Installing '{package_name}' timed out after 300s."
+        return f"❌ Installing '{package_name}' timed out after 1200s."
     except Exception as e:
         return f"❌ Error installing '{package_name}': {e}"
 
@@ -179,6 +181,15 @@ def run_data_analysis(files, question: str, model_label: str, history: list, use
     see DATA_AGENT_MEMORY_TURNS) and old memory is dropped automatically
     if a different file is uploaded. When off, every question is answered
     from a clean slate regardless of what file is uploaded.
+
+    A GENERATOR: yields (history, gallery_update, report_update) once per
+    live agent step as the EDA runs (see agent_streaming.py), using
+    gr.update() no-op placeholders for the gallery/report outputs during
+    those intermediate yields so charts/report don't flicker to "empty"
+    mid-run — then one final time with the real chart list + report file
+    once the agent actually finishes. This is easily the longest-running
+    single call in the app (a full EDA — load, chart, correlate, write a
+    report), so live progress matters here more than almost anywhere else.
     """
     history = history or []
 
@@ -186,7 +197,8 @@ def run_data_analysis(files, question: str, model_label: str, history: list, use
     if not paths:
         history.append({"role": "user", "content": question or "(no file)"})
         history.append({"role": "assistant", "content": "⚠️ Please upload a CSV or XLSX file first."})
-        return history, None, None
+        yield history, None, None
+        return
 
     question = (question or "").strip() or (
         "Perform a full exploratory data analysis (EDA) on this dataset and "
@@ -297,6 +309,13 @@ correlation is possible). Aim for several charts, not just one.
 
 7. As your FINAL ANSWER, return the full Markdown report text.
 """
+        # See chat.py's chat_general_direct() matching comment — a no-op
+        # unless the "🧠 Enable Model Reasoning" toggle (⚙️ Model Settings)
+        # is off. Data Analysis's task prompt is already long, so a heavy
+        # thinking-tuned model has even less MAX_NEW_TOKENS headroom left
+        # for its actual code — this is one of the tabs most likely to
+        # benefit from turning reasoning off.
+        task = mr.apply_reasoning_toggle(task)
         t0 = time.time()
         # reset=False keeps this CodeAgent's memory across turns on the
         # SAME dataset (e.g. "now also break that down by region" after an
@@ -305,7 +324,16 @@ correlation is possible). Aim for several charts, not just one.
         # right after via agent_memory.cap_agent_memory(), and fully reset
         # above whenever the uploaded file(s) change. reset=True (memory
         # checkbox off) makes every question stateless instead.
-        result = agent.run(task, reset=not use_memory)
+        # Live step streaming — see agent_streaming.stream_agent_steps()'s
+        # docstring / chat.py's matching usage in the other agentic tabs.
+        result = None
+        for step_msg, is_final, final_output in agent_streaming.stream_agent_steps(agent, task, reset=not use_memory):
+            if not is_final:
+                if step_msg is not None:
+                    history.append(step_msg)
+                    yield history, gr.update(), gr.update()
+                continue
+            result = final_output
         if use_memory:
             agent_memory.cap_agent_memory(agent, max_turns=DATA_AGENT_MEMORY_TURNS)
         elapsed = time.time() - t0
@@ -320,9 +348,11 @@ correlation is possible). Aim for several charts, not just one.
 
         chart_files = sorted(str(p) for p in Path(mr.DATA_OUTPUT_DIR).glob("*.png"))
         report_file = report_path if Path(report_path).exists() else None
-        return history, (chart_files or None), report_file
+        yield history, (chart_files or None), report_file
+        return
 
     except Exception as e:
         import traceback
         history.append({"role": "assistant", "content": f"❌ {e}\n\n{traceback.format_exc()}"})
-        return history, None, None
+        yield history, None, None
+        return

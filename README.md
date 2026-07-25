@@ -18,6 +18,7 @@
 - **🧠 វិន្ដូបរិបទ (Context Window) ដែលកំណត់បានតាមចិត្ត**៖ ជ្រើសរើសពី 4K ដល់ 128K សម្រាប់ម៉ូដែល GGUF ដោយផ្ទាល់ក្នុង UI
 - **ការរកឃើញ GPU មិនត្រូវគ្នា**៖ បង្ហាញការព្រមានច្បាស់លាស់ក្នុង UI ប្រសិនបើ GPU ចាស់ (ឧ. Pascal/sm_6x) មិនត្រូវបានគាំទ្រដោយ PyTorch build បច្ចុប្បន្ន ជំនួសឱ្យការគាំងស្ងាត់ៗ
 - **Data Analysis Agent** ឥឡូវអាចដំឡើង Python package ខ្វះខាតដោយខ្លួនឯង (`install_package` tool) ហើយធ្វើ EDA ពេញលេញជាមួយក្រាហ្វិកច្រើន
+- **🔧 ការជ្រើសរើសម៉ូដែល Embedding ឥតបញ្ហា**៖ ពេលប្តូរម៉ូដែល embedding (ឧ. BGE-M3 → Qwen3-Embedding-4B) ChromaDB បង្កើត collection ដាច់ដោយឡែកស្វ័យប្រវត្តិដោយបន្ថែក dimension suffix (`rag_docs_1024d`, `rag_docs_2560d`, `rag_docs_2048d`) — ជៀសវាងកំហុស "vector dimension mismatch" ដែលកើតឡើងពេលម៉ូដែលមាន vector dimension ខុសគ្នាចែករំលែក collection តែមួយ
 
 ### 📑 មាតិកា
 - [ស្ថាបត្យកម្ម](#️-ស្ថាបត្យកម្ម)

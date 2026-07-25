@@ -308,7 +308,7 @@ GENERAL_AGENT_INSTRUCTIONS = (
 )
 
 
-def build_task_with_citation_reminder(user_message: str) -> str:
+def build_task_with_citation_reminder(user_message: str, lang_key: str = "kh") -> str:
     """Wrap the user's message with an explicit, PER-TASK reminder of the
     citation requirement — a second layer on top of
     GENERAL_AGENT_INSTRUCTIONS, mirroring rag_agent.build_strict_task()'s
@@ -330,8 +330,9 @@ def build_task_with_citation_reminder(user_message: str) -> str:
     gap — same reasoning rag_agent.py already applies to its own
     strict-grounding instructions.
     """
+    kh = "ឆ្លើយជាភាសាខ្មែរ។\n\n" if lang_key == "kh" else ""
     return (
-        f"{user_message}\n\n"
+        kh + f"{user_message}\n\n"
         "---\n"
         "Reminder: if you use web_search or visit_webpage to answer this, "
         "cite each such claim in-text with a bracketed number (e.g. [1]) "

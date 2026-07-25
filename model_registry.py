@@ -114,7 +114,129 @@ VISUAL_INDEX_DIR    = "./visual_index"
 CHUNK_SIZE          = 1024
 CHUNK_OVERLAP       = 128
 TOP_K               = 4
-MAX_NEW_TOKENS      = 512
+# NOTE: this budget covers BOTH the model's internal <think>...</think>
+# reasoning AND its actual answer — they share the same generation call
+# (see models._call_llm() / llama_backend.LlamaServerModel.generate()).
+# 512 was fine for small non-reasoning models, but "thinking"-tuned
+# models (e.g. Qwen3.x, Qwen3.6-35B-A3B) can burn the entire budget just
+# reasoning about a longer/multi-part prompt, leaving nothing left for
+# the answer itself — format_llm_response() in chat.py then has an empty
+# or unclosed <think> section and the chat bubble looks blank even
+# though generation "succeeded".
+#
+# Raised again from 2048 -> 4096: 2048 was still getting cut off mid-
+# generation on longer agentic outputs — observed concretely on Deep
+# Research's report-writing step, where a CodeAgent step ran out of
+# budget in the middle of writing a Python triple-quoted report string
+# and got cut off before the closing `"""`, which then failed to parse
+# with "SyntaxError: unterminated triple-quoted string literal" — a
+# genuine truncation, not a real code mistake by the model. Data
+# Analysis's EDA reports and Deep Research's multi-section Markdown
+# reports are the longest single generations in this app and are the
+# most likely to need this room. If responses still feel truncated on a
+# heavy reasoning model or a long report, raise this further (it does
+# cost more time/VRAM per turn — the GGUF KV-cache size is governed
+# separately by CONTEXT_WINDOW_OPTIONS below, not by this value).
+MAX_NEW_TOKENS      = 4096
+
+# ──────────────────────────────────────────────────────────────────
+# Max New Tokens — now user-configurable from the UI (⚙️ Model Settings),
+# instead of only the hardcoded MAX_NEW_TOKENS constant above (kept as
+# the fallback default). Persisted the same way as CONTEXT_WINDOW_OPTIONS
+# below, so the choice survives an app restart. See models.get_llm() /
+# models._call_llm() for where this is actually applied — every backend
+# (in-process llama.cpp, llama-server, and HuggingFace/transformers) reads
+# get_saved_max_new_tokens() rather than the bare constant now.
+#
+# Why this matters in practice: this budget is SHARED between a model's
+# internal <think>...</think> reasoning and its actual answer/code (see
+# MAX_NEW_TOKENS's own docstring above) — a heavy "thinking"-tuned model
+# (e.g. Qwen3.6-35B-A3B) can burn the entire budget reasoning and never
+# emit an actual answer or tool call, which shows up in agentic tabs as
+# a step that parses to an EMPTY code block ("Executing parsed code:"
+# with nothing between the separators, `Out: None`) — a wasted step, not
+# a tool-access failure. Raising this (or turning reasoning off via
+# REASONING_DISABLE_TAG below) is the direct fix.
+# ──────────────────────────────────────────────────────────────────
+MAX_NEW_TOKENS_OPTIONS = {
+    "1024  (fast, short answers)":                             1024,
+    "2048":                                                    2048,
+    "4096  (default)":                                         4096,
+    "8192  (long reasoning / reports)":                        8192,
+    "16384 (very long reasoning models, e.g. Qwen3.6-35B-A3B)": 16384,
+}
+DEFAULT_MAX_NEW_TOKENS_LABEL = "4096  (default)"
+DEFAULT_MAX_NEW_TOKENS = MAX_NEW_TOKENS_OPTIONS[DEFAULT_MAX_NEW_TOKENS_LABEL]
+
+
+def get_saved_max_new_tokens() -> int:
+    """Read the persisted max-new-tokens budget, falling back to the
+    4096 default if nothing was ever saved or the saved value is corrupt
+    — same "safe default wins" pattern as get_saved_context_window()."""
+    try:
+        n = int(user_config.USER_CONFIG.get("max_new_tokens", DEFAULT_MAX_NEW_TOKENS))
+        return n if n > 0 else DEFAULT_MAX_NEW_TOKENS
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_NEW_TOKENS
+
+
+def get_saved_max_new_tokens_label() -> str:
+    """Reverse-lookup the dropdown label matching the persisted budget,
+    for initializing the UI dropdown's value to whatever was saved last
+    time — mirrors get_saved_context_window_label()."""
+    saved = get_saved_max_new_tokens()
+    for label, value in MAX_NEW_TOKENS_OPTIONS.items():
+        if value == saved:
+            return label
+    return DEFAULT_MAX_NEW_TOKENS_LABEL
+
+
+def set_max_new_tokens(n: int) -> None:
+    """Persist the chosen max-new-tokens budget so it survives an app
+    restart — mirrors set_context_window()'s persistence pattern."""
+    user_config.save_user_config({"max_new_tokens": int(n)})
+
+
+# ──────────────────────────────────────────────────────────────────
+# Reasoning ("thinking") on/off toggle — user-configurable from the UI.
+#
+# Qwen3/Qwen3.5/Qwen3.6's own chat template looks for the literal
+# substring "/no_think" (or "/think") anywhere in the LAST user turn and
+# toggles its <think>...</think> reasoning block accordingly — this is
+# the model family's own documented mechanism, not something this app
+# invents. Prepending it to every prompt when the user has reasoning
+# turned off is a direct, low-risk way to stop a heavy thinking-tuned
+# model from spending its entire MAX_NEW_TOKENS budget on internal
+# reasoning and never reaching a real answer/tool call (see
+# MAX_NEW_TOKENS_OPTIONS's docstring above for the failure mode this
+# fixes). On non-Qwen3 models this is simply inert extra text most
+# templates ignore — harmless either way.
+# ──────────────────────────────────────────────────────────────────
+REASONING_DISABLE_TAG = "/no_think"
+
+
+def get_saved_reasoning_enabled() -> bool:
+    """Whether model reasoning is currently enabled (default: True — no
+    behaviour change unless the user explicitly turns it off)."""
+    return bool(user_config.USER_CONFIG.get("reasoning_enabled", True))
+
+
+def set_reasoning_enabled(enabled: bool) -> None:
+    """Persist the reasoning on/off choice so it survives an app restart
+    — mirrors set_context_window()'s persistence pattern."""
+    user_config.save_user_config({"reasoning_enabled": bool(enabled)})
+
+
+def apply_reasoning_toggle(text: str) -> str:
+    """Prepend REASONING_DISABLE_TAG to `text` when the user has disabled
+    reasoning via the UI checkbox; a no-op passthrough otherwise. Callers
+    (chat.py / data_analysis.py) apply this to every prompt/task string
+    right before it reaches the model, on every tab (direct and agentic).
+    """
+    if get_saved_reasoning_enabled():
+        return text
+    return f"{REASONING_DISABLE_TAG}\n{text}"
+
 
 DATA_ANALYSIS_DIR   = "./data_analysis"
 DATA_UPLOAD_DIR      = f"{DATA_ANALYSIS_DIR}/uploads"
@@ -239,6 +361,76 @@ def set_llm_backend_mode(mode: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────
+# llama-server (external process) backend — PER-REQUEST HTTP timeout.
+#
+# LlamaServerModel.generate() (llama_backend.py) posts to llama-server's
+# /v1/chat/completions endpoint with a fixed request timeout. Previously
+# this was hardcoded at 300s in LlamaServerModel's own default and never
+# overridden by models.get_llm() — which is fine for small/fast models,
+# but a large local GGUF model (e.g. a 30B+ MoE checkpoint) combined with
+# a long accumulated agentic prompt (Deep Research's manager+sub-agent
+# history, MAX_NEW_TOKENS=4096) can easily need more than 300s for a
+# single generation. When that happens, LlamaServerModel.generate()
+# doesn't crash — it catches the timeout and returns a fake assistant
+# ChatMessage containing a "⚠️ llama-server request failed... Read timed
+# out" warning (see that method's docstring/comment) — which smolagents'
+# CodeAgent then tries to regex-parse as a ```python code block, fails,
+# and reports a confusing "Error in code parsing" instead of the real
+# "this just needs more time" issue.
+#
+# Exposed as a persisted user setting (same pattern as
+# get_saved_context_window() above) instead of just raising the
+# hardcoded default, since the right value genuinely depends on the
+# user's model size/hardware — a small model on a fast GPU doesn't need
+# 20 minutes per request, but a large CPU-bound MoE model might.
+# ──────────────────────────────────────────────────────────────────
+LLAMA_SERVER_TIMEOUT_OPTIONS = {
+    "60s   (fast small models)":                       60,
+    "120s":                                             120,
+    "300s  (default)":                                  300,
+    "600s  (10 min — large/CPU-bound models)":          600,
+    "1200s (20 min — very large MoE models on CPU)":    1200,
+    "1800s (30 min — maximum patience)":                1800,
+}
+DEFAULT_LLAMA_SERVER_TIMEOUT_LABEL = "300s  (default)"
+DEFAULT_LLAMA_SERVER_TIMEOUT = LLAMA_SERVER_TIMEOUT_OPTIONS[DEFAULT_LLAMA_SERVER_TIMEOUT_LABEL]
+
+
+def get_saved_llm_server_timeout() -> int:
+    """Read the persisted llama-server per-request HTTP timeout (seconds),
+    falling back to the 300s default if nothing was ever saved or the
+    saved value is corrupt — same "safe default wins" pattern as
+    get_saved_context_window()."""
+    try:
+        n = int(user_config.USER_CONFIG.get("llama_server_timeout", DEFAULT_LLAMA_SERVER_TIMEOUT))
+        return n if n > 0 else DEFAULT_LLAMA_SERVER_TIMEOUT
+    except (TypeError, ValueError):
+        return DEFAULT_LLAMA_SERVER_TIMEOUT
+
+
+def get_saved_llm_server_timeout_label() -> str:
+    """Reverse-lookup the dropdown label matching the persisted timeout,
+    for initializing the UI dropdown's value to whatever was saved last
+    time — mirrors get_saved_context_window_label()."""
+    saved = get_saved_llm_server_timeout()
+    for label, value in LLAMA_SERVER_TIMEOUT_OPTIONS.items():
+        if value == saved:
+            return label
+    return DEFAULT_LLAMA_SERVER_TIMEOUT_LABEL
+
+
+def set_llm_server_timeout(seconds: int) -> None:
+    """Persist the chosen llama-server per-request timeout so it survives
+    an app restart — mirrors set_context_window()'s persistence pattern.
+    Takes effect the next time a request is made (LlamaServerModel is
+    lightweight to reconstruct — no subprocess restart needed, unlike a
+    context-window or backend-mode change, since this only affects the
+    Python-side `requests.post(..., timeout=...)` call, not llama-server
+    itself)."""
+    user_config.save_user_config({"llama_server_timeout": int(seconds)})
+
+
+# ──────────────────────────────────────────────────────────────────
 # Agentic CodeAgent step budget — scaled down for larger/slower local
 # models. A broken step-parsing loop (e.g. a model that writes plain
 # prose instead of a ```python fenced block) costs roughly the same
@@ -325,6 +517,42 @@ GEMMA4_IDS = {
 }
 
 # ──────────────────────────────────────────────────────────────────
+# Hugging Face Inference API — sentinel + persisted settings.
+#
+# When the user picks this sentinel from the model dropdown,
+# models.get_llm() builds smolagents.InferenceClientModel instead of
+# loading weights locally. Pattern matches the existing
+# get_saved_llm_server_timeout() / set_llm_server_timeout().
+# ──────────────────────────────────────────────────────────────────
+HF_INFERENCE_API_SENTINEL = "__hf_inference_api__"
+
+
+def get_saved_hf_token() -> str:
+    return str(user_config.USER_CONFIG.get("hf_token", ""))
+
+
+def set_hf_token(token: str) -> None:
+    user_config.save_user_config({"hf_token": token})
+
+
+def get_saved_hf_model_id() -> str:
+    saved = str(user_config.USER_CONFIG.get("hf_model_id", "")).strip()
+    return saved if saved else "Qwen/Qwen3.6-35B-A3B"
+
+
+def set_hf_model_id(model_id: str) -> None:
+    user_config.save_user_config({"hf_model_id": model_id})
+
+
+def get_saved_hf_provider() -> str:
+    return str(user_config.USER_CONFIG.get("hf_provider", ""))
+
+
+def set_hf_provider(provider: str) -> None:
+    user_config.save_user_config({"hf_provider": provider})
+
+
+# ──────────────────────────────────────────────────────────────────
 # LLM (HuggingFace + GGUF) options
 # ──────────────────────────────────────────────────────────────────
 BASE_MODEL_OPTIONS = {
@@ -363,6 +591,11 @@ BASE_MODEL_OPTIONS = {
     "🟣 Gemma-4-12B-it    (~25 GB RAM | 16GB-VRAM tier | needs transformers>=5.10.1)": "google/gemma-4-12B-it",
     "🟣 Gemma-4-26B-A4B-it (~52 GB RAM, MoE ~4B active | 24GB-VRAM tier | needs transformers>=5.10.1)": "google/gemma-4-26B-A4B-it",
     "🟣 Gemma-4-31B-it    (~63 GB RAM | 48GB+-VRAM tier | needs transformers>=5.10.1)": "google/gemma-4-31B-it",
+    # Hugging Face Inference API — remote, no local weights needed. Picked via
+    # the same model dropdown; models.get_llm() detects the sentinel and builds
+    # smolagents.InferenceClientModel instead of loading locally. Requires a
+    # HF API token and model ID configured in the Model Settings accordion.
+    "🌐 Hugging Face Inference API (remote, configure below)": HF_INFERENCE_API_SENTINEL,
 }
 
 # MODEL_OPTIONS starts as a copy of the base HuggingFace models. Any local
@@ -376,6 +609,7 @@ MODEL_OPTIONS = dict(BASE_MODEL_OPTIONS)
 MODEL_OPTIONS.update(llama_backend.discover_gguf_models())
 
 DEFAULT_LLM_LABEL = "🟢 Qwen3-0.6B   (~1.2 GB RAM | fastest)"
+
 # NOTE: unlike DEFAULT_EMBED_MODEL / DEFAULT_VLM_LABEL above, the default
 # LLM deliberately does NOT auto-upgrade to a hardware-tier-recommended
 # larger model. The embedding model is an invisible backend component and

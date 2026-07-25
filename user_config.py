@@ -25,6 +25,7 @@ def save_user_config(updates: dict) -> None:
         data = load_user_config()
         data.update(updates)
         USER_CONFIG_PATH.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        USER_CONFIG.update(updates)
     except Exception as e:
         print(f"[Config] Could not write '{USER_CONFIG_PATH}': {e}")
 

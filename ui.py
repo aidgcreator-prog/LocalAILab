@@ -149,76 +149,140 @@ def build_ui():
         # selected language instead of staying stuck in Khmer/English.
         gpu_warning_html = gr.HTML(value=_gpu_warning_html("kh"))
 
-        # ── GGUF model folder (optional, user-configurable) ─────────
-        # No path is hardcoded — leave blank to skip GGUF entirely, or
-        # point it at any folder of .gguf files and click Scan. This can
-        # also be pre-set via the LLAMA_CPP_MODEL_DIR environment variable.
-        # The scan-result textbox stays hidden until a scan actually runs.
-        with gr.Row():
-            gguf_dir_tb = gr.Textbox(
-                value=llama_backend.LLAMA_CPP_MODEL_DIR,
-                placeholder=L["gguf_dir_placeholder"],
-                label=L["label_gguf_dir"], scale=8,
-            )
-            scan_gguf_btn = gr.Button(L["btn_scan_gguf"], scale=1)
-            ctx_window_dd = gr.Dropdown(
-                choices=list(mr.CONTEXT_WINDOW_OPTIONS.keys()),
-                value=mr.get_saved_context_window_label(),
-                label=L["label_context_window"],
-                info=L["info_context_window"],
-                scale=3,
-            )
-        gguf_scan_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-        ctx_window_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-        with gr.Accordion(L["accordion_details"], open=False) as acc_ctx_detail:
-            ctx_window_detail_md = gr.Markdown(L["info_context_window_detail"])
+        with gr.Accordion(L["accordion_model_settings"], open=False) as acc_model_settings:
+            # ── GGUF model folder (optional, user-configurable) ─────────
+            # No path is hardcoded — leave blank to skip GGUF entirely, or
+            # point it at any folder of .gguf files and click Scan. This can
+            # also be pre-set via the LLAMA_CPP_MODEL_DIR environment variable.
+            # The scan-result textbox stays hidden until a scan actually runs.
+            with gr.Row():
+                gguf_dir_tb = gr.Textbox(
+                    value=llama_backend.LLAMA_CPP_MODEL_DIR,
+                    placeholder=L["gguf_dir_placeholder"],
+                    label=L["label_gguf_dir"], scale=8,
+                )
+                scan_gguf_btn = gr.Button(L["btn_scan_gguf"], scale=1)
+                ctx_window_dd = gr.Dropdown(
+                    choices=list(mr.CONTEXT_WINDOW_OPTIONS.keys()),
+                    value=mr.get_saved_context_window_label(),
+                    label=L["label_context_window"],
+                    info=L["info_context_window"],
+                    scale=3,
+                )
+            gguf_scan_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+            ctx_window_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+            with gr.Accordion(L["accordion_details"], open=False) as acc_ctx_detail:
+                ctx_window_detail_md = gr.Markdown(L["info_context_window_detail"])
 
-        # ── LLM Backend (GGUF only): in-process llama-cpp-python vs an ──
-        # external llama-server.exe process talked to over HTTP — see
-        # llama_backend.py's "llama-server (external process) backend"
-        # section and models.get_llm()'s GGUF branch for how this is
-        # actually dispatched. The exe path (like the GGUF folder above)
-        # is never hardcoded — leave it empty to keep using the original
-        # in-process backend.
-        with gr.Row():
-            llama_server_exe_tb = gr.Textbox(
-                value=llama_backend.LLAMA_SERVER_EXE_PATH,
-                placeholder=r"e.g. D:\llama.cpp\llama-server.exe — leave empty to use the in-process backend only",
-                label="🖥️ llama-server.exe Path", scale=6,
-            )
-            llama_server_args_tb = gr.Textbox(
-                value=llama_backend.LLAMA_SERVER_EXTRA_ARGS,
-                placeholder="optional extra flags, e.g. --flash-attn --parallel 2",
-                label="Extra llama-server Args", scale=4,
-            )
-            llm_backend_dd = gr.Dropdown(
-                choices=list(mr.LLM_BACKEND_MODE_OPTIONS.keys()),
-                value=mr.get_saved_llm_backend_label(),
-                label="⚙️ LLM Backend (GGUF only)", scale=4,
-            )
-        llama_server_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-        with gr.Accordion(L["accordion_details"], open=False) as acc_llama_server_detail:
-            llama_server_detail_md = gr.Markdown(
-                "The default backend (**llama-cpp-python, in-process**) loads a "
-                "`.gguf` model directly inside this app's own Python process — "
-                "no extra setup needed beyond what SETUP.bat already installs.\n\n"
-                "**llama-server (external process)** instead launches a real "
-                "`llama-server` executable (from "
-                "[llama.cpp's releases](https://github.com/ggml-org/llama.cpp/releases), "
-                "or your own build) as a separate process and talks to it over "
-                "its OpenAI-compatible HTTP API. Use this if you have a "
-                "custom/optimized `llama-server` build, want a model to stay "
-                "loaded independently of this app, or don't have "
-                "llama-cpp-python installed at all. It reuses the exact same "
-                "GGUF model folder configured above — only *how* a selected "
-                "model actually runs changes, not where models are found.\n\n"
-                "Point '🖥️ llama-server.exe Path' at the executable, optionally "
-                "add extra CLI flags, then switch '⚙️ LLM Backend' to the "
-                "server option. The process is started lazily on first use and "
-                "reused across turns/tabs as long as the model, context window, "
-                "and backend selection don't change; it's stopped automatically "
-                "when you switch back, change those settings, or close the app."
-            )
+            # ── Max New Tokens + Reasoning toggle ────────────────────────
+            # Both apply globally, to every tab/model backend. See
+            # model_registry.py's MAX_NEW_TOKENS_OPTIONS / REASONING_
+            # DISABLE_TAG docstrings for the full "why": MAX_NEW_TOKENS is
+            # SHARED between a model's <think>...</think> reasoning and its
+            # actual answer/code — a heavy thinking-tuned model (e.g.
+            # Qwen3.6-35B-A3B) can burn the whole budget reasoning and never
+            # write a real answer or tool call, which shows up in agentic
+            # tabs as a step that parses to an EMPTY code block ("Executing
+            # parsed code:" with nothing between the separators, Out: None)
+            # — a wasted step, not a tool-access failure. Raising the token
+            # budget and/or turning reasoning off directly addresses this.
+            with gr.Row():
+                max_tokens_dd = gr.Dropdown(
+                    choices=list(mr.MAX_NEW_TOKENS_OPTIONS.keys()),
+                    value=mr.get_saved_max_new_tokens_label(),
+                    label="🧮 Max New Tokens",
+                    info="Shared between a model's reasoning and its actual answer/code",
+                    scale=5,
+                )
+                reasoning_chk = gr.Checkbox(
+                    label="🧠 Enable Model Reasoning",
+                    value=mr.get_saved_reasoning_enabled(),
+                    info="Off = adds '/no_think' to every prompt (Qwen3-family models only; harmless no-op on others)",
+                    scale=5,
+                )
+            max_tokens_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+
+            # ── LLM Backend (GGUF only): in-process llama-cpp-python vs an ──
+            # external llama-server.exe process talked to over HTTP — see
+            # llama_backend.py's "llama-server (external process) backend"
+            # section and models.get_llm()'s GGUF branch for how this is
+            # actually dispatched. The exe path (like the GGUF folder above)
+            # is never hardcoded — leave it empty to keep using the original
+            # in-process backend.
+            with gr.Row():
+                llama_server_exe_tb = gr.Textbox(
+                    value=llama_backend.LLAMA_SERVER_EXE_PATH,
+                    placeholder=r"e.g. D:\llama.cpp\llama-server.exe — leave empty to use the in-process backend only",
+                    label="🖥️ llama-server.exe Path", scale=6,
+                )
+                llama_server_args_tb = gr.Textbox(
+                    value=llama_backend.LLAMA_SERVER_EXTRA_ARGS,
+                    placeholder="optional extra flags, e.g. --flash-attn --parallel 2",
+                    label="Extra llama-server Args", scale=4,
+                )
+                llm_backend_dd = gr.Dropdown(
+                    choices=list(mr.LLM_BACKEND_MODE_OPTIONS.keys()),
+                    value=mr.get_saved_llm_backend_label(),
+                    label="⚙️ LLM Backend (GGUF only)", scale=4,
+                )
+                llama_server_timeout_dd = gr.Dropdown(
+                    choices=list(mr.LLAMA_SERVER_TIMEOUT_OPTIONS.keys()),
+                    value=mr.get_saved_llm_server_timeout_label(),
+                    label="⏱️ llama-server Request Timeout", scale=3,
+                )
+            llama_server_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+            with gr.Accordion(L["accordion_details"], open=False) as acc_llama_server_detail:
+                llama_server_detail_md = gr.Markdown(
+                    "The default backend (**llama-cpp-python, in-process**) loads a "
+                    "`.gguf` model directly inside this app's own Python process — "
+                    "no extra setup needed beyond what SETUP.bat already installs.\n\n"
+                    "**llama-server (external process)** instead launches a real "
+                    "`llama-server` executable (from "
+                    "[llama.cpp's releases](https://github.com/ggml-org/llama.cpp/releases), "
+                    "or your own build) as a separate process and talks to it over "
+                    "its OpenAI-compatible HTTP API. Use this if you have a "
+                    "custom/optimized `llama-server` build, want a model to stay "
+                    "loaded independently of this app, or don't have "
+                    "llama-cpp-python installed at all. It reuses the exact same "
+                    "GGUF model folder configured above — only *how* a selected "
+                    "model actually runs changes, not where models are found.\n\n"
+                    "Point '🖥️ llama-server.exe Path' at the executable, optionally "
+                    "add extra CLI flags, then switch '⚙️ LLM Backend' to the "
+                    "server option. The process is started lazily on first use and "
+                    "reused across turns/tabs as long as the model, context window, "
+                    "and backend selection don't change; it's stopped automatically "
+                    "when you switch back, change those settings, or close the app.\n\n"
+                    "**⏱️ llama-server Request Timeout**: how long (in seconds) this "
+                    "app will wait for a single generation to finish before giving "
+                    "up. The default (300s) is enough for most models, but a large "
+                    "or CPU-bound model (e.g. a 30B+ MoE GGUF checkpoint) combined "
+                    "with a long agentic prompt — Deep Research's manager+sub-agent "
+                    "history especially — can genuinely need more time than that. "
+                    "If you see an error like '⚠️ llama-server didn't finish "
+                    "responding within 300s' or 'Error in code parsing' right after "
+                    "a long pause, raise this value and retry. Takes effect on the "
+                    "next request — no need to reload the model or restart "
+                    "llama-server."
+                )
+            with gr.Row():
+                hf_token_tb = gr.Textbox(
+                    value=mr.get_saved_hf_token(),
+                    placeholder="hf_... or your HF API token",
+                    label="🤗 HF API Token", type="password", scale=4,
+                )
+                hf_model_id_tb = gr.Textbox(
+                    value=mr.get_saved_hf_model_id(),
+                    placeholder="e.g. Qwen/Qwen3.6-35B-A3B",
+                    label="🤗 HF Model ID", scale=4,
+                )
+                hf_provider_tb = gr.Textbox(
+                    value=mr.get_saved_hf_provider(),
+                    placeholder="optional — leave blank for auto",
+                    label="🤗 HF Provider (optional)", scale=3,
+                )
+            hf_api_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+            free_vram_btn = gr.Button(L["btn_free_vram"], variant="stop", size="sm")
+            free_vram_out = gr.Textbox(show_label=False, interactive=False, visible=False)
 
         # ── Tabs ──────────────────────────────────────────────────
         with gr.Tabs():
@@ -386,6 +450,9 @@ def build_ui():
                     file_up    = gr.File(label=L["file_label"], file_types=[".pdf",".txt",".md",".docx"], file_count="multiple")
                     vis_ret_dd = gr.Dropdown(choices=list(mr.VISUAL_RETRIEVER_OPTIONS.keys()), value=list(mr.VISUAL_RETRIEVER_OPTIONS.keys())[0], label=L["label_vis_ret"])
                     with gr.Row():
+                        theme_tb    = gr.Textbox(label=L["theme_label"], placeholder=L["theme_placeholder"], scale=1)
+                        subtheme_tb = gr.Textbox(label=L["subtheme_label"], placeholder=L["subtheme_placeholder"], scale=1)
+                    with gr.Row():
                         up_btn             = gr.Button(L["btn_index"], variant="primary", scale=3)
                         unload_visual_btn  = gr.Button(L["btn_unload"], size="sm", scale=2)
                     up_msg = gr.Textbox(label=L["label_res"], interactive=False, lines=4, visible=False)
@@ -393,7 +460,7 @@ def build_ui():
                 with gr.Accordion(L["label_kb_docs"], open=False) as acc_kb_docs:
                     doc_table = gr.Dataframe(
                         headers=L["doc_table_headers"],
-                        datatype=["str","str","str","number"],
+                        datatype=["str","str","str","number","str","str"],
                         value=kb.get_doc_table,
                         interactive=True, wrap=True,
                     )
@@ -417,6 +484,9 @@ def build_ui():
                             value="…", interactive=False,
                             show_label=False, elem_classes=["status-bar"]
                         )
+                        with gr.Row():
+                            theme_tb_rag    = gr.Textbox(label=L["theme_label"], placeholder=L["theme_placeholder"], scale=1)
+                            subtheme_tb_rag = gr.Textbox(label=L["subtheme_label"], placeholder=L["subtheme_placeholder"], scale=1)
                         rag_agentic_chk = gr.Checkbox(
                             label=L["label_rag_agentic"], value=True,
                             info=L["info_rag_agentic"],
@@ -428,6 +498,11 @@ def build_ui():
                         with gr.Accordion(L["accordion_details"], open=False) as acc_rag_detail:
                             rag_agentic_detail_md = gr.Markdown(L["info_rag_agentic_detail"])
                             rag_memory_detail_md  = gr.Markdown(L["info_memory_detail"])
+                        with gr.Accordion("Advanced Agent Settings", open=False):
+                            rag_max_steps = gr.Slider(
+                                minimum=1, maximum=15, step=1, value=6,
+                                label="Max Steps (agentic mode only)",
+                            )
                         model_dd_rag = gr.Dropdown(choices=list(mr.MODEL_OPTIONS.keys()), value=mr.DEFAULT_LLM_LABEL, label=L["label_llm"])
                         with gr.Row():
                             reload_rag     = gr.Button(L["btn_load"], size="sm")
@@ -475,7 +550,7 @@ def build_ui():
                                 label="Search Sub-agent Max Steps"
                             )
                             dr_timeout = gr.Slider(
-                                minimum=30, maximum=300, step=10, value=90,
+                                minimum=30, maximum=1200, step=10, value=300,
                                 label="Code Execution Timeout (seconds)"
                             )
                         with gr.Accordion(L["accordion_details"], open=False) as acc_dr_detail:
@@ -558,6 +633,35 @@ def build_ui():
 
         ctx_window_dd.change(do_change_context_window, [ctx_window_dd], [ctx_window_status])
 
+        # ── Max New Tokens + Reasoning toggle ─────────────────────────
+        def do_change_max_new_tokens(label):
+            n = mr.MAX_NEW_TOKENS_OPTIONS.get(label, mr.DEFAULT_MAX_NEW_TOKENS)
+            mr.set_max_new_tokens(n)
+            # LlamaCppModel / LlamaServerModel both read self.max_new_tokens
+            # fresh on every generate() call — mutate it in place on an
+            # already-loaded model instead of forcing a full multi-GB
+            # reload just for a token-count tweak. TransformersModel may
+            # not expose this the same way depending on smolagents
+            # version, in which case this just falls through to "applies
+            # next load" below, which is still accurate.
+            if models._llm is not None and hasattr(models._llm, "max_new_tokens"):
+                models._llm.max_new_tokens = n
+                msg = f"✅ Max new tokens set to {n} — applied immediately."
+            else:
+                msg = f"✅ Max new tokens set to {n} — will apply next time a model loads."
+            return gr.update(value=msg, visible=True)
+
+        def do_change_reasoning(enabled):
+            mr.set_reasoning_enabled(enabled)
+            msg = ("✅ Reasoning enabled." if enabled else
+                   "✅ Reasoning disabled — '/no_think' will be prepended to every "
+                   "prompt from now on (only Qwen3-family models respect this tag; "
+                   "other models simply ignore it as harmless extra text).")
+            return gr.update(value=msg, visible=True)
+
+        max_tokens_dd.change(do_change_max_new_tokens, [max_tokens_dd], [max_tokens_status])
+        reasoning_chk.change(do_change_reasoning, [reasoning_chk], [max_tokens_status])
+
         # ── llama-server (external process) backend controls ────────
         def _reset_every_agent_cache():
             # Every agentic CodeAgent wrapper holds its own reference to
@@ -602,9 +706,65 @@ def build_ui():
                       if had_model_loaded and str(currently_loaded).lower().endswith(".gguf") else ""))
             return gr.update(value=msg, visible=True)
 
+        def do_change_llama_server_timeout(label):
+            seconds = mr.LLAMA_SERVER_TIMEOUT_OPTIONS.get(label, mr.DEFAULT_LLAMA_SERVER_TIMEOUT)
+            mr.set_llm_server_timeout(seconds)
+            # This only affects the Python-side `requests.post(...,
+            # timeout=...)` call in LlamaServerModel.generate()
+            # (llama_backend.py) — llama-server itself (the actual
+            # subprocess doing generation) is completely untouched by this
+            # setting. So if a LlamaServerModel is already loaded, mutate
+            # its `.timeout` attribute directly in place rather than going
+            # through force_reload_llm()/_release_model() — that path would
+            # call llama_backend.stop_llama_server() and respawn the whole
+            # external process (a multi-GB model reload) just to change one
+            # in-Python integer, which is both unnecessary and far slower
+            # than the fix it's applying.
+            if models._llm is not None and isinstance(models._llm, llama_backend.LlamaServerModel):
+                models._llm.timeout = seconds
+                msg = f"✅ llama-server request timeout set to {seconds}s — applied immediately (server left running)."
+            else:
+                msg = f"✅ llama-server request timeout set to {seconds}s — will apply next time a llama-server request is made."
+            return gr.update(value=msg, visible=True)
+
         llama_server_exe_tb.submit(do_set_llama_server_path, [llama_server_exe_tb], [llama_server_status])
         llama_server_args_tb.submit(do_set_llama_server_args, [llama_server_args_tb], [llama_server_status])
         llm_backend_dd.change(do_change_llm_backend, [llm_backend_dd], [llama_server_status])
+        llama_server_timeout_dd.change(do_change_llama_server_timeout, [llama_server_timeout_dd], [llama_server_status])
+
+        # ── Hugging Face Inference API settings ────────────────────
+        def do_set_hf_token(token):
+            mr.set_hf_token(token)
+            return gr.update(value=f"✅ HF API token saved.", visible=True)
+
+        def do_set_hf_model_id(model_id):
+            mr.set_hf_model_id(model_id)
+            return gr.update(value=f"✅ HF model ID saved: '{model_id}'", visible=True)
+
+        def do_set_hf_provider(provider):
+            mr.set_hf_provider(provider)
+            return gr.update(value=f"✅ HF provider saved: '{provider}'" if provider
+                              else "✅ HF provider cleared (will use auto).", visible=True)
+
+        hf_token_tb.submit(do_set_hf_token, [hf_token_tb], [hf_api_status])
+        hf_model_id_tb.submit(do_set_hf_model_id, [hf_model_id_tb], [hf_api_status])
+        hf_provider_tb.submit(do_set_hf_provider, [hf_provider_tb], [hf_api_status])
+
+        # ── Free All VRAM (unloads every model + resets all agents) ──
+        def do_free_vram(lang_key):
+            msgs = []
+            msgs.append(models.unload_llm_fn(lang_key))
+            msgs.append(models.unload_vlm_fn(lang_key))
+            msgs.append(models.unload_stt_fn(lang_key))
+            msgs.append(models.unload_embed_model_fn(lang_key))
+            msgs.append(kb.unload_visual_retriever_fn(lang_key))
+            general_agent.reset_agent()
+            rag_agent.reset_agent()
+            data_analysis.reset_agent()
+            deep_research_agent.reset_agent()
+            return gr.update(value="\n".join(msgs), visible=True)
+
+        free_vram_btn.click(do_free_vram, [lang_state], [free_vram_out])
 
         # General Chat
         def reload_gen_fn(label):
@@ -649,27 +809,34 @@ def build_ui():
                    if use_agentic else "🤖 Thinking…")
             return gr.update(value=msg, visible=True)
 
-        def do_chat_general(pending_message, history, model_label, use_agentic, use_memory):
-            # Wraps chat.chat_general() to also pop the conversation
-            # accordion open the moment there's something to show — it
-            # starts collapsed on every page load. Reads the message from
-            # pending_gen_msg (stashed by stash_gen above), NOT from
-            # msg_gen itself, which has already been cleared by the time
-            # this runs. Also hides the "thinking" status line shown by
-            # show_thinking_gen() above, now that the real answer is in.
-            history, _ = chat.chat_general(pending_message, history, model_label, use_agentic, use_memory)
-            return history, gr.update(open=True), gr.update(visible=False)
+        def do_chat_general(pending_message, history, model_label, use_agentic, use_memory, lang_key):
+            # chat.chat_general() is itself a generator (see chat.py):
+            # for the direct path it yields once; for the agentic path it
+            # yields once per LIVE agent step (thought/code, tool calls,
+            # output — see agent_streaming.py) before the polished final
+            # answer. Re-yielding here streams each of those straight into
+            # bot_gen as they arrive, instead of the UI sitting frozen
+            # behind "🤖 Thinking…" until the whole run finishes. The
+            # status line only clears on the LAST yield, once the loop
+            # below is actually exhausted.
+            last_history = history
+            for updated_history, _ in chat.chat_general(
+                pending_message, history, model_label, use_agentic, use_memory, lang_key=lang_key
+            ):
+                last_history = updated_history
+                yield last_history, gr.update(open=True), gr.update()
+            yield last_history, gr.update(open=True), gr.update(visible=False)
 
         msg_gen.submit(stash_gen, [msg_gen], [msg_gen, pending_gen_msg], queue=False).then(
             show_thinking_gen, [gen_agentic_chk], [status_gen], queue=False
         ).then(
-            do_chat_general, [pending_gen_msg, bot_gen, model_dd_gen, gen_agentic_chk, gen_memory_chk],
+            do_chat_general, [pending_gen_msg, bot_gen, model_dd_gen, gen_agentic_chk, gen_memory_chk, lang_state],
             [bot_gen, acc_gen_chat, status_gen]
         )
         send_gen.click(stash_gen, [msg_gen], [msg_gen, pending_gen_msg], queue=False).then(
             show_thinking_gen, [gen_agentic_chk], [status_gen], queue=False
         ).then(
-            do_chat_general, [pending_gen_msg, bot_gen, model_dd_gen, gen_agentic_chk, gen_memory_chk],
+            do_chat_general, [pending_gen_msg, bot_gen, model_dd_gen, gen_agentic_chk, gen_memory_chk, lang_state],
             [bot_gen, acc_gen_chat, status_gen]
         )
 
@@ -721,20 +888,30 @@ def build_ui():
                    if use_agentic else "📚 Retrieving context and thinking…")
             return gr.update(value=msg, visible=True)
 
-        def do_chat_rag(pending_message, history, model_label, use_agentic, use_memory):
-            history, _ = chat.chat_rag(pending_message, history, model_label, use_agentic, use_memory)
-            return history, gr.update(open=True), gr.update(visible=False)
+        def do_chat_rag(pending_message, history, model_label, use_agentic, use_memory, theme, subtheme, max_steps, lang_key):
+            # See do_chat_general()'s matching comment above — chat.chat_rag()
+            # is a generator on both paths; the agentic path streams a live
+            # bubble per retriever call / model step instead of one frozen
+            # "📚 Searching…" line for the whole run.
+            last_history = history
+            for updated_history, _ in chat.chat_rag(
+                pending_message, history, model_label, use_agentic, use_memory,
+                theme, subtheme, max_steps, lang_key=lang_key
+            ):
+                last_history = updated_history
+                yield last_history, gr.update(open=True), gr.update()
+            yield last_history, gr.update(open=True), gr.update(visible=False)
 
         msg_rag.submit(stash_rag, [msg_rag], [msg_rag, pending_rag_msg], queue=False).then(
             show_thinking_rag, [rag_agentic_chk], [status_rag], queue=False
         ).then(
-            do_chat_rag, [pending_rag_msg, bot_rag, model_dd_rag, rag_agentic_chk, rag_memory_chk],
+            do_chat_rag, [pending_rag_msg, bot_rag, model_dd_rag, rag_agentic_chk, rag_memory_chk, theme_tb_rag, subtheme_tb_rag, rag_max_steps, lang_state],
             [bot_rag, acc_rag_chat, status_rag]
         )
         send_rag.click(stash_rag, [msg_rag], [msg_rag, pending_rag_msg], queue=False).then(
             show_thinking_rag, [rag_agentic_chk], [status_rag], queue=False
         ).then(
-            do_chat_rag, [pending_rag_msg, bot_rag, model_dd_rag, rag_agentic_chk, rag_memory_chk],
+            do_chat_rag, [pending_rag_msg, bot_rag, model_dd_rag, rag_agentic_chk, rag_memory_chk, theme_tb_rag, subtheme_tb_rag, rag_max_steps, lang_state],
             [bot_rag, acc_rag_chat, status_rag]
         )
 
@@ -782,20 +959,33 @@ def build_ui():
                 visible=True,
             )
 
-        def do_chat_deep_research(pending_message, history, model_label, use_memory, use_playwright, headless, manager_max_steps, search_max_steps, timeout):
-            history, _ = chat.chat_deep_research(pending_message, history, model_label, use_memory, use_playwright, headless, manager_max_steps, search_max_steps, timeout)
-            return history, gr.update(open=True), gr.update(visible=False)
+        def do_chat_deep_research(pending_message, history, model_label, use_memory, use_playwright, headless, manager_max_steps, search_max_steps, timeout, lang_key):
+            # See do_chat_general()'s matching comment above. This is the
+            # tab where live streaming matters most — a full research run
+            # (manager planning + several delegated web_search_agent
+            # calls) is easily the slowest single call in the app; seeing
+            # each delegated sub-question and what it found as it happens
+            # is a large improvement over one static "🔬🤖 Researching…"
+            # line for however many minutes the run takes.
+            last_history = history
+            for updated_history, _ in chat.chat_deep_research(
+                pending_message, history, model_label, use_memory, use_playwright,
+                headless, manager_max_steps, search_max_steps, timeout, lang_key=lang_key
+            ):
+                last_history = updated_history
+                yield last_history, gr.update(open=True), gr.update()
+            yield last_history, gr.update(open=True), gr.update(visible=False)
 
         msg_dr.submit(stash_dr, [msg_dr], [msg_dr, pending_dr_msg], queue=False).then(
             show_thinking_dr, None, [status_dr], queue=False
         ).then(
-            do_chat_deep_research, [pending_dr_msg, bot_dr, model_dd_dr, dr_memory_chk, dr_use_playwright_chk, dr_headless_chk, dr_manager_max_steps, dr_search_max_steps, dr_timeout],
+            do_chat_deep_research, [pending_dr_msg, bot_dr, model_dd_dr, dr_memory_chk, dr_use_playwright_chk, dr_headless_chk, dr_manager_max_steps, dr_search_max_steps, dr_timeout, lang_state],
             [bot_dr, acc_dr_chat, status_dr]
         )
         send_dr.click(stash_dr, [msg_dr], [msg_dr, pending_dr_msg], queue=False).then(
             show_thinking_dr, None, [status_dr], queue=False
         ).then(
-            do_chat_deep_research, [pending_dr_msg, bot_dr, model_dd_dr, dr_memory_chk, dr_use_playwright_chk, dr_headless_chk, dr_manager_max_steps, dr_search_max_steps, dr_timeout],
+            do_chat_deep_research, [pending_dr_msg, bot_dr, model_dd_dr, dr_memory_chk, dr_use_playwright_chk, dr_headless_chk, dr_manager_max_steps, dr_search_max_steps, dr_timeout, lang_state],
             [bot_dr, acc_dr_chat, status_dr]
         )
 
@@ -833,20 +1023,20 @@ def build_ui():
                    if use_visual_rag else "🖼️ Analyzing the image and thinking…")
             return gr.update(value=msg, visible=True)
 
-        def do_chat_vision(pending_message, uploaded_image, history, vlm_label, use_visual_rag, use_memory):
-            history, img_reset = chat.chat_vision(pending_message, uploaded_image, history, vlm_label, use_visual_rag, use_memory)
+        def do_chat_vision(pending_message, uploaded_image, history, vlm_label, use_visual_rag, use_memory, lang_key):
+            history, img_reset = chat.chat_vision(pending_message, uploaded_image, history, vlm_label, use_visual_rag, use_memory, lang_key=lang_key)
             return history, img_reset, gr.update(open=True), gr.update(visible=False)
 
         send_vis.click(stash_vis, [msg_vis], [msg_vis, pending_vis_msg], queue=False).then(
             show_thinking_vis, [vis_rag_chk], [status_vis], queue=False
         ).then(
-            do_chat_vision, [pending_vis_msg, img_upload, bot_vis, vlm_dd, vis_rag_chk, vis_memory_chk],
+            do_chat_vision, [pending_vis_msg, img_upload, bot_vis, vlm_dd, vis_rag_chk, vis_memory_chk, lang_state],
             [bot_vis, img_upload, acc_vis_chat, status_vis]
         )
         msg_vis.submit(stash_vis, [msg_vis], [msg_vis, pending_vis_msg], queue=False).then(
             show_thinking_vis, [vis_rag_chk], [status_vis], queue=False
         ).then(
-            do_chat_vision, [pending_vis_msg, img_upload, bot_vis, vlm_dd, vis_rag_chk, vis_memory_chk],
+            do_chat_vision, [pending_vis_msg, img_upload, bot_vis, vlm_dd, vis_rag_chk, vis_memory_chk, lang_state],
             [bot_vis, img_upload, acc_vis_chat, status_vis]
         )
         clear_vis.click(lambda: ([], None, gr.update(open=False), gr.update(visible=False)),
@@ -899,12 +1089,24 @@ def build_ui():
             )
 
         def do_data_analysis(files, pending_question, model_label, history, use_memory):
-            history, gallery, report_file = data_analysis.run_data_analysis(files, pending_question, model_label, history, use_memory)
-            # Reveal (expand) both the conversation and the results
-            # accordions now that there's something in them — both stay
-            # collapsed until an analysis actually runs. Also hides the
-            # "thinking" status line shown by show_thinking_data() above.
-            return history, gallery, report_file, gr.update(open=True), gr.update(open=True), gr.update(visible=False)
+            # data_analysis.run_data_analysis() is a generator (see
+            # data_analysis.py): yields once per live agent step during
+            # the EDA (load, chart, correlate, ...) using gr.update()
+            # no-op placeholders for the gallery/report outputs so they
+            # don't flicker empty mid-run, then a final yield with the
+            # real chart list + report file. Reveals (expands) both the
+            # conversation and results accordions on the first yield —
+            # both stay collapsed until an analysis actually runs — and
+            # hides the "thinking" status line only once the run is
+            # actually done.
+            last = (history, gr.update(), gr.update())
+            for h, gallery, report_file in data_analysis.run_data_analysis(
+                files, pending_question, model_label, history, use_memory
+            ):
+                last = (h, gallery, report_file)
+                yield h, gallery, report_file, gr.update(open=True), gr.update(open=True), gr.update()
+            h, gallery, report_file = last
+            yield h, gallery, report_file, gr.update(open=True), gr.update(open=True), gr.update(visible=False)
 
         send_data.click(stash_data, [msg_data], [msg_data, pending_data_question], queue=False).then(
             show_thinking_data, None, [status_data], queue=False
@@ -978,17 +1180,12 @@ def build_ui():
             else:              current.append(row)
             return current
 
-        def do_upload(files, vis_ret_label, lang_key):
+        def do_upload(files, vis_ret_label, theme, subtheme, lang_key):
             import traceback
             try:
-                msg = kb.index_uploaded_files(files, vis_ret_label)
+                msg = kb.index_uploaded_files(files, vis_ret_label, theme, subtheme)
             except Exception as e:
                 msg = f"❌ {traceback.format_exc()}"
-            # Reveal both the upload result and the (now updated) document
-            # table — the table accordion stays collapsed until an upload,
-            # refresh, delete, or clear actually happens. Also refresh the
-            # index-stats textbox on both the Knowledge Base tab and the
-            # RAG Chat tab, since an upload changes what both show.
             stats = kb.get_index_stats(lang_key)
             return gr.update(value=msg, visible=True), kb.get_doc_table(), gr.update(open=True), stats, stats
 
@@ -1011,7 +1208,7 @@ def build_ui():
             return table, gr.update(value=msg, visible=True), [], gr.update(open=True), stats, stats
 
         doc_table.select(on_select,        [selected_rows_state], [selected_rows_state])
-        up_btn.click(do_upload,            [file_up, vis_ret_dd, lang_state], [up_msg, doc_table, acc_kb_docs, kb_status_bar, rag_status_bar])
+        up_btn.click(do_upload,            [file_up, vis_ret_dd, theme_tb, subtheme_tb, lang_state], [up_msg, doc_table, acc_kb_docs, kb_status_bar, rag_status_bar])
         unload_visual_btn.click(unload_visual_fn, [lang_state], [up_msg])
         refresh_btn.click(do_refresh,      [lang_state], [doc_table, acc_kb_docs, kb_status_bar, rag_status_bar])
         delete_sel_btn.click(do_delete,    [selected_rows_state, doc_table, lang_state], [doc_table, action_msg, selected_rows_state, acc_kb_docs, kb_status_bar, rag_status_bar])
@@ -1027,10 +1224,25 @@ def build_ui():
                 f'<div class="header-wrap"><span class="header-title">{l["title"]}</span>'
                 f'<span class="beta-badge">BETA</span></div>',
                 f'<div class="header-wrap"><span class="header-sub">{l["subtitle"].format(device=DEVICE.upper(), version=APP_VERSION)}</span></div>',
+                # Tab strip titles themselves (gr.Tab's own `label=`) — these
+                # were previously never updated on a language switch, only
+                # the CONTENT inside each tab was, which is why the tab
+                # titles stayed stuck in Khmer even after switching to
+                # English (or vice versa).
+                gr.update(label=l["tab_general"]),
+                gr.update(label=l["tab_vision"]),
+                gr.update(label=l["tab_stt"]),
+                gr.update(label=l["tab_data"]),
+                gr.update(label=l["tab_kb"]),
+                gr.update(label=l["tab_rag"]),
+                gr.update(label=l["tab_deep_research"]),
+                gr.update(label=l["tab_about"]),
                 # GPU-incompatibility warning banner, re-rendered in the
                 # newly selected language (empty string if there's
                 # nothing to warn about — see _gpu_warning_html()).
                 _gpu_warning_html(lk),
+                # Model Settings accordion (collapsed by default)
+                gr.update(value=l["accordion_model_settings"]),
                 # GGUF model folder
                 gr.update(label=l["label_gguf_dir"], placeholder=l["gguf_dir_placeholder"]),
                 gr.update(value=l["btn_scan_gguf"]),
@@ -1054,6 +1266,8 @@ def build_ui():
                 gr.update(label=l["accordion_chat"]),
                 gr.update(value=f"### {l['accordion_settings']}"),
                 gr.update(value=l["tab_rag_desc"]),
+                gr.update(label=l["theme_label"], placeholder=l["theme_placeholder"]),
+                gr.update(label=l["subtheme_label"], placeholder=l["subtheme_placeholder"]),
                 gr.update(label=l["label_rag_agentic"], info=l["info_rag_agentic"]),
                 gr.update(label=l["label_memory"], info=l["info_memory"]),
                 gr.update(label=l["label_llm"]),
@@ -1118,6 +1332,8 @@ def build_ui():
                 gr.update(label=l["accordion_add"]),
                 gr.update(label=l["file_label"]),
                 gr.update(label=l["label_vis_ret"]),
+                gr.update(label=l["theme_label"], placeholder=l["theme_placeholder"]),
+                gr.update(label=l["subtheme_label"], placeholder=l["subtheme_placeholder"]),
                 gr.update(value=l["btn_index"]),
                 gr.update(value=l["btn_unload"]),
                 gr.update(label=l["label_res"]),
@@ -1142,12 +1358,18 @@ def build_ui():
             )
 
         _lang_outputs = [
-            lang_state, header_title, header_sub, gpu_warning_html,
+            lang_state, header_title, header_sub,
+            # Tab strip titles (gr.Tab's own label=) — see switch_lang()'s
+            # matching block above for why these are needed separately
+            # from every other per-tab component below.
+            tab_gen, tab_vis, tab_stt, tab_data, tab_kb, tab_rag, tab_deep_research, tab_about,
+            gpu_warning_html,
+            acc_model_settings,
             gguf_dir_tb, scan_gguf_btn, ctx_window_dd,
             # General Chat
             msg_gen, send_gen, clear_gen, acc_gen_chat, gen_settings_header, gen_desc, gen_agentic_chk, gen_memory_chk, model_dd_gen, reload_gen, unload_gen_btn,
             # RAG Chat
-            msg_rag, send_rag, clear_rag, acc_rag_chat, rag_settings_header, rag_desc, rag_agentic_chk, rag_memory_chk, model_dd_rag, reload_rag, unload_rag_btn,
+            msg_rag, send_rag, clear_rag, acc_rag_chat, rag_settings_header, rag_desc, theme_tb_rag, subtheme_tb_rag, rag_agentic_chk, rag_memory_chk, model_dd_rag, reload_rag, unload_rag_btn,
             # Deep Research
             msg_dr, send_dr, clear_dr, acc_dr_chat, dr_settings_header, dr_desc, dr_memory_chk, model_dd_dr, reload_dr, unload_dr_btn, reset_dr_btn,
             # Vision Chat
@@ -1160,7 +1382,7 @@ def build_ui():
             data_settings_header, data_desc, model_dd_data, data_memory_chk, reset_data_btn,
             # Knowledge Base
             embed_dd, load_embed_btn, unload_embed_btn, acc_embed_detail, embed_detail_md,
-            acc_add, file_up, vis_ret_dd, up_btn, unload_visual_btn, up_msg,
+            acc_add, file_up, vis_ret_dd, theme_tb, subtheme_tb, up_btn, unload_visual_btn, up_msg,
             acc_kb_docs, refresh_btn, delete_sel_btn, clear_all_btn,
             # Status bars (Knowledge Base tab + RAG Chat tab)
             kb_status_bar, rag_status_bar,
@@ -1197,12 +1419,11 @@ def build_ui():
         # language re-init the comment above avoids. This is what actually
         # defers the ChromaDB client open until after the UI has mounted,
         # instead of during build_ui().
-        demo.load(kb.get_index_stats, [lang_state], [kb_status_bar])
-        demo.load(kb.get_index_stats, [lang_state], [rag_status_bar])
+        demo.load(kb.get_index_stats, [lang_state], [kb_status_bar, rag_status_bar])
 
         # ── Live-refresh index stats on tab click ────────────────
-        # The demo.load() calls above only run once, right after the page
-        # mounts — they do NOT re-fire just because the user later clicks
+        # The demo.load() call above only runs once, right after the page
+        # mounts — it does NOT re-fire just because the user later clicks
         # into the Knowledge Base or RAG Chat tab. That means the chunk
         # count shown can go stale: e.g. documents indexed from another
         # browser tab/session, via the CLI (index_docs.py), or even just
@@ -1211,9 +1432,7 @@ def build_ui():
         # Hooking .select() on both tabs makes every click into either one
         # re-read the real ChromaDB count, so what's on screen always
         # matches the current on-disk index the moment you look at it.
-        tab_kb.select(kb.get_index_stats, [lang_state], [kb_status_bar])
-        tab_kb.select(kb.get_index_stats, [lang_state], [rag_status_bar])
-        tab_rag.select(kb.get_index_stats, [lang_state], [kb_status_bar])
-        tab_rag.select(kb.get_index_stats, [lang_state], [rag_status_bar])
+        tab_kb.select(kb.get_index_stats, [lang_state], [kb_status_bar, rag_status_bar])
+        tab_rag.select(kb.get_index_stats, [lang_state], [kb_status_bar, rag_status_bar])
 
         return demo

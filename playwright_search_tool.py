@@ -60,6 +60,9 @@ client-side JS to fight, which is exactly why it's the recommended primary tool.
 """
 from __future__ import annotations
 
+import json
+import os
+import tempfile
 import urllib.parse
 
 from smolagents import Tool
@@ -112,10 +115,11 @@ class PlaywrightDuckDuckGoSearchTool(Tool):
         "link, short snippet) as a numbered list. Uses a real browser (Playwright) against "
         "DuckDuckGo's plain HTML results page -- no JavaScript rendering wait, no CAPTCHA/consent "
         "wall in normal use, and more stable markup than Google's. Use this as your PRIMARY search "
-        "tool; fall back to 'playwright_google_search' only if this one comes back empty or a topic "
-        "needs Google's broader index (e.g. some non-English regional government sites). Keep "
-        "queries short and simple -- the plain topic name plus a country/keyword or two -- rather "
-        "than long boolean or quoted-phrase chains."
+        "tool for almost every search -- call it FIRST, before any other search tool. Only fall "
+        "back to the 'playwright_google_search' tool if this one comes back with no results, or a "
+        "topic needs Google's broader index (e.g. some non-English regional government sites). "
+        "Keep queries short and simple -- the plain topic name plus a country/keyword or two -- "
+        "rather than long boolean or quoted-phrase chains."
     )
     inputs = {
         "query": {"type": "string", "description": "The search query to perform. Keep it short and simple."},
@@ -186,8 +190,12 @@ class PlaywrightDuckDuckGoSearchTool(Tool):
 
         if not results:
             return (
-                f"No DuckDuckGo results found for '{query}'. Try a shorter/simpler query, or fall "
-                "back to the 'playwright_google_search' tool."
+                f"No DuckDuckGo results found for '{query}'. Try a shorter/simpler query with "
+                f"playwright_duckduckgo_search again, OR call the fallback Google tool like this:\n"
+                f"```python\n"
+                f'result = playwright_google_search(query="{query}")\n'
+                f"print(result)\n"
+                f"```"
             )
 
         lines = [f"## DuckDuckGo Search Results for '{query}'\n"]
@@ -218,14 +226,17 @@ class PlaywrightGoogleSearchTool(Tool):
     down at app exit).
     """
 
-    name = "web_search"
+    name = "playwright_google_search"
     description = (
         "Performs a Google web search for your query and returns the top results "
         "(title, link, short snippet) as a numbered list. Uses a real browser "
         "(Playwright) that types the query into google.com directly -- no paid "
-        "search API and no third-party search library involved. Keep queries short "
-        "and simple -- the plain topic name plus a country/keyword or two -- rather "
-        "than long boolean or quoted-phrase chains."
+        "search API, no API key, and no third-party search library involved. This "
+        "is the FALLBACK search tool -- try 'playwright_duckduckgo_search' FIRST for "
+        "almost every search, and only call this one if that comes back with no "
+        "results or the topic needs Google's broader index. Keep queries short and "
+        "simple -- the plain topic name plus a country/keyword or two -- rather than "
+        "long boolean or quoted-phrase chains."
     )
     inputs = {
         "query": {"type": "string", "description": "The search query to perform. Keep it short and simple."},
@@ -365,8 +376,12 @@ class PlaywrightGoogleSearchTool(Tool):
             year_note = f" (filtered to {filter_year})" if filter_year else ""
             return (
                 f"No Google results found for '{query}'{year_note}.{page_info} This can happen if Google "
-                "served a consent/CAPTCHA page instead of results -- try again, try a shorter query, or "
-                "retry with a different web search tool."
+                "served a consent/CAPTCHA page instead of results. Try playwright_duckduckgo_search "
+                "instead, like this:\n"
+                f"```python\n"
+                f'result = playwright_duckduckgo_search(query="{query}")\n'
+                f"print(result)\n"
+                f"```"
             )
 
         lines = [f"## Search Results for '{query}'{page_info}\n"]
@@ -554,6 +569,8 @@ class PlaywrightVisitPageTool(Tool):
             marker = "⬇️ DOWNLOAD? " if ln.get("likelyDownload") else ""
             label = ln.get("text") or ln.get("href")
             lines.append(f"{i}. {marker}[{label}]({ln.get('href')})")
+
+        _save_page_cache(url, title, text)
 
         return "\n".join(lines)
 
@@ -975,3 +992,198 @@ class PlaywrightReadEmbeddedPdfTool(Tool):
                         pass
                         
         return "\n".join(lines)
+
+
+# ── Shared page state for navigation tools ──────────────────────────
+# PlaywrightVisitPageTool caches the last-visited page here so
+# PageUp/PageDown/FindOnPage/FindNext can navigate within its content
+# without re-launching a browser.
+_page_cache = {
+    "url": None,
+    "title": None,
+    "full_text": "",
+    "viewport_pos": 0,
+    "viewport_size": 2000,
+    "find_query": None,
+    "find_last_viewport": None,
+}
+
+
+def _save_page_cache(url, title, text):
+    _page_cache["url"] = url
+    _page_cache["title"] = title
+    _page_cache["full_text"] = text or ""
+    _page_cache["viewport_pos"] = 0
+    _page_cache["find_query"] = None
+    _page_cache["find_last_viewport"] = None
+
+
+def _format_viewport(cache):
+    total = len(cache["full_text"])
+    vsize = cache["viewport_size"]
+    pos = cache["viewport_pos"]
+    total_pages = max(1, (total + vsize - 1) // vsize)
+    current_page = pos // vsize + 1
+    content = cache["full_text"][pos:pos + vsize]
+    return (
+        f"Address: {cache['url']}\n"
+        f"Title: {cache['title']}\n"
+        f"Viewport position: Showing page {current_page} of {total_pages}.\n"
+        f"=======================\n"
+        f"{content}"
+    )
+
+
+class PlaywrightPageDownTool(Tool):
+    name = "playwright_page_down"
+    description = "Scroll the viewport DOWN one page-length in the currently visited page and return the new viewport content."
+    inputs = {}
+    output_type = "string"
+
+    def forward(self) -> str:
+        cache = _page_cache
+        if not cache["url"]:
+            return "No page has been visited yet. Use playwright_visit_page first."
+        total = len(cache["full_text"])
+        cache["viewport_pos"] = min(cache["viewport_pos"] + cache["viewport_size"], max(0, total - 1))
+        return _format_viewport(cache)
+
+
+class PlaywrightPageUpTool(Tool):
+    name = "playwright_page_up"
+    description = "Scroll the viewport UP one page-length in the currently visited page and return the new viewport content."
+    inputs = {}
+    output_type = "string"
+
+    def forward(self) -> str:
+        cache = _page_cache
+        if not cache["url"]:
+            return "No page has been visited yet. Use playwright_visit_page first."
+        cache["viewport_pos"] = max(cache["viewport_pos"] - cache["viewport_size"], 0)
+        return _format_viewport(cache)
+
+
+class PlaywrightFindOnPageTool(Tool):
+    name = "playwright_find_on_page"
+    description = "Scroll the viewport to the first occurrence of the search string. This is equivalent to Ctrl+F on the currently visited page."
+    inputs = {
+        "search_string": {
+            "type": "string",
+            "description": "The string to search for on the page. Supports wildcards like '*'.",
+        }
+    }
+    output_type = "string"
+
+    def forward(self, search_string: str) -> str:
+        cache = _page_cache
+        if not cache["url"]:
+            return "No page has been visited yet. Use playwright_visit_page first."
+
+        import re
+        query = re.sub(r"\*", ".*", re.escape(search_string))
+        full = cache["full_text"]
+
+        match = re.search(query, full, re.IGNORECASE)
+        if not match:
+            cache["find_query"] = search_string
+            cache["find_last_viewport"] = None
+            return (
+                f"Address: {cache['url']}\n"
+                f"Title: {cache['title']}\n"
+                f"=======================\n"
+                f"The search string '{search_string}' was not found on this page."
+            )
+
+        pos = match.start()
+        vsize = cache["viewport_size"]
+        cache["viewport_pos"] = max(0, pos - vsize // 4)
+        cache["find_query"] = search_string
+        cache["find_last_viewport"] = cache["viewport_pos"]
+        return _format_viewport(cache)
+
+
+class PlaywrightFindNextTool(Tool):
+    name = "playwright_find_next"
+    description = "Scroll the viewport to the next occurrence of the search string. Use after playwright_find_on_page."
+    inputs = {}
+    output_type = "string"
+
+    def forward(self) -> str:
+        cache = _page_cache
+        if not cache["url"]:
+            return "No page has been visited yet. Use playwright_visit_page first."
+        if not cache["find_query"]:
+            return "No active search. Use playwright_find_on_page first."
+
+        import re
+        query = re.sub(r"\*", ".*", re.escape(cache["find_query"]))
+        full = cache["full_text"]
+        start = cache["viewport_pos"] + cache["viewport_size"]
+        if cache["find_last_viewport"] is not None and cache["find_last_viewport"] >= start:
+            start = cache["find_last_viewport"] + 1
+
+        if start >= len(full):
+            start = 0
+
+        match = re.search(query, full[start:], re.IGNORECASE)
+        if not match:
+            cache["find_last_viewport"] = None
+            return (
+                f"Address: {cache['url']}\n"
+                f"Title: {cache['title']}\n"
+                f"=======================\n"
+                f"No more occurrences of '{cache['find_query']}' found."
+            )
+
+        pos = start + match.start()
+        vsize = cache["viewport_size"]
+        cache["viewport_pos"] = max(0, pos - vsize // 4)
+        cache["find_last_viewport"] = cache["viewport_pos"]
+        return _format_viewport(cache)
+
+
+class PlaywrightArchiveSearchTool(Tool):
+    name = "playwright_find_archived_url"
+    description = "Given a url, searches the Wayback Machine and returns the archived version of the url closest to the desired date. Use this when a page is dead, blocked, or has changed since the date you care about."
+    inputs = {
+        "url": {
+            "type": "string",
+            "description": "The url you need the archive for.",
+        },
+        "date": {
+            "type": "string",
+            "description": "The date to find the archive for, in 'YYYYMMDD' format (e.g. '27 June 2008' → '20080627').",
+            "nullable": True,
+        },
+    }
+    output_type = "string"
+
+    def forward(self, url: str, date: str | None = None) -> str:
+        import requests
+
+        no_timestamp_url = f"https://archive.org/wayback/available?url={urllib.parse.quote(url)}"
+        archive_url = no_timestamp_url + (f"&timestamp={date}" if date else "")
+        try:
+            response = requests.get(archive_url, timeout=30).json()
+        except Exception as e:
+            return f"Error querying Wayback Machine: {e}"
+
+        if "archived_snapshots" in response and "closest" in response["archived_snapshots"]:
+            closest = response["archived_snapshots"]["closest"]
+        else:
+            try:
+                response2 = requests.get(no_timestamp_url, timeout=30).json()
+                if "archived_snapshots" in response2 and "closest" in response2["archived_snapshots"]:
+                    closest = response2["archived_snapshots"]["closest"]
+                else:
+                    return f"No archive found for '{url}' on Wayback Machine."
+            except Exception as e:
+                return f"Error querying Wayback Machine: {e}"
+
+        target_url = closest["url"]
+        snapshot_date = closest["timestamp"][:8] if "timestamp" in closest else "unknown"
+        return (
+            f"Web archive for url {url}, snapshot taken at date {snapshot_date}:\n"
+            f"Archived URL: {target_url}\n\n"
+            f"To view this archived page, call playwright_visit_page with the archived URL above."
+        )

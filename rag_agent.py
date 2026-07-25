@@ -28,10 +28,13 @@ import model_registry as mr
 import models
 from knowledge_base import RetrieverTool
 
-_rag_agent          = None
-_rag_agent_model_id = None
-_rag_tool           = None
-_rag_agent_lock     = threading.Lock()
+_rag_agent            = None
+_rag_agent_model_id   = None
+_rag_agent_theme      = ""
+_rag_agent_subtheme   = ""
+_rag_agent_max_steps  = 6
+_rag_tool             = None
+_rag_agent_lock       = threading.Lock()
 
 # ──────────────────────────────────────────────────────────────────
 # Strict grounding — layer 1: agent-level system instructions (applied
@@ -78,7 +81,7 @@ STRICT_SYSTEM_INSTRUCTIONS = (
 STRICT_NOT_FOUND_PHRASE = "the knowledge base doesn't contain this information"
 
 
-def build_strict_task(question: str) -> str:
+def build_strict_task(question: str, lang_key: str = "kh") -> str:
     """Wrap the user's question with explicit strict-grounding instructions.
 
     Repeats the same rule as STRICT_SYSTEM_INSTRUCTIONS at the per-task
@@ -86,8 +89,9 @@ def build_strict_task(question: str) -> str:
     custom `instructions` to every step equally, and reinforcement in the
     task itself measurably helps smaller/weaker models comply.
     """
+    kh = ("ឆ្លើយជាភាសាខ្មែរ។\n\n" if lang_key == "kh" else "")
     return (
-        "Answer the question below using ONLY information you retrieve via "
+        kh + "Answer the question below using ONLY information you retrieve via "
         "the `retriever` tool. Do not use your own general knowledge, and do "
         "not guess.\n\n"
         "1. Call `retriever` with a focused search query based on the question.\n"
@@ -151,13 +155,14 @@ def get_retriever_stats() -> tuple:
 RAG_AGENT_DEFAULT_MAX_STEPS = 6
 
 
-def _build_code_agent(llm, tool: RetrieverTool, model_id: str = "") -> CodeAgent:
+def _build_code_agent(llm, tool: RetrieverTool, model_id: str = "", max_steps: Optional[int] = None) -> CodeAgent:
     # See general_agent._build_code_agent()'s comment / model_registry.
     # get_max_steps_for_model() — larger/slower local GGUF models pay a
     # much higher per-step cost when a parsing loop goes wrong, so their
     # step budget is scaled down to fail fast instead of grinding through
     # the full default.
-    max_steps = mr.get_max_steps_for_model(model_id, RAG_AGENT_DEFAULT_MAX_STEPS)
+    if max_steps is None:
+        max_steps = mr.get_max_steps_for_model(model_id, RAG_AGENT_DEFAULT_MAX_STEPS)
     kwargs = dict(
         model=llm,
         tools=[tool],
@@ -185,23 +190,26 @@ def _build_code_agent(llm, tool: RetrieverTool, model_id: str = "") -> CodeAgent
     return CodeAgent(**kwargs)
 
 
-def get_rag_agent(model_id: Optional[str] = None):
-    """Lazily build (or rebuild, if the model changed) the agentic-RAG CodeAgent."""
-    global _rag_agent, _rag_agent_model_id, _rag_tool
+def get_rag_agent(model_id: Optional[str] = None, theme: str = "", subtheme: str = "", max_steps: Optional[int] = None):
+    """Lazily build (or rebuild, if the model/theme/subtheme/max_steps changed) the agentic-RAG CodeAgent."""
+    global _rag_agent, _rag_agent_model_id, _rag_agent_theme, _rag_agent_subtheme, _rag_agent_max_steps, _rag_tool
     target = model_id or models._llm_model_id
 
-    if _rag_agent is not None and target == _rag_agent_model_id:
+    if _rag_agent is not None and target == _rag_agent_model_id and theme == _rag_agent_theme and subtheme == _rag_agent_subtheme and max_steps == _rag_agent_max_steps:
         return _rag_agent
 
     with _rag_agent_lock:
-        if _rag_agent is not None and target == _rag_agent_model_id:
+        if _rag_agent is not None and target == _rag_agent_model_id and theme == _rag_agent_theme and subtheme == _rag_agent_subtheme and max_steps == _rag_agent_max_steps:
             return _rag_agent
 
         print(f"[RAGAgent] Building CodeAgent on '{target}' …")
         llm = models.get_llm(target)
-        _rag_tool  = RetrieverTool()
-        _rag_agent = _build_code_agent(llm, _rag_tool, target)
+        _rag_tool  = RetrieverTool(theme=theme, subtheme=subtheme)
+        _rag_agent = _build_code_agent(llm, _rag_tool, target, max_steps)
         _rag_agent_model_id = target
+        _rag_agent_theme = theme
+        _rag_agent_subtheme = subtheme
+        _rag_agent_max_steps = max_steps
         # Standard smolagents behaviour: a freshly-built CodeAgent starts
         # with empty memory. See agent_memory.py's module docstring for
         # why this app no longer tries to restore memory from a previous
@@ -215,7 +223,10 @@ def reset_agent():
     the RAG-tab model changes or the LLM is force-reloaded/unloaded
     elsewhere, so this agent doesn't keep holding a stale model reference.
     """
-    global _rag_agent, _rag_agent_model_id, _rag_tool
+    global _rag_agent, _rag_agent_model_id, _rag_agent_theme, _rag_agent_subtheme, _rag_agent_max_steps, _rag_tool
     _rag_agent = None
     _rag_agent_model_id = None
+    _rag_agent_theme = ""
+    _rag_agent_subtheme = ""
+    _rag_agent_max_steps = 6
     _rag_tool = None

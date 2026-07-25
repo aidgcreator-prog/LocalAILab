@@ -6,6 +6,7 @@ text tabs.
 
 import re
 import time
+from typing import Optional
 
 from PIL import Image
 
@@ -16,6 +17,7 @@ import general_agent
 import rag_agent
 import deep_research_agent
 import agent_memory
+import agent_streaming
 from hardware import DEVICE
 
 # NOTE: agentic memory (agent.memory.steps) lives only in RAM, for as long
@@ -45,60 +47,74 @@ AGENTIC_MEMORY_TURNS = 6
 DEEP_RESEARCH_MEMORY_TURNS = 4
 
 
-def format_llm_response(text: str) -> str:
-    m = re.search(r"<think>(.*?)</think>(.*)", text, re.DOTALL)
 
+# Shown in place of a real answer when generation appears to have been cut
+# off before the model finished writing one — see format_llm_response()'s
+# two fallback branches below. Kept as a constant so both branches (and
+# any future caller) stay in sync on the wording.
+_TRUNCATED_ANSWER_NOTICE = (
+    "⚠️ *The model appears to have run out of generation budget while "
+    "still reasoning, before it could write an actual answer. Its "
+    "raw reasoning is shown above in case it's useful, but you may want "
+    "to retry — a larger `MAX_NEW_TOKENS` (see `model_registry.py`) or a "
+    "shorter/simpler prompt can help.*"
+)
+
+# Reusable HTML templates for format_llm_response() — extracted to
+# module-level constants so the same HTML strings aren't built from scratch
+# on every single chat turn (see the three branches in
+# format_llm_response() below, which each use some combination of these).
+_DETAILS_TPL = (
+    '<details {open} style="'
+    "margin-bottom:12px;border:1px solid {border};"
+    'border-radius:8px;background:#2d2d2d;padding:10px;">\n'
+    '<summary style="cursor:pointer;font-weight:bold;color:#ffcc66;">'
+    "{summary}</summary>\n<div style=\"margin-top:10px;color:#cfcfcf;"
+    'font-family:monospace;white-space:pre-wrap;line-height:1.5;">'
+    "\n{body}\n</div>\n</details>\n"
+)
+_ANSWER_TPL = (
+    '<div style="border-left:5px solid {border};padding:12px;'
+    'background:#1f1f1f;border-radius:8px;font-size:{fs}px;'
+    'line-height:1.6;">\n{body}\n</div>'
+)
+
+
+def format_llm_response(text: str) -> str:
+    m = re.search(r" thinking(.*?) response(.*)", text, re.DOTALL)
+
+    # Case 1: no  thinking... response pair found at all
     if not m:
+        # Check for unclosed  thinking tag
+        if " thinking" in text and " response" not in text:
+            partial_thinking = text.split(" thinking", 1)[1].strip()
+            return _DETAILS_TPL.format(
+                open="open", border="#a87c1f",
+                summary="🧠 Reasoning (truncated - model ran out of budget before answering)",
+                body=partial_thinking if partial_thinking else "(no reasoning text captured)",
+            ) + _ANSWER_TPL.format(border="#a87c1f", fs=15, body=_TRUNCATED_ANSWER_NOTICE)
         return text
 
     thinking = m.group(1).strip()
     answer = m.group(2).strip()
 
-    return f"""
-<details style="
-margin-bottom:12px;
-border:1px solid #555;
-border-radius:8px;
-background:#2d2d2d;
-padding:10px;
-">
-<summary style="
-cursor:pointer;
-font-weight:bold;
-color:#ffcc66;
-">
-🧠 Reasoning (click to expand)
-</summary>
+    # Case 2: closed  thinking... response but empty answer
+    if not answer:
+        return _DETAILS_TPL.format(
+            open="open", border="#a87c1f",
+            summary="🧠 Reasoning (model finished thinking but wrote no answer)",
+            body=thinking if thinking else "(no reasoning text captured)",
+        ) + _ANSWER_TPL.format(border="#a87c1f", fs=15, body=_TRUNCATED_ANSWER_NOTICE)
 
-<div style="
-margin-top:10px;
-color:#cfcfcf;
-font-family:monospace;
-white-space:pre-wrap;
-line-height:1.5;
-">
-{thinking}
-</div>
-
-</details>
-
-<div style="
-border-left:5px solid #4CAF50;
-padding:12px;
-background:#1f1f1f;
-border-radius:8px;
-font-size:16px;
-line-height:1.6;
-">
-
-<b>💬 Answer</b>
-
-{answer}
-
-</div>
-"""
-
-
+    # Case 3: normal case with both thinking and answer
+    return _DETAILS_TPL.format(
+        open="", border="#555",
+        summary="🧠 Reasoning (click to expand)",
+        body=thinking,
+    ) + _ANSWER_TPL.format(
+        border="#4CAF50", fs=16,
+        body="<b>💬 Answer</b>\n" + answer,
+    )
 def _strip_response_html(text: str) -> str:
     """Recover the plain-text answer from a previously HTML-formatted
     assistant reply (format_llm_response() wraps it in a collapsible
@@ -110,9 +126,20 @@ def _strip_response_html(text: str) -> str:
         return text
     text = re.sub(r"<details.*?</details>", "", text, flags=re.DOTALL)
     text = re.sub(r"<hr>.*$", "", text, flags=re.DOTALL)
-    m = re.search(r"<b>\U0001F4AC Answer</b>\s*(.*?)</div>", text, flags=re.DOTALL)
-    if m:
-        text = m.group(1)
+    # Drop the "💬 Answer" bold label itself, if present, so it doesn't
+    # leak into memory as stray leading text. NOTE: this is now a plain
+    # removal (not a "find <b>Answer</b>...</div> and extract only what's
+    # inside" match like before) — the old approach silently extracted
+    # NOTHING (leaving the calling loop in _recent_memory_messages() to
+    # treat the whole turn as empty and drop it) whenever the assistant's
+    # HTML didn't contain that exact marker followed by a matching
+    # </div> — which is exactly what happens for format_llm_response()'s
+    # truncated-answer / empty-answer fallback branches (see chat.py's
+    # format_llm_response()), silently breaking memory continuity from
+    # that turn onward. Stripping every tag unconditionally afterward
+    # works correctly for BOTH the normal success path and every
+    # fallback branch, with no dependency on a specific HTML shape.
+    text = re.sub(r"<b>\U0001F4AC Answer</b>\s*", "", text)
     text = re.sub(r"<[^>]+>", "", text)
     return text.strip()
 
@@ -143,20 +170,62 @@ def _recent_memory_messages(history: list, max_turns: int = DIRECT_CHAT_MEMORY_T
     return cleaned[-(max_turns * 2):]
 
 
-def chat_general_direct(user_message: str, history: list, model_label: str, use_memory: bool = True):
+def _lang_instruction(lang_key: str) -> str:
+    return "Answer in Khmer.\n\n" if lang_key == "kh" else ""
+
+
+def chat_general_direct(user_message: str, history: list, model_label: str, use_memory: bool = True, lang_key: str = "kh"):
+    """A generator yielding exactly ONE (history, "") tuple — the direct
+    path has no intermediate agent steps to stream, but is written as a
+    generator (rather than a plain function) so chat_general()'s
+    `yield from` dispatch works uniformly regardless of which path (direct
+    or agentic) it delegates to. See chat_general_agentic() below for the
+    path that actually yields multiple times as live agent steps arrive.
+    """
     if not user_message.strip():
-        return history, ""
+        yield history, ""
+        return
     history = history or []
     history.append({"role": "user", "content": user_message})
     model_id = mr.MODEL_OPTIONS.get(model_label, mr.DEFAULT_LLM_MODEL)
     try:
-        system = "You are a helpful, friendly assistant."
         # Memory: feed back the recent conversation (minus the message we
         # just appended above, which is passed separately as `user`) so
         # follow-ups like "and what about X?" have something to refer to.
         # Skipped entirely when the "🧠 Conversation Memory" checkbox is off.
         memory_messages = _recent_memory_messages(history[:-1]) if use_memory else []
-        ans, elapsed = models._call_llm(model_id, system, user_message, history=memory_messages)
+
+        system = _lang_instruction(lang_key) + "You are a helpful, friendly assistant."
+        # IMPORTANT: without this, instruct-tuned models (small ones
+        # especially) tend to give a trained canned disclaimer like "I
+        # don't have memory of past conversations" to any meta-question
+        # about memory ("do you remember what I said earlier?") — even
+        # though `memory_messages` below genuinely IS being sent as real
+        # prior turns in this same request. The model isn't actually
+        # checking its context; it's a reflexive trained response. The
+        # agentic path (general_agent.GENERAL_AGENT_INSTRUCTIONS) already
+        # has to explicitly counter this exact behavior — this applies
+        # the same fix to the direct (non-agentic) path, which previously
+        # had no such reminder at all. Only added when there's actually
+        # prior history to reference, so a first message's system prompt
+        # stays minimal.
+        if memory_messages:
+            system += (
+                " The messages below marked as earlier turns in this "
+                "conversation ARE genuinely visible to you in full — they "
+                "are not hidden or inaccessible. If asked what was said "
+                "earlier in this conversation, or a follow-up refers back "
+                "to something mentioned before, look at those earlier "
+                "turns and answer from them directly. Do NOT claim you "
+                "lack memory or cannot see prior messages — you can."
+            )
+
+        # Apply the "🧠 Enable Model Reasoning" toggle (see
+        # model_registry.apply_reasoning_toggle()'s docstring) right
+        # before the call — a no-op unless the user has turned reasoning
+        # off in ⚙️ Model Settings.
+        user_message_final = mr.apply_reasoning_toggle(user_message)
+        ans, elapsed = models._call_llm(model_id, system, user_message_final, history=memory_messages)
         formatted = format_llm_response(ans)
 
         response = (
@@ -168,19 +237,27 @@ def chat_general_direct(user_message: str, history: list, model_label: str, use_
         import traceback
         response = f"❌ {e}\n\n{traceback.format_exc()}"
     history.append({"role": "assistant", "content": response})
-    return history, ""
+    yield history, ""
 
 
-def chat_general_agentic(user_message: str, history: list, model_label: str, use_memory: bool = True):
+def chat_general_agentic(user_message: str, history: list, model_label: str, use_memory: bool = True, lang_key: str = "kh"):
     """Agentic General Chat: a smolagents CodeAgent (see general_agent.py)
     with the library's own built-in web-search/webpage tools
     (DuckDuckGoSearchTool, VisitWebpageTool), deciding for itself whether
     a question needs a web lookup before answering. Unlike RAG Chat's
     agent, this has no knowledge-base grounding requirement — it's meant
     for open-ended questions, not strictly-cited document Q&A.
+
+    A GENERATOR: yields (history, "") once per live agent step as it
+    happens (see agent_streaming.stream_agent_steps()), then one final
+    time with the polished final answer appended — instead of blocking
+    silently until the whole run finishes. Mirrors smolagents' own
+    GradioUI streaming behaviour, adapted to this app's chat history
+    shape/styling (see agent_streaming.py's module docstring).
     """
     if not user_message.strip():
-        return history, ""
+        yield history, ""
+        return
     history = history or []
     history.append({"role": "user", "content": user_message})
     model_id = mr.MODEL_OPTIONS.get(model_label, mr.DEFAULT_LLM_MODEL)
@@ -206,8 +283,21 @@ def chat_general_agentic(user_message: str, history: list, model_label: str, use
         # model never writes a '### References' section, and the
         # "Sources used" block below always ends up empty even after a
         # turn that genuinely searched the web.
-        task = general_agent.build_task_with_citation_reminder(user_message)
-        result = agent.run(task, reset=not use_memory)
+        task = general_agent.build_task_with_citation_reminder(user_message, lang_key)
+        # See chat_general_direct()'s matching comment — a no-op unless
+        # the "🧠 Enable Model Reasoning" toggle is off.
+        task = mr.apply_reasoning_toggle(task)
+        # Live step streaming — see agent_streaming.stream_agent_steps()'s
+        # docstring for the shared (step_msg, is_final, final_output)
+        # generator contract every agentic call site in this app now uses.
+        result = None
+        for step_msg, is_final, final_output in agent_streaming.stream_agent_steps(agent, task, reset=not use_memory):
+            if not is_final:
+                if step_msg is not None:
+                    history.append(step_msg)
+                    yield history, ""
+                continue
+            result = final_output
         if use_memory:
             agent_memory.cap_agent_memory(agent, max_turns=AGENTIC_MEMORY_TURNS)
         elapsed = time.time() - t0
@@ -247,10 +337,11 @@ def chat_general_agentic(user_message: str, history: list, model_label: str, use
         import traceback
         response = f"❌ {e}\n\n{traceback.format_exc()}"
     history.append({"role": "assistant", "content": response})
-    return history, ""
+    yield history, ""
 
 
-def chat_general(user_message: str, history: list, model_label: str, use_agentic: bool = False, use_memory: bool = True):
+def chat_general(user_message: str, history: list, model_label: str, use_agentic: bool = False, use_memory: bool = True,
+                 lang_key: str = "kh"):
     """General Chat entry point. Dispatches to:
 
     - use_agentic=False (default, unchanged behaviour): one direct LLM
@@ -265,13 +356,22 @@ def chat_general(user_message: str, history: list, model_label: str, use_agentic
     prior turns in this conversation are remembered (direct path) or kept
     in the CodeAgent's own memory (agentic path). Memory is never
     persisted to disk either way — see agent_memory.py.
+
+    A GENERATOR (via `yield from`): both branches are generators
+    themselves (chat_general_direct() yields once; chat_general_agentic()
+    yields once per live agent step — see agent_streaming.py), so callers
+    (ui.py) always iterate this the same way regardless of which mode is
+    selected, rather than needing to special-case "does this return a
+    generator or a plain tuple".
     """
     if use_agentic:
-        return chat_general_agentic(user_message, history, model_label, use_memory)
-    return chat_general_direct(user_message, history, model_label, use_memory)
+        yield from chat_general_agentic(user_message, history, model_label, use_memory, lang_key)
+    else:
+        yield from chat_general_direct(user_message, history, model_label, use_memory, lang_key)
 
 
-def chat_rag_direct(user_message: str, history: list, model_label: str, use_memory: bool = True):
+def chat_rag_direct(user_message: str, history: list, model_label: str, use_memory: bool = True,
+                    theme: str = "", subtheme: str = "", lang_key: str = "kh"):
     """Non-agentic RAG: always retrieve context from ChromaDB first (same
     retrieval call the agentic path's `retriever` tool wraps), then hand
     that context straight to the LLM in one direct call — no CodeAgent,
@@ -287,12 +387,13 @@ def chat_rag_direct(user_message: str, history: list, model_label: str, use_memo
     invoke, nothing to parse.
     """
     if not user_message.strip():
-        return history, ""
+        yield history, ""
+        return
     history = history or []
     history.append({"role": "user", "content": user_message})
     model_id = mr.MODEL_OPTIONS.get(model_label, mr.DEFAULT_LLM_MODEL)
     try:
-        context, sources = kb.retrieve_context(user_message)
+        context, sources = kb.retrieve_context(user_message, theme, subtheme)
         if not context:
             ans = rag_agent.NOTHING_FOUND_MESSAGE
             formatted = format_llm_response(ans)
@@ -302,7 +403,7 @@ def chat_rag_direct(user_message: str, history: list, model_label: str, use_memo
                 f"| direct RAG (no relevant context found)</sub>"
             )
         else:
-            system = (
+            system = _lang_instruction(lang_key) + (
                 "You are a strict retrieval-augmented assistant. Answer the "
                 "user's question using ONLY the context below, which was "
                 "retrieved from the user's own indexed knowledge base. Never "
@@ -324,12 +425,36 @@ def chat_rag_direct(user_message: str, history: list, model_label: str, use_memo
             # was just discussed, on top of the always-fresh retrieval above.
             # Skipped entirely when the "🧠 Conversation Memory" checkbox is off.
             memory_messages = _recent_memory_messages(history[:-1]) if use_memory else []
-            ans, elapsed = models._call_llm(model_id, system, user_message, history=memory_messages)
+            # See chat_general_direct()'s matching comment: without this,
+            # instruct-tuned models tend to give a canned "I don't have
+            # memory" disclaimer to meta-questions about earlier turns,
+            # even though memory_messages genuinely is sent as real prior
+            # turns below. Only added when there's actual history to
+            # reference.
+            if memory_messages:
+                system += (
+                    "\n\nThe earlier turns of this conversation shown below "
+                    "ARE genuinely visible to you in full — they are not "
+                    "hidden or inaccessible. If asked what was said earlier "
+                    "in this conversation, or a follow-up refers back to "
+                    "something mentioned before, look at those earlier turns "
+                    "and answer from them directly (this is separate from — "
+                    "and does not override — the knowledge-base-only rule "
+                    "above for actual content questions). Do NOT claim you "
+                    "lack memory or cannot see prior messages — you can."
+                )
+            # See chat_general_direct()'s matching comment — a no-op
+            # unless the "🧠 Enable Model Reasoning" toggle is off.
+            user_message_final = mr.apply_reasoning_toggle(user_message)
+            ans, elapsed = models._call_llm(model_id, system, user_message_final, history=memory_messages)
             # Guaranteed-accurate references list, appended regardless of
             # whether the model remembered its own in-text citations/
             # "### References" section — built from the sources ChromaDB
             # ACTUALLY returned for this query (not trusting the model to
             # report them correctly itself).
+            # Strip any "### References" the model may have written
+            # (the system prompt asks it to) before adding the verified one
+            ans = general_agent.strip_trailing_references_section(ans)
             if sources:
                 refs = "\n".join(f"- {s}" for s in sorted(sources))
                 ans += f"\n\n---\n**📚 Sources retrieved this turn:**\n{refs}"
@@ -343,10 +468,11 @@ def chat_rag_direct(user_message: str, history: list, model_label: str, use_memo
         import traceback
         response = f"❌ {e}\n\n{traceback.format_exc()}"
     history.append({"role": "assistant", "content": response})
-    return history, ""
+    yield history, ""
 
 
-def chat_rag(user_message: str, history: list, model_label: str, use_agentic: bool = True, use_memory: bool = True):
+def chat_rag(user_message: str, history: list, model_label: str, use_agentic: bool = True, use_memory: bool = True,
+             theme: str = "", subtheme: str = "", max_steps: Optional[int] = None, lang_key: str = "kh"):
     """RAG Chat entry point. Dispatches to one of two retrieval strategies:
 
     - use_agentic=True (default): a smolagents CodeAgent (see rag_agent.py)
@@ -369,19 +495,28 @@ def chat_rag(user_message: str, history: list, model_label: str, use_agentic: bo
 
     `use_memory` controls the "🧠 Conversation Memory" checkbox — see
     chat_general()'s docstring for what it does on each path.
+
+    A GENERATOR (via `yield from` on the direct path; native multi-yield
+    streaming on the agentic path) — see chat_general()'s matching note
+    and agent_streaming.py's module docstring.
     """
     if not use_agentic:
-        return chat_rag_direct(user_message, history, model_label, use_memory)
+        yield from chat_rag_direct(user_message, history, model_label, use_memory, theme, subtheme, lang_key)
+        return
 
     if not user_message.strip():
-        return history, ""
+        yield history, ""
+        return
     history = history or []
     history.append({"role": "user", "content": user_message})
     model_id = mr.MODEL_OPTIONS.get(model_label, mr.DEFAULT_LLM_MODEL)
     try:
-        agent = rag_agent.get_rag_agent(model_id)
+        agent = rag_agent.get_rag_agent(model_id, theme, subtheme, max_steps)
         rag_agent.reset_retriever_stats()
-        task = rag_agent.build_strict_task(user_message)
+        task = rag_agent.build_strict_task(user_message, lang_key)
+        # See chat_general_direct()'s matching comment — a no-op unless
+        # the "🧠 Enable Model Reasoning" toggle is off.
+        task = mr.apply_reasoning_toggle(task)
 
         t0     = time.time()
         # reset=False keeps this CodeAgent's memory across turns — see
@@ -389,7 +524,16 @@ def chat_rag(user_message: str, history: list, model_label: str, use_agentic: bo
         # right after via agent_memory.cap_agent_memory() so the prompt
         # doesn't grow without bound over a long conversation. reset=True
         # (memory checkbox off) makes every message stateless instead.
-        result = agent.run(task, reset=not use_memory)
+        # Live step streaming — see chat_general_agentic()'s matching
+        # comment / agent_streaming.stream_agent_steps()'s docstring.
+        result = None
+        for step_msg, is_final, final_output in agent_streaming.stream_agent_steps(agent, task, reset=not use_memory):
+            if not is_final:
+                if step_msg is not None:
+                    history.append(step_msg)
+                    yield history, ""
+                continue
+            result = final_output
         if use_memory:
             agent_memory.cap_agent_memory(agent, max_turns=AGENTIC_MEMORY_TURNS)
         elapsed = time.time() - t0
@@ -401,13 +545,14 @@ def chat_rag(user_message: str, history: list, model_label: str, use_agentic: bo
             ans = rag_agent.NOTHING_FOUND_MESSAGE
         else:
             ans = str(result)
-            # Guaranteed-accurate references list, appended regardless of
-            # whether the model remembered its own in-text citations/
-            # "### References" section (rag_agent.STRICT_SYSTEM_INSTRUCTIONS
-            # asks it to, but that depends on the model's instruction-
-            # following, same caveat as the strict-grounding check above).
-            # Built from sources the retriever ACTUALLY returned this turn
-            # — see knowledge_base.RetrieverTool.sources_used.
+            # Strip the model's own (unverified) "### References" section
+            # before appending the guaranteed-accurate one from the tool's
+            # own self-tracked sources — same verified-sources approach
+            # general_agentic and deep_research already use. Without this
+            # strip, references appear twice: once from the model (which
+            # may hallucinate or omit sources) and once from the tool's
+            # actual tracked data.
+            ans = general_agent.strip_trailing_references_section(ans)
             if sources_used:
                 refs = "\n".join(f"- {s}" for s in sorted(sources_used))
                 ans += f"\n\n---\n**📚 Sources retrieved this turn:**\n{refs}"
@@ -423,11 +568,11 @@ def chat_rag(user_message: str, history: list, model_label: str, use_agentic: bo
         import traceback
         response = f"❌ {e}\n\n{traceback.format_exc()}"
     history.append({"role": "assistant", "content": response})
-    return history, ""
+    yield history, ""
 
 
 def chat_vision(user_message: str, uploaded_image, history: list,
-                vlm_label: str, use_visual_rag: bool, use_memory: bool = True):
+                vlm_label: str, use_visual_rag: bool, use_memory: bool = True, lang_key: str = "kh"):
     if not user_message.strip() and uploaded_image is None:
         return history, None
     history = history or []
@@ -466,7 +611,7 @@ def chat_vision(user_message: str, uploaded_image, history: list,
     return history, None
 
 
-def chat_deep_research(user_message: str, history: list, model_label: str, use_memory: bool = True, use_playwright: bool = False, headless: bool = True, manager_max_steps: int = 12, search_max_steps: int = 6, timeout: int = 90):
+def chat_deep_research(user_message: str, history: list, model_label: str, use_memory: bool = True, use_playwright: bool = False, headless: bool = True, manager_max_steps: int = 12, search_max_steps: int = 6, timeout: int = 90, lang_key: str = "kh"):
     """Deep Research tab: a two-agent smolagents setup modeled on
     HuggingFace's own open_deep_research example (see
     https://github.com/huggingface/smolagents/tree/main/examples/open_deep_research)
@@ -489,7 +634,8 @@ def chat_deep_research(user_message: str, history: list, model_label: str, use_m
     RAM-only, resets-on-model-switch/Clear/restart behaviour applies here.
     """
     if not user_message.strip():
-        return history, ""
+        yield history, ""
+        return
     history = history or []
     history.append({"role": "user", "content": user_message})
     model_id = mr.MODEL_OPTIONS.get(model_label, mr.DEFAULT_LLM_MODEL)
@@ -509,8 +655,35 @@ def chat_deep_research(user_message: str, history: list, model_label: str, use_m
         # reaches the manager if this smolagents version's CodeAgent
         # accepts `instructions=` — on a version where it doesn't, this
         # is the only place the requirement is ever stated.
-        task = deep_research_agent.build_task_with_citation_reminder(user_message)
-        result = agent.run(task, reset=not use_memory)
+        task = deep_research_agent.build_task_with_citation_reminder(user_message, lang_key)
+        # See chat_general_direct()'s matching comment — a no-op unless
+        # the "🧠 Enable Model Reasoning" toggle is off. This is the tab
+        # most likely to benefit: a heavy thinking-tuned manager model
+        # (e.g. Qwen3.6-35B-A3B) burning its whole MAX_NEW_TOKENS budget
+        # on internal reasoning is exactly what produces the "Executing
+        # parsed code:" steps with an EMPTY body / Out: None seen in
+        # practice on this tab.
+        task = mr.apply_reasoning_toggle(task)
+        # Live step streaming — the manager's OWN steps stream (its
+        # thought/code, and each call it makes to the `web_search_agent`
+        # sub-agent shows up as a tool-call-shaped line with that call's
+        # returned text as the "output"). The search sub-agent's own
+        # internal steps don't stream separately — deep_research_agent.py's
+        # managed_agents mechanism runs it as one synchronous Python call
+        # from inside the manager's executed code, same as smolagents
+        # itself — but seeing each delegated sub-question and what it
+        # found, live, is already a large improvement over a single
+        # "thinking…" line for however many minutes the whole multi-step
+        # research run takes (see MANAGER_DEFAULT_MAX_STEPS's comment in
+        # deep_research_agent.py).
+        result = None
+        for step_msg, is_final, final_output in agent_streaming.stream_agent_steps(agent, task, reset=not use_memory):
+            if not is_final:
+                if step_msg is not None:
+                    history.append(step_msg)
+                    yield history, ""
+                continue
+            result = final_output
         if use_memory:
             agent_memory.cap_agent_memory(agent, max_turns=DEEP_RESEARCH_MEMORY_TURNS)
         elapsed = time.time() - t0
@@ -542,4 +715,4 @@ def chat_deep_research(user_message: str, history: list, model_label: str, use_m
         import traceback
         response = f"❌ {e}\n\n{traceback.format_exc()}"
     history.append({"role": "assistant", "content": response})
-    return history, ""
+    yield history, ""

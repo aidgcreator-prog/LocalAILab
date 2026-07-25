@@ -146,7 +146,9 @@ def index_pdf_visual(filepath: str, retriever_id: str) -> str:
         index_path = Path(mr.VISUAL_INDEX_DIR) / "main"
         index_path.parent.mkdir(parents=True, exist_ok=True)
         if _visual_retriever is None or _visual_retriever_id != retriever_id:
-            _visual_retriever = RAGMultiModalModel.from_pretrained(retriever_id, verbose=0)
+            _visual_retriever = RAGMultiModalModel.from_pretrained(
+                retriever_id, index_root=mr.VISUAL_INDEX_DIR, verbose=0,
+            )
             _visual_retriever_id = retriever_id
         if index_path.exists():
             _visual_retriever.add_to_index(input_item=filepath,
@@ -154,7 +156,6 @@ def index_pdf_visual(filepath: str, retriever_id: str) -> str:
                                            doc_id=int(time.time()))
         else:
             _visual_retriever.index(input_path=filepath, index_name="main",
-                                    index_root=mr.VISUAL_INDEX_DIR,
                                     store_collection_with_index=True, overwrite=False)
         return f"✅ Visual index updated: '{Path(filepath).name}'"
     except ImportError:
@@ -197,7 +198,8 @@ def unload_visual_retriever_fn(lang_key: str = "kh") -> str:
     return l["msg_unloaded"].format(model=mid)
 
 
-def index_pdf_file(filepath: str, visual_retriever_id: str = mr.DEFAULT_VISUAL_RETRIEVER) -> str:
+def index_pdf_file(filepath: str, visual_retriever_id: str = mr.DEFAULT_VISUAL_RETRIEVER,
+                   theme: str = "", subtheme: str = "") -> str:
     msgs = []
     try:
         import fitz
@@ -207,7 +209,8 @@ def index_pdf_file(filepath: str, visual_retriever_id: str = mr.DEFAULT_VISUAL_R
             t = page.get_text()
             if t.strip():
                 texts.append(t)
-                metas.append({"source": Path(filepath).name, "page": n+1, "type": "pdf"})
+                metas.append({"source": Path(filepath).name, "page": n+1, "type": "pdf",
+                              "theme": theme, "subtheme": subtheme})
         doc.close()
         msgs.append(f"✅ Text: {index_texts(texts, metas)} chunks")
     except Exception as e:
@@ -216,27 +219,26 @@ def index_pdf_file(filepath: str, visual_retriever_id: str = mr.DEFAULT_VISUAL_R
     return "\n".join(msgs)
 
 
-def index_txt_file(filepath: str) -> str:
+def index_txt_file(filepath: str, theme: str = "", subtheme: str = "") -> str:
     try:
         text = Path(filepath).read_text(encoding="utf-8", errors="replace")
-        k    = index_texts([text], [{"source": Path(filepath).name, "type": "txt"}])
+        k    = index_texts([text], [{"source": Path(filepath).name, "type": "txt",
+                                     "theme": theme, "subtheme": subtheme}])
         return f"✅ {k} chunks from '{Path(filepath).name}'"
     except Exception as e:
         return f"❌ {e}"
 
 
-def index_docx_file(filepath: str) -> str:
+def index_docx_file(filepath: str, theme: str = "", subtheme: str = "") -> str:
     try:
         import docx  # python-docx
         document = docx.Document(filepath)
 
         parts = []
-        # Paragraph text (skips empty lines)
         for para in document.paragraphs:
             if para.text.strip():
                 parts.append(para.text)
 
-        # Table text — tables aren't covered by document.paragraphs
         for table in document.tables:
             for row in table.rows:
                 cells = [c.text.strip() for c in row.cells if c.text.strip()]
@@ -247,7 +249,8 @@ def index_docx_file(filepath: str) -> str:
         if not text.strip():
             return f"⚠️ No extractable text in '{Path(filepath).name}'"
 
-        k = index_texts([text], [{"source": Path(filepath).name, "type": "docx"}])
+        k = index_texts([text], [{"source": Path(filepath).name, "type": "docx",
+                                 "theme": theme, "subtheme": subtheme}])
         return f"✅ {k} chunks from '{Path(filepath).name}'"
     except ImportError:
         return "⚠️ python-docx not installed — run 'pip install python-docx' to index .docx files."
@@ -255,7 +258,8 @@ def index_docx_file(filepath: str) -> str:
         return f"❌ {e}"
 
 
-def index_uploaded_files(files, visual_retriever_label: str) -> str:
+def index_uploaded_files(files, visual_retriever_label: str,
+                        theme: str = "", subtheme: str = "") -> str:
     if not files:
         return "No files uploaded."
     retriever_id = mr.VISUAL_RETRIEVER_OPTIONS.get(visual_retriever_label, mr.DEFAULT_VISUAL_RETRIEVER)
@@ -272,17 +276,18 @@ def index_uploaded_files(files, visual_retriever_label: str) -> str:
             continue
         ext = Path(path).suffix.lower()
         if ext == ".pdf":
-            msgs.append(index_pdf_file(path, retriever_id))
+            msgs.append(index_pdf_file(path, retriever_id, theme, subtheme))
         elif ext in (".txt", ".md"):
-            msgs.append(index_txt_file(path))
+            msgs.append(index_txt_file(path, theme, subtheme))
         elif ext == ".docx":
-            msgs.append(index_docx_file(path))
+            msgs.append(index_docx_file(path, theme, subtheme))
         else:
             msgs.append(f"⚠️ Unsupported: {ext}")
     return "\n".join(msgs) or "Nothing indexed."
 
 
-def index_hf_dataset(dataset_name: str, text_col: str, source_col: str = ""):
+def index_hf_dataset(dataset_name: str, text_col: str, source_col: str = "",
+                     theme: str = "", subtheme: str = ""):
     try:
         import datasets as ds
         dataset = ds.load_dataset(dataset_name, split="train")
@@ -293,7 +298,8 @@ def index_hf_dataset(dataset_name: str, text_col: str, source_col: str = ""):
                 continue
             src = row.get(source_col, dataset_name) if source_col else dataset_name
             texts.append(str(t))
-            metas.append({"source": str(src), "type": "hf_dataset"})
+            metas.append({"source": str(src), "type": "hf_dataset",
+                          "theme": theme, "subtheme": subtheme})
         k = index_texts(texts, metas)
         return f"✅ {k} chunks from '{dataset_name}'", get_doc_table()
     except Exception as e:
@@ -305,16 +311,21 @@ def get_doc_table() -> list:
     if col.count() == 0:
         return []
     result = col.get(include=["metadatas"])
-    agg = defaultdict(lambda: {"type": "", "pages": set(), "chunks": 0})
+    agg = defaultdict(lambda: {"type": "", "pages": set(), "chunks": 0,
+                               "theme": "", "subtheme": ""})
     for m in result["metadatas"]:
         src = m.get("source", "unknown")
         agg[src]["type"]   = m.get("type", "unknown")
         agg[src]["chunks"] += 1
+        agg[src]["theme"]   = m.get("theme", "")
+        agg[src]["subtheme"] = m.get("subtheme", "")
         if m.get("page"):
             agg[src]["pages"].add(m["page"])
     return [[src, info["type"],
              str(len(info["pages"])) if info["pages"] else "—",
-             info["chunks"]]
+             info["chunks"],
+             info["theme"],
+             info["subtheme"]]
             for src, info in sorted(agg.items())]
 
 
@@ -346,20 +357,29 @@ def clear_index() -> tuple:
     return [], "🗑️ All documents cleared."
 
 
-def get_index_stats(lang_key: str = "en") -> str:
+def get_index_stats(lang_key: str = "en") -> tuple[str, str]:
     l = LANGUAGES[lang_key]
     n       = models.get_chroma_collection().count()
     vis_str = l["err_visual_ready"] if (Path(mr.VISUAL_INDEX_DIR) / "main").exists() else l["err_empty_visual"]
-    return l["err_status_bar"].format(n=n, vis=vis_str, dev=DEVICE.upper())
+    msg = l["err_status_bar"].format(n=n, vis=vis_str, dev=DEVICE.upper())
+    return msg, msg
 
 
-def retrieve_context(query: str) -> tuple[str, list[str]]:
+def retrieve_context(query: str, theme: str = "", subtheme: str = "") -> tuple[str, list[str]]:
     col = models.get_chroma_collection()
     if col.count() == 0:
         return "", []
+    where_filter = {}
+    if theme and subtheme:
+        where_filter = {"$and": [{"theme": {"$eq": theme}}, {"subtheme": {"$eq": subtheme}}]}
+    elif theme:
+        where_filter = {"theme": {"$eq": theme}}
+    elif subtheme:
+        where_filter = {"subtheme": {"$eq": subtheme}}
     try:
         results = col.query(query_embeddings=models.encode_texts([query]),
-                            n_results=min(mr.TOP_K, col.count()))
+                            n_results=min(mr.TOP_K, col.count()),
+                            where=where_filter or None)
     except Exception as e:
         if "dimension" in str(e).lower():
             raise RuntimeError(f"{_DIMENSION_MISMATCH_HINT}\n\nOriginal error: {e}") from e
@@ -407,8 +427,10 @@ class RetrieverTool(Tool):
     }
     output_type = "string"
 
-    def __init__(self, **kwargs):
+    def __init__(self, theme: str = "", subtheme: str = "", **kwargs):
         super().__init__(**kwargs)
+        self._theme = theme
+        self._subtheme = subtheme
         # Self-tracked usage stats — used by rag_agent.py to verify (after
         # agent.run() returns) that the model actually searched the
         # knowledge base and actually found something, rather than trying
@@ -434,7 +456,7 @@ class RetrieverTool(Tool):
     def forward(self, query: str) -> str:
         assert isinstance(query, str), "Your search query must be a string"
         self.call_count += 1
-        context, sources = retrieve_context(query)
+        context, sources = retrieve_context(query, self._theme, self._subtheme)
         if not context:
             return "No relevant documents found — the knowledge base may be empty."
         self.found_count += 1

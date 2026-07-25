@@ -285,11 +285,48 @@ def get_chroma_collection(name: str = "rag_docs"):
     # console noise; the same info is already visible in the UI's status
     # bar (kb.get_index_stats()) without needing a terminal print.
     global _chroma_col
+
+    # Use a dimension-aware collection name so that switching to a
+    # different embedding model automatically gets its own ChromaDB
+    # collection instead of reusing one built with a different vector
+    # dimension (which causes the "Collection expecting embedding with
+    # dimension of 1024, got 2560" error).
+    # When no embedding model is loaded yet, fall back to the hardcoded
+    # dimensions table in model_registry.py for the saved/active embed
+    # model id.
+    _dim_name = None
+    if _embed_model is not None:
+        mid = getattr(_embed_model, 'model_name', None) or getattr(_embed_model, 'name', None)
+        _dim_name = mr.EMBED_MODEL_DIMENSIONS.get(mid)
+        if _dim_name is None and hasattr(_embed_model, 'get_sentence_transformer_model'):
+            try:
+                cfg = _embed_model.get_sentence_transformer_model().config
+                _dim_name = getattr(cfg, 'hidden_size', None) or getattr(cfg, 'projection_dim', None)
+            except Exception:
+                pass
+    if _dim_name is None:
+        _dim_name = mr.EMBED_MODEL_DIMENSIONS.get(_embed_model_id, None)
+    if _dim_name is None:
+        _dim_name = mr.EMBED_MODEL_DIMENSIONS.get(mr.DEFAULT_EMBED_MODEL, 1024)
+
+    _dim_name = f"rag_docs_{_dim_name}d"
+
+    if _chroma_col is not None:
+        old_name = getattr(_chroma_col, 'name', None)
+        if old_name is not None and old_name != _dim_name:
+            try:
+                import chromadb
+                chromadb.PersistentClient(path=mr.CHROMA_PERSIST_DIR).delete_collection(old_name)
+            except Exception:
+                pass
+            print(f"[RAG] Old ChromaDB collection '{old_name}' removed after embedding model switch.")
+            _chroma_col = None
+
     if _chroma_col is None:
         import chromadb
-        client      = chromadb.PersistentClient(path=mr.CHROMA_PERSIST_DIR)
+        client = chromadb.PersistentClient(path=mr.CHROMA_PERSIST_DIR)
         _chroma_col = client.get_or_create_collection(
-            name=name, metadata={"hnsw:space": "cosine"})
+            name=_dim_name, metadata={"hnsw:space": "cosine"})
     return _chroma_col
 
 
@@ -368,7 +405,17 @@ def get_llm(model_id: Optional[str] = None, n_ctx: Optional[int] = None):
                     model_path=target,
                     temperature=0.6,
                     top_p=0.95,
-                    max_new_tokens=mr.MAX_NEW_TOKENS,
+                    max_new_tokens=mr.get_saved_max_new_tokens(),
+                    # Per-request HTTP timeout (seconds) — user-configurable
+                    # via the "⏱️ llama-server Request Timeout" dropdown (see
+                    # model_registry.get_saved_llm_server_timeout()) instead
+                    # of silently using LlamaServerModel's hardcoded 300s
+                    # default. A large/slow model with a long agentic prompt
+                    # (e.g. Deep Research's manager+sub-agent history) can
+                    # easily need more than 300s per generation — see that
+                    # function's docstring for the full "Error in code
+                    # parsing" failure mode this fixes.
+                    timeout=mr.get_saved_llm_server_timeout(),
                 )
                 _llm_n_ctx = target_ctx
 
@@ -401,7 +448,7 @@ def get_llm(model_id: Optional[str] = None, n_ctx: Optional[int] = None):
                         flash_attn=llama_backend.LLAMA_CPP_GPU_AVAILABLE,
                         temperature=0.6,
                         top_p=0.95,
-                        max_new_tokens=mr.MAX_NEW_TOKENS,
+                        max_new_tokens=mr.get_saved_max_new_tokens(),
                     )
                 except Exception as e:
                     # A larger n_ctx needs a proportionally larger KV-cache —
@@ -419,6 +466,24 @@ def get_llm(model_id: Optional[str] = None, n_ctx: Optional[int] = None):
                         ) from e
                     raise
                 _llm_n_ctx = target_ctx
+        elif target == mr.HF_INFERENCE_API_SENTINEL:
+            from smolagents import InferenceClientModel
+            hf_model_id = mr.get_saved_hf_model_id()
+            hf_token = mr.get_saved_hf_token() or None
+            hf_provider = mr.get_saved_hf_provider() or None
+            if not hf_model_id:
+                raise ValueError(
+                    "Hugging Face Inference API selected, but no model ID is configured. "
+                    "Enter a model ID in the '🤗 HF Model ID' field under Model Settings."
+                )
+            print(f"[RAG] Using Hugging Face Inference API: model={hf_model_id} provider={hf_provider or 'auto'}")
+            _llm = InferenceClientModel(
+                model_id=hf_model_id,
+                token=hf_token,
+                provider=hf_provider,
+                max_tokens=mr.get_saved_max_new_tokens(),
+            )
+            _llm_n_ctx = None
         else:
             _check_transformers_version_for(target)
             import inspect
@@ -428,7 +493,7 @@ def get_llm(model_id: Optional[str] = None, n_ctx: Optional[int] = None):
             base_kwargs = dict(
                 model_id=target,
                 device_map=DEVICE,
-                max_new_tokens=mr.MAX_NEW_TOKENS,
+                max_new_tokens=mr.get_saved_max_new_tokens(),
                 temperature=0.6,
                 top_p=0.95,
                 trust_remote_code=True,
@@ -633,7 +698,7 @@ def vlm_answer(question: str, images: list, context: str = "", model_id: Optiona
         # GGUF vision model (llama.cpp) — self-contained answer() method,
         # no transformers processor/chat-template plumbing involved.
         if isinstance(model, llama_backend.LlamaCppVLMModel):
-            return model.answer(question, images, context=context, max_tokens=mr.MAX_NEW_TOKENS)
+            return model.answer(question, images, context=context, max_tokens=mr.get_saved_max_new_tokens())
         arch = getattr(model, "_arch", "smolvlm")
         system_prompt = "You are a helpful assistant. Answer based on images and context."
         user_text = question + (f"\n\nContext:\n{context}" if context else "")
@@ -656,7 +721,7 @@ def vlm_answer(question: str, images: list, context: str = "", model_id: Optiona
             text_in = processor.apply_chat_template(messages, add_generation_prompt=True)
             inputs  = processor(text=text_in, images=images or None, return_tensors="pt").to(DEVICE)
         with torch.no_grad():
-            out = model.generate(**inputs, max_new_tokens=mr.MAX_NEW_TOKENS)
+            out = model.generate(**inputs, max_new_tokens=mr.get_saved_max_new_tokens())
         trimmed = out[0][inputs["input_ids"].shape[-1]:]
         return processor.decode(trimmed, skip_special_tokens=True)
     except Exception as e:
