@@ -45,11 +45,6 @@ user_config.json
 agent_memory_store/
 
 # ------------------------
-# User Data / Assets
-# ------------------------
-image/
-
-# ------------------------
 # Vector Stores / AI Data
 # ------------------------
 chroma_db/
