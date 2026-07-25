@@ -12,18 +12,25 @@ env/
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
 
-# Distribution / Build
+# ------------------------
+# Build Artifacts
+# ------------------------
 build/
 dist/
 *.egg-info/
 
+# ------------------------
 # Testing
+# ------------------------
 .pytest_cache/
 .coverage
 htmlcov/
 
+# ------------------------
 # Jupyter
+# ------------------------
 .ipynb_checkpoints/
 
 # ------------------------
@@ -32,29 +39,42 @@ htmlcov/
 .env
 
 # ------------------------
-# Vector Databases / AI Data
+# User Config & State
+# ------------------------
+user_config.json
+agent_memory_store/
+
+# ------------------------
+# User Data / Assets
+# ------------------------
+image/
+
+# ------------------------
+# Vector Stores / AI Data
 # ------------------------
 chroma_db/
 visual_index/
 
 # ------------------------
-# Project-specific
+# Graphify Output
+# ------------------------
+graphify-out/
+
+# ------------------------
+# Analysis / Old Files
 # ------------------------
 old_files/
 data_analysis/
-.claude/
-user_config.json
-.user_config.json
-agent_memory_store/
 
 # ------------------------
-# Operating System
-# ------------------------
-.DS_Store
-Thumbs.db
-
-# ------------------------
-# IDEs
+# IDE / Editor
 # ------------------------
 .vscode/
 .idea/
+.claude/
+
+# ------------------------
+# OS Artifacts
+# ------------------------
+.DS_Store
+Thumbs.db
