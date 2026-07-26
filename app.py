@@ -25,11 +25,20 @@ This file is now just the entry point. Implementation lives in:
   ui.py              — Gradio Blocks UI + all event wiring
 """
 
+import socket
 import warnings
 
 import gradio as gr
 
 from ui import build_ui, CSS
+
+
+def _find_free_port(start=7861):
+    for port in range(start, start + 20):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            if s.connect_ex(("127.0.0.1", port)) != 0:
+                return port
+    return start
 
 warnings.filterwarnings("ignore", category=UserWarning, module="torch")
 
@@ -41,9 +50,10 @@ if __name__ == "__main__":
     # window/browser opens immediately instead of blocking on model
     # downloads/loads before the UI is even servable.
     demo = build_ui()
+    port = _find_free_port()
     demo.launch(
         server_name="0.0.0.0",
-        server_port=7861,
+        server_port=port,
         share=False,
         inbrowser=True,
         theme=gr.themes.Soft(primary_hue="violet"),

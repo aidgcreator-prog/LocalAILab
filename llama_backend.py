@@ -173,6 +173,20 @@ def discover_gguf_models(folder: Optional[str] = None) -> dict:
     return found
 
 
+def _shared_prefix_len(a: str, b: str) -> int:
+    n = 0
+    for ca, cb in zip(a.lower(), b.lower()):
+        if ca != cb:
+            break
+        n += 1
+    return n
+
+
+def _strip_mmproj_prefix(stem: str) -> str:
+    s = stem.lower()
+    return s[len("mmproj-"):] if s.startswith("mmproj-") else s
+
+
 def discover_gguf_vlm_models(folder: Optional[str] = None) -> dict:
     """Recursively scan a folder AND ALL OF ITS SUBFOLDERS for GGUF
     vision-language model PAIRS.
@@ -221,21 +235,17 @@ def discover_gguf_vlm_models(folder: Optional[str] = None) -> dict:
     if not mmproj_files or not main_files:
         return {}
 
-    def _shared_prefix_len(a: str, b: str) -> int:
-        n = 0
-        for ca, cb in zip(a.lower(), b.lower()):
-            if ca != cb:
-                break
-            n += 1
-        return n
-
     mode_tag = "llama.cpp | GPU" if LLAMA_CPP_GPU_AVAILABLE else "llama.cpp | CPU only — slow"
     found = {}
     for main_f in main_files:
         same_dir_mmproj = [m for m in mmproj_files if m.parent == main_f.parent]
         candidates = same_dir_mmproj if same_dir_mmproj else mmproj_files
+        def _mmproj_key(m):
+            s = m.stem.lower()
+            s = s[len("mmproj-"):] if s.startswith("mmproj-") else s
+            return _shared_prefix_len(main_f.stem.lower(), s)
         best_mmproj = (candidates[0] if len(candidates) == 1
-                       else max(candidates, key=lambda m: _shared_prefix_len(main_f.stem, m.stem)))
+                       else max(candidates, key=_mmproj_key))
         size_gb = main_f.stat().st_size / (1024 ** 3)
         mm_gb   = best_mmproj.stat().st_size / (1024 ** 3)
         display_name = _relative_display_name(main_f, p)
@@ -243,6 +253,31 @@ def discover_gguf_vlm_models(folder: Optional[str] = None) -> dict:
                  f"~{mm_gb:.1f} GB | {mode_tag})")
         found[label] = (str(main_f), str(best_mmproj))
     return found
+
+
+def get_mmproj_candidates_for_model(model_path: str) -> dict:
+    """Return {label: mmproj_path} for all mmproj files in the same
+    folder as *model_path* that share a common model-family prefix
+    (e.g. 'Qwen3VL' matches 'mmproj-Qwen3VL-…' but not 'mmproj-Qwen2-…').
+
+    The returned dict is intended for a Gradio dropdown so the user can
+    explicitly pick which mmproj to use with the selected VLM.
+    """
+    folder = Path(model_path).parent
+    if not folder.exists():
+        return {}
+    all_gguf = sorted(folder.rglob("*.gguf"))
+    mmproj_files = [f for f in all_gguf if "mmproj" in f.stem.lower()]
+    stem = Path(model_path).stem.lower()
+    out = {}
+    for f in mmproj_files:
+        s = _strip_mmproj_prefix(f.stem)
+        if _shared_prefix_len(stem, s) < 3:
+            continue
+        size_gb = f.stat().st_size / (1024 ** 3)
+        label = f"🖼️ {f.name}  (~{size_gb:.1f} GB)"
+        out[label] = str(f)
+    return out
 
 
 @contextlib.contextmanager
@@ -1014,7 +1049,22 @@ class LlamaCppVLMModel:
             {"role": "system", "content": "You are a helpful assistant. Answer based on images and context."},
             {"role": "user", "content": content},
         ]
-        out = self.llm.create_chat_completion(
-            messages=messages, max_tokens=max_tokens, temperature=temperature,
-        )
+        try:
+            out = self.llm.create_chat_completion(
+                messages=messages, max_tokens=max_tokens, temperature=temperature,
+            )
+        except ValueError as e:
+            msg = str(e)
+            if "mtmd context" in msg or "mmproj" in msg.lower():
+                raise RuntimeError(
+                    f"VLM failed to load mtmd/vision context — the mmproj file "
+                    f"likely doesn't match the model architecture.\n\n"
+                    f"  Model:  {self.model_path}\n"
+                    f"  mmproj: {self.mmproj_path}\n\n"
+                    f"These two files must be from the SAME model family (e.g. "
+                    f"both for Qwen2-VL-7B, or both for Qwen3VL-8B). Replace the "
+                    f"mmproj file with one that matches your model, or remove it "
+                    f"and re-scan the GGUF folder."
+                ) from e
+            raise
         return out["choices"][0]["message"]["content"].strip()

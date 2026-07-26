@@ -14,6 +14,7 @@ import torch
 
 import llama_backend
 import model_registry as mr
+import whisper_cpp_backend
 from hardware import DEVICE, TORCH_DTYPE
 from i18n import LANGUAGES
 
@@ -229,14 +230,38 @@ def get_embed_model(model_id: Optional[str] = None):
             _release_model(_embed_model)
             _embed_model = None
 
+        # ── HF Inference API ──────────────────────────────────────
+        if target == mr.HF_INFERENCE_API_SENTINEL:
+            hf_model_id = mr.get_saved_hf_model_id()
+            if not hf_model_id:
+                raise ValueError(
+                    "Hugging Face Inference API selected for Embedding, but no "
+                    "model ID is configured."
+                )
+            _embed_model = InferenceApiEmbeddingModel(model_id=hf_model_id)
+            _embed_model_id = target
+            return _embed_model
+
+        # ── llama.cpp server embeddings ──────────────────────────
+        if str(target).lower().endswith(".gguf"):
+            print(f"[RAG] Starting llama-server for embeddings with '{target}' …")
+            base_url = llama_backend.get_or_start_llama_server(
+                model_path=target,
+                n_ctx=mr.get_saved_context_window(),
+                n_gpu_layers=-1 if llama_backend.LLAMA_CPP_GPU_AVAILABLE else 0,
+            )
+            _embed_model = EmbeddingServerModel(
+                model_path=target, base_url=base_url,
+            )
+            _embed_model_id = target
+            return _embed_model
+
+        # ── Local HuggingFace SentenceTransformer ────────────────
         print(f"[RAG] Loading embedding model '{target}' on {DEVICE.upper()} …")
         from sentence_transformers import SentenceTransformer
         try:
-            # jina-embeddings-v4 needs trust_remote_code=True; harmless
-            # for BGE-M3/Qwen3-Embedding-4B, which don't require it.
             _embed_model = SentenceTransformer(target, device=DEVICE, trust_remote_code=True)
         except TypeError:
-            # Older sentence-transformers releases may not accept this kwarg.
             _embed_model = SentenceTransformer(target, device=DEVICE)
         _embed_model_id = target
         return _embed_model
@@ -269,8 +294,13 @@ def unload_embed_model_fn(lang_key: str = "kh") -> str:
 
 
 def encode_texts(texts: list, normalize: bool = True):
-    vecs = get_embed_model().encode(texts, normalize_embeddings=normalize,
-                                    show_progress_bar=False)
+    embed = get_embed_model()
+    # InferenceApiEmbeddingModel and EmbeddingServerModel have their own
+    # encode() with a different signature.
+    if hasattr(embed, "encode") and hasattr(embed, "model_id"):
+        return embed.encode(texts, normalize=normalize)
+    vecs = embed.encode(texts, normalize_embeddings=normalize,
+                        show_progress_bar=False)
     return vecs.tolist() if hasattr(vecs, "tolist") else vecs
 
 
@@ -476,12 +506,38 @@ def get_llm(model_id: Optional[str] = None, n_ctx: Optional[int] = None):
                     "Hugging Face Inference API selected, but no model ID is configured. "
                     "Enter a model ID in the '🤗 HF Model ID' field under Model Settings."
                 )
+            if ":" in hf_model_id and not hf_provider:
+                hf_model_id, hf_provider = hf_model_id.rsplit(":", 1)
             print(f"[RAG] Using Hugging Face Inference API: model={hf_model_id} provider={hf_provider or 'auto'}")
             _llm = InferenceClientModel(
                 model_id=hf_model_id,
                 token=hf_token,
                 provider=hf_provider,
                 max_tokens=mr.get_saved_max_new_tokens(),
+            )
+            _llm_n_ctx = None
+        elif target == mr.LITELLM_SENTINEL:
+            try:
+                from smolagents import LiteLLMModel
+            except ImportError:
+                raise RuntimeError(
+                    "LiteLLM is not installed. Run: pip install 'smolagents[litellm]'"
+                )
+            litellm_model_id = mr.get_saved_litellm_model_id()
+            litellm_api_key  = mr.get_saved_litellm_api_key() or None
+            litellm_api_base = mr.get_saved_litellm_api_base() or None
+            if not litellm_model_id:
+                raise ValueError(
+                    "LiteLLM selected, but no model ID is configured. "
+                    "Enter a model ID in the '🔗 LiteLLM Model ID' field "
+                    "under Model Settings."
+                )
+            print(f"[RAG] Using LiteLLM: model={litellm_model_id} base={litellm_api_base or 'default'}")
+            _llm = LiteLLMModel(
+                model_id=litellm_model_id,
+                api_key=litellm_api_key,
+                api_base=litellm_api_base,
+                max_completion_tokens=mr.get_saved_max_new_tokens(),
             )
             _llm_n_ctx = None
         else:
@@ -589,7 +645,7 @@ def _call_llm(model_id: str, system: str, user: str, history: Optional[list] = N
     return ans.strip(), time.time() - t0
 
 
-def get_vlm(model_id: Optional[str] = None):
+def get_vlm(model_id: Optional[str] = None, mmproj_path: Optional[str] = None):
     global _vlm_model, _vlm_processor, _vlm_model_id
 
     target = model_id or mr.DEFAULT_VLM_MODEL
@@ -603,26 +659,35 @@ def get_vlm(model_id: Optional[str] = None):
         _vlm_model = None
         _vlm_processor = None
 
-    print(f"[VLM] Loading '{target}' on {DEVICE.upper()} …")
+    # ── HF Inference API ──────────────────────────────────────────
+    if target == mr.HF_INFERENCE_API_SENTINEL:
+        hf_model_id = mr.get_saved_hf_model_id()
+        if not hf_model_id:
+            raise ValueError(
+                "Hugging Face Inference API selected for Vision, but no "
+                "model ID is configured. Enter a model ID in the "
+                "'🤗 HF Model ID' field under Model Settings."
+            )
+        _vlm_model = InferenceApiVLMModel(model_id=hf_model_id)
+        _vlm_processor = None
+        _vlm_model_id = target
+        return _vlm_model, _vlm_processor
 
-    # GGUF vision model (llama.cpp) — needs a paired mmproj file, looked
-    # up by path via model_registry.GGUF_VLM_MMPROJ_MAP (populated by
-    # llama_backend.discover_gguf_vlm_models() at startup/rescan). No
-    # separate `_vlm_processor` is needed on this path — image encoding
-    # happens inside LlamaCppVLMModel.answer() itself.
+    # ── GGUF vision model (llama.cpp) ─────────────────────────────
     if str(target).lower().endswith(".gguf"):
         if not llama_backend.LLAMA_CPP_AVAILABLE:
             raise RuntimeError(
                 "llama-cpp-python is not installed — GGUF vision models "
                 "unavailable. Run SETUP.bat, or install it manually."
             )
-        mmproj_path = mr.GGUF_VLM_MMPROJ_MAP.get(target)
+        if not mmproj_path:
+            mmproj_path = mr.GGUF_VLM_MMPROJ_MAP.get(target)
         if not mmproj_path:
             raise RuntimeError(
                 f"No mmproj (vision projector) file is registered for "
-                f"'{target}'. Click '🔍 Scan' on the GGUF model folder so "
-                f"it can be re-paired with its mmproj .gguf file — both "
-                f"files must be in the same folder."
+                f"'{target}'. Select one from the mmproj dropdown in the "
+                f"sidebar, or click '🔍 Scan' on the GGUF model folder so "
+                f"it can be paired with a matching mmproj .gguf file."
             )
         _vlm_model = llama_backend.LlamaCppVLMModel(
             model_path=target,
@@ -634,6 +699,8 @@ def get_vlm(model_id: Optional[str] = None):
         _vlm_model_id = target
         return _vlm_model, _vlm_processor
 
+    # ── Local HuggingFace VLM ─────────────────────────────────────
+    print(f"[VLM] Loading '{target}' on {DEVICE.upper()} …")
     from transformers import AutoProcessor
 
     if target in mr.QWEN_VL_IDS:
@@ -692,12 +759,14 @@ def get_vlm(model_id: Optional[str] = None):
     return _vlm_model, _vlm_processor
 
 
-def vlm_answer(question: str, images: list, context: str = "", model_id: Optional[str] = None) -> str:
+def vlm_answer(question: str, images: list, context: str = "", model_id: Optional[str] = None, mmproj_path: Optional[str] = None) -> str:
     try:
-        model, processor = get_vlm(model_id)
-        # GGUF vision model (llama.cpp) — self-contained answer() method,
-        # no transformers processor/chat-template plumbing involved.
+        model, processor = get_vlm(model_id, mmproj_path=mmproj_path)
+        # GGUF vision model (llama.cpp) — self-contained answer() method.
         if isinstance(model, llama_backend.LlamaCppVLMModel):
+            return model.answer(question, images, context=context, max_tokens=mr.get_saved_max_new_tokens())
+        # HF Inference API VLM — also self-contained answer().
+        if isinstance(model, InferenceApiVLMModel):
             return model.answer(question, images, context=context, max_tokens=mr.get_saved_max_new_tokens())
         arch = getattr(model, "_arch", "smolvlm")
         system_prompt = "You are a helpful assistant. Answer based on images and context."
@@ -745,10 +814,32 @@ def get_stt_pipeline(model_id: Optional[str] = None):
             _release_model(_stt_pipeline)
             _stt_pipeline = None
 
+        # ── HF Inference API ──────────────────────────────────────
+        if target == mr.HF_INFERENCE_API_SENTINEL:
+            hf_model_id = mr.get_saved_hf_model_id()
+            if not hf_model_id:
+                raise ValueError(
+                    "Hugging Face Inference API selected for Speech, but no "
+                    "model ID is configured."
+                )
+            _stt_pipeline = InferenceApiSTTModel(model_id=hf_model_id)
+            _stt_model_id = target
+            return _stt_pipeline
+
+        # ── whisper.cpp server ────────────────────────────────────
+        suffix = str(target).lower()
+        if suffix.endswith(".ggml") or suffix.endswith(".bin"):
+            base_url = whisper_cpp_backend.get_or_start_whisper_server(target)
+            _stt_pipeline = whisper_cpp_backend.WhisperServerModel(
+                base_url=base_url, model_path=target,
+            )
+            _stt_model_id = target
+            return _stt_pipeline
+
+        # ── Local HuggingFace Whisper pipeline ────────────────────
         print(f"[STT] Loading '{target}' on {DEVICE.upper()} …")
         from transformers import pipeline as hf_pipeline
 
-        # pipeline() wants an integer device index for cuda, "mps", or -1 for cpu
         if DEVICE == "cuda":
             device_arg = 0
         elif DEVICE == "mps":
@@ -761,15 +852,6 @@ def get_stt_pipeline(model_id: Optional[str] = None):
             model=target,
             torch_dtype=TORCH_DTYPE,
             device=device_arg,
-            # Whisper's underlying generate() refuses more than 3000 mel
-            # input features (30s of audio) unless either return_timestamps
-            # is set or the pipeline chunks the audio itself first. Setting
-            # chunk_length_s here makes the pipeline split any longer
-            # recording into <=30s windows (with a little overlap via
-            # stride_length_s so words at chunk boundaries aren't cut off),
-            # run each window through generate() normally, and stitch the
-            # text back together — so recordings/uploads of any length just
-            # work, with no extra changes needed in transcribe_audio().
             chunk_length_s=30,
             stride_length_s=5,
         )
@@ -815,6 +897,13 @@ def transcribe_audio(audio_path: Optional[str], language: Optional[str] = None,
         return ""
     try:
         asr = get_stt_pipeline(model_id)
+
+        # InferenceApiSTTModel and WhisperServerModel have their own
+        # transcribe() method that handles the HTTP request — no audio
+        # array decoding needed.
+        if hasattr(asr, "transcribe") and callable(asr.transcribe):
+            return asr.transcribe(audio_path, language=language)
+
         gen_kwargs = {}
         if language and language != "auto":
             gen_kwargs["language"] = language
@@ -861,6 +950,168 @@ def transcribe_audio(audio_path: Optional[str], language: Optional[str] = None,
     except Exception as e:
         import traceback
         return f"❌ {e}\n\n{traceback.format_exc()}"
+
+
+# ──────────────────────────────────────────────────────────────────
+# HF Inference API model proxies — thin wrappers that call
+# huggingface_hub.InferenceClient for model types that don't have a
+# smolagents built-in equivalent (InferenceClientModel only covers
+# text-generation).  Each shares the HF token / model ID configured
+# in the shared provider settings below.
+# ──────────────────────────────────────────────────────────────────
+
+class InferenceApiVLMModel:
+    """Vision‑language model via HF Inference API — sends image + text
+    to the remote endpoint instead of loading weights locally."""
+
+    def __init__(self, model_id: str):
+        self.model_id = model_id
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            from huggingface_hub import InferenceClient
+            token = mr.get_saved_hf_token() or None
+            self._client = InferenceClient(token=token)
+        return self._client
+
+    def answer(self, question: str, images: list, context: str = "",
+               max_tokens: int = 512) -> str:
+        client = self._get_client()
+        user_text = question + (f"\n\nContext:\n{context}" if context else "")
+        messages = [{"role": "user", "content": user_text}]
+        try:
+            resp = client.chat_completion(
+                messages=messages,
+                model=self.model_id,
+                max_tokens=max_tokens,
+            )
+            return resp.choices[0].message.content
+        except Exception as e:
+            # Some VLM models on HF IAPI need images passed differently
+            # — try again with image content.
+            if images:
+                img_b64 = _image_to_base64(images[0])
+                content = [
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
+                    {"type": "text", "text": user_text},
+                ]
+                messages = [{"role": "user", "content": content}]
+                resp = client.chat_completion(
+                    messages=messages,
+                    model=self.model_id,
+                    max_tokens=max_tokens,
+                )
+                return resp.choices[0].message.content
+            raise
+
+
+class InferenceApiSTTModel:
+    """Speech‑to‑text via HF Inference API — posts audio to the remote
+    endpoint instead of loading Whisper locally."""
+
+    def __init__(self, model_id: str):
+        self.model_id = model_id
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            from huggingface_hub import InferenceClient
+            token = mr.get_saved_hf_token() or None
+            self._client = InferenceClient(token=token)
+        return self._client
+
+    def transcribe(self, audio_path: str, language: Optional[str] = None) -> str:
+        client = self._get_client()
+        with open(audio_path, "rb") as f:
+            data = f.read()
+        result = client.automatic_speech_recognition(
+            data,
+            model=self.model_id,
+        )
+        return (result.get("text", "") if isinstance(result, dict)
+                else str(result))
+
+
+class InferenceApiEmbeddingModel:
+    """Embedding model via HF Inference API — calls the feature-extraction
+    endpoint instead of loading SentenceTransformer locally."""
+
+    def __init__(self, model_id: str):
+        self.model_id = model_id
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            from huggingface_hub import InferenceClient
+            token = mr.get_saved_hf_token() or None
+            self._client = InferenceClient(token=token)
+        return self._client
+
+    def encode(self, texts: list, normalize: bool = True) -> list:
+        client = self._get_client()
+        result = client.feature_extraction(texts, model=self.model_id)
+        # Result may be a list of lists or a numpy array
+        import numpy as np
+        arr = np.asarray(result, dtype=np.float32)
+        if arr.ndim == 1:
+            arr = arr.reshape(1, -1)
+        if normalize:
+            norms = np.linalg.norm(arr, axis=1, keepdims=True)
+            norms = np.where(norms == 0, 1.0, norms)
+            arr = arr / norms
+        return arr.tolist()
+
+
+class EmbeddingServerModel:
+    """Embedding model via llama.cpp server's /v1/embeddings endpoint
+    (OpenAI-compatible).  Spawns/reuses the same llama-server process
+    managed by llama_backend.get_or_start_llama_server()."""
+
+    def __init__(self, model_path: str, base_url: str):
+        self.model_id = model_path
+        self.model_path = model_path
+        self.base_url = base_url.rstrip("/")
+
+    def encode(self, texts: list, normalize: bool = True) -> list:
+        import requests
+        import numpy as np
+
+        # For a single string, wrap it
+        if isinstance(texts, str):
+            texts = [texts]
+
+        payload = {
+            "input": texts,
+            "model": self.model_path,
+        }
+
+        resp = requests.post(
+            f"{self.base_url}/v1/embeddings",
+            json=payload,
+            timeout=120,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Extract embeddings in order of the input indices
+        embeddings = [d["embedding"] for d in sorted(data["data"], key=lambda x: x["index"])]
+
+        arr = np.asarray(embeddings, dtype=np.float32)
+        if normalize:
+            norms = np.linalg.norm(arr, axis=1, keepdims=True)
+            norms = np.where(norms == 0, 1.0, norms)
+            arr = arr / norms
+        return arr.tolist()
+
+
+def _image_to_base64(img) -> str:
+    """Convert a PIL image to a base64-encoded JPEG string."""
+    import base64
+    from io import BytesIO
+    buf = BytesIO()
+    img.convert("RGB").save(buf, format="JPEG", quality=85)
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -917,11 +1168,11 @@ def force_reload_llm(target_model_id: str, n_ctx: Optional[int] = None):
     return get_llm(target_model_id, n_ctx=n_ctx)
 
 
-def force_reload_vlm(target_model_id: str):
+def force_reload_vlm(target_model_id: str, mmproj_path: Optional[str] = None):
     global _vlm_model, _vlm_processor
     _release_model(_vlm_model)
     _vlm_model = _vlm_processor = None
-    return get_vlm(target_model_id)
+    return get_vlm(target_model_id, mmproj_path=mmproj_path)
 
 
 def force_reload_stt(target_model_id: str):

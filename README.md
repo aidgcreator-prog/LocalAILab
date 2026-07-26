@@ -12,13 +12,20 @@
 
 ### 🆕 អ្វីដែលថ្មីក្នុងកំណែនេះ
 
-- **🔬 ផ្ទាំង Deep Research ថ្មី**៖ agent គ្រប់គ្រង + agent ស្វែងរកតាមអ៊ីនធឺណិតដាច់ដោយឡែក បំបែកសំណួរជាសំណួររង រៀបចំផែនការឡើងវិញឥតឈប់ឈរ (`planning_interval`) រួចសរសេររបាយការណ៍ Markdown ដែលមានប្រភពយោងផ្ទៀងផ្ទាត់
-- **ម៉ូដែលថ្មី**៖ គាំទ្រគ្រួសារ **Gemma 4** (E2B/12B/26B-A4B/31B, អាជ្ញាប័ណ្ណ Apache 2.0) និង **Qwen3.6** (27B dense / 35B-A3B MoE) — ត្រូវការ `transformers` កំណែថ្មីជាងមុន (សូមមើលតារាង Text LLMs ខាងក្រោម)
-- **🧠 ចងចាំការសន្ទនា (Conversation Memory — កំពុងសាកល្បង)**៖ ប្រអប់ថ្មីនៅគ្រប់ផ្ទាំង agentic អនុញ្ញាតឱ្យសំណួរបន្តអាចយោងលើអ្វីដែលបាននិយាយពីមុន (RAM-only មិនរក្សាទុកទៅថាសទេ)
-- **🧠 វិន្ដូបរិបទ (Context Window) ដែលកំណត់បានតាមចិត្ត**៖ ជ្រើសរើសពី 4K ដល់ 128K សម្រាប់ម៉ូដែល GGUF ដោយផ្ទាល់ក្នុង UI
-- **ការរកឃើញ GPU មិនត្រូវគ្នា**៖ បង្ហាញការព្រមានច្បាស់លាស់ក្នុង UI ប្រសិនបើ GPU ចាស់ (ឧ. Pascal/sm_6x) មិនត្រូវបានគាំទ្រដោយ PyTorch build បច្ចុប្បន្ន ជំនួសឱ្យការគាំងស្ងាត់ៗ
-- **Data Analysis Agent** ឥឡូវអាចដំឡើង Python package ខ្វះខាតដោយខ្លួនឯង (`install_package` tool) ហើយធ្វើ EDA ពេញលេញជាមួយក្រាហ្វិកច្រើន
-- **🔧 ការជ្រើសរើសម៉ូដែល Embedding ឥតបញ្ហា**៖ ពេលប្តូរម៉ូដែល embedding (ឧ. BGE-M3 → Qwen3-Embedding-4B) ChromaDB បង្កើត collection ដាច់ដោយឡែកស្វ័យប្រវត្តិដោយបន្ថែក dimension suffix (`rag_docs_1024d`, `rag_docs_2560d`, `rag_docs_2048d`) — ជៀសវាងកំហុស "vector dimension mismatch" ដែលកើតឡើងពេលម៉ូដែលមាន vector dimension ខុសគ្នាចែករំលែក collection តែមួយ
+- **⚙️ ផ្នែកកំណត់ម៉ូដែលកណ្តាល**៖ ការកំណត់ provider/backend និងជ្រើសរើសម៉ូដែលតាមផ្ទាំងនីមួយៗ ត្រូវបានប្រមូលផ្តុំក្នុង accordion តែមួយ — ផ្នែក Provider/Backend, Model Assignments (៧ ជួរតាមផ្ទាំង), និង Generation Settings
+- **🖥️ whisper.cpp server backend** (`whisper_cpp_backend.py`)៖ STT អាចដំណើរការតាមរយៈ `whisper-server.exe` ដោយមានការគ្រប់គ្រង subprocess និង model discovery ដោយស្វ័យប្រវត្តិ
+- **🖥️ Embedding server**៖ ម៉ូដែល GGUF embedding អាចដំណើរការតាមរយៈ llama.cpp `/v1/embeddings` (`EmbeddingServerModel`)
+- **🌐 Hugging Face Inference API**៖ គ្រប់ប្រភេទម៉ូដែល (LLM, VLM, STT, Embedding) អាចប្រើម៉ូដែលពីចម្ងាយ (DeepInfra, Together, Replicate ៘) — មាន provider dropdown ផ្ទាល់ខ្លួនតាមផ្ទាំង
+- **តម្រងម៉ូដែលតាម Provider**៖ ពេលប្តូរ provider ក្នុងផ្ទាំងណាមួយ បញ្ជីម៉ូដែលនឹងត្រងចេញតែម៉ូដែលដែលត្រូវគ្នាដោយស្វ័យប្រវត្តិ
+- **រក្សាទុក Provider តាមផ្ទាំង**៖ ផ្ទាំងនីមួយៗនឹងចងចាំ provider និងម៉ូដែលដែលបានជ្រើសរើស សូម្បីតែបិទបើកកម្មវិធីឡើងវិញ (តាមរយៈ `user_config.json`)
+- **🔬 ផ្ទាំង Deep Research**៖ agent គ្រប់គ្រង + agent ស្វែងរកតាមអ៊ីនធឺណិតដាច់ដោយឡែក (`ToolCallingAgent`) បំបែកសំណួរជាសំណួររង រៀបចំផែនការឡើងវិញឥតឈប់ឈរ រួចសរសេររបាយការណ៍ Markdown
+- **ស្វែងរកតាមអ៊ីនធឺណិតដោយឥតគិតថ្លៃ**៖ Playwright + DuckDuckGo ជំនួស SerpAPI — មិនត្រូវការ API key
+- **ម៉ូដែលថ្មី**៖ **Gemma 4** (E2B/12B/26B-A4B/31B) និង **Qwen3.6** (27B / 35B-A3B MoE)
+- **🧠 ចងចាំការសន្ទនា (កំពុងសាកល្បង)**៖ ប្រអប់ថ្មីនៅគ្រប់ផ្ទាំង agentic
+- **🧠 វិន្ដូបរិបទ**៖ ជ្រើសរើសពី 4K ដល់ 128K សម្រាប់ GGUF
+- **ការរកឃើញ GPU មិនត្រូវគ្នា**៖ ព្រមានក្នុង UI ជំនួសឱ្យការគាំងស្ងាត់ៗ
+- **Data Analysis Agent**៖ ដំឡើង Python package ដោយខ្លួនឯង និង EDA ពេញលេញ
+- **🔧 ជ្រើសរើស Embedding ឥតបញ្ហា**៖ ChromaDB បង្កើត collection ដាច់ដោយឡែកតាម dimension
 
 ### 📑 មាតិកា
 - [ស្ថាបត្យកម្ម](#️-ស្ថាបត្យកម្ម)
@@ -33,15 +40,15 @@
 
 | សមាសធាតុ | លំនាំដើម |
 |---|---|
-| LLM | `Qwen/Qwen3-0.6B` (HuggingFace) **ឬ** ម៉ូដែល `.gguf` មូលដ្ឋានតាមរយៈ llama.cpp |
-| Vision LLM | `HuggingFaceTB/SmolVLM-500M-Instruct` |
-| Speech-to-Text | `openai/whisper-small` |
-| Embedding | `BAAI/bge-m3` |
+| LLM | `Qwen/Qwen3-0.6B` (HuggingFace) **ឬ** `.gguf` តាមរយៈ llama.cpp **ឬ** ពីចម្ងាយតាមរយៈ Inference API |
+| Vision LLM | `HuggingFaceTB/SmolVLM-500M-Instruct` (HuggingFace) **ឬ** GGUF តាមរយៈ llama.cpp **ឬ** ពីចម្ងាយតាមរយៈ Inference API |
+| Speech-to-Text | `openai/whisper-small` (HuggingFace) **ឬ** whisper.cpp server **ឬ** ពីចម្ងាយតាមរយៈ Inference API |
+| Embedding | `BAAI/bge-m3` (HuggingFace) **ឬ** GGUF តាមរយៈ llama.cpp server **ឬ** ពីចម្ងាយតាមរយៈ Inference API |
 | Visual Retriever | `vidore/colsmolvlm-v0.1` |
 | Vector store | ChromaDB (`./chroma_db/`) |
 | Visual Index | `vidore/colsmolvlm-v0.1` (`./visual_index/`) |
 | ប្រភេទឯកសារបញ្ចូល | PDF, TXT, MD, DOCX |
-| ប្រភេទភ្នាក់ងារ | `smolagents.CodeAgent` |
+| ប្រភេទភ្នាក់ងារ | `CodeAgent` (General/RAG/Data Analysis); `ToolCallingAgent` (Deep Research search sub-agent) |
 | UI | Gradio |
 
 > **ចំណាំ**៖ `HardwareManager` រកឃើញផ្នែករឹងរបស់អ្នកដោយស្វ័យប្រវត្តិ (NVIDIA, AMD, ឬ Apple Silicon) ហើយអាចជួយជួសជុលបរិយាកាសរបស់អ្នកតាមរយៈប៊ូតុង "Fix Environment" ក្នុងចំណុចប្រទាក់។
@@ -140,7 +147,8 @@ python app.py
 
 #### លក្ខណៈពិសេសសំខាន់ៗ
 - **ចំណុចប្រទាក់ពីរភាសា**៖ ខ្មែរ/អង់គ្លេស ប្តូរបានភ្លាមៗតាមបញ្ជីទម្លាក់ភាសា
-- **ម៉ូដែលពីរប្រភេទ**៖ HuggingFace/transformers ឬ GGUF (llama.cpp) ក្នុងបញ្ជីទម្លាក់ដូចគ្នា
+- **ម៉ូដែលបីប្រភេទ**៖ HuggingFace/transformers, local server (llama.cpp / whisper.cpp) ឬពីចម្ងាយតាមរយៈ Hugging Face Inference API — ជ្រើសរើសតាមផ្ទាំងក្នុង accordion តែមួយ
+- **ការកំណត់ម៉ូដែលកណ្តាល**៖ provider/backend, per-tab model assignment (៧ ផ្ទាំង), និង generation settings សុទ្ធតែក្នុង accordion តែមួយ
 - **ចងចាំការសន្ទនា (កំពុងសាកល្បង)**៖ ប្រអប់ "🧠 ចងចាំការសន្ទនា" នៅគ្រប់ផ្ទាំង agentic — បើកដើម្បីឱ្យសំណួរបន្តអាចយោងលើអ្វីដែលបាននិយាយពីមុន។ ការចងចាំមាននៅតែក្នុងវគ្គដំណើរការបច្ចុប្បន្នប៉ុណ្ណោះ (មិនរក្សាទុកទៅថាសទេ) ហើយនឹងត្រូវកំណត់ចេញនៅពេលប្តូរម៉ូដែល ចុច "សម្អាត" ឬចាប់ផ្តើមកម្មវិធីឡើងវិញ
 - **ការគាំទ្រឯកសារ DOCX**៖ ការបញ្ចូលឯកសារគាំទ្រ Word (.docx) រួមទាំងអត្ថបទក្នុងតារាង
 - **ការជួសជុលបរិយាកាសដោយខ្លួនឯង**៖ ប៊ូតុង "Fix Environment" ដំឡើង PyTorch ត្រឹមត្រូវសម្រាប់ GPU របស់អ្នកដោយស្វ័យប្រវត្តិ
@@ -224,16 +232,19 @@ python app.py
 ├── i18n.py           # ខ្សែអក្សរចំណុចប្រទាក់ (ខ្មែរ/អង់គ្លេស)
 ├── hardware.py       # ការរកឃើញ GPU/Device និងការជួសជុលបរិយាកាសដោយខ្លួនឯង
 ├── user_config.py    # ការកំណត់ដែលរក្សាទុក (ឧ. ថតម៉ូដែល GGUF, context window)
-├── llama_backend.py  # backend ជម្រើស llama.cpp (ម៉ូដែល GGUF, text + vision)
-├── branding.py       # ស្លាកសញ្ញា ឈ្មោះកម្មវិធី/កំណែ និងមាតិកាផ្ទាំង ℹ️ អំពីកម្មវិធី
+├── llama_backend.py        # backend ជម្រើស llama.cpp (ម៉ូដែល GGUF, text + vision)
+├── whisper_cpp_backend.py  # backend ជម្រើស whisper.cpp (STT តាមរយៈ subprocess server)
+├── branding.py             # ស្លាកសញ្ញា ឈ្មោះកម្មវិធី/កំណែ និងមាតិកាផ្ទាំង ℹ️ អំពីកម្មវិធី
 ├── model_registry.py # បញ្ជីជម្រើសម៉ូដែល (LLM/VLM/STT) និងការស្កេន GGUF ឡើងវិញ
 ├── models.py         # ការផ្ទុក/ដោះស្រាយ/ដំណើរការ LLM, VLM, STT
 ├── knowledge_base.py # ការបញ្ចូលឯកសារ (PDF/TXT/MD/DOCX), ChromaDB, Visual Index, ការទាញយក
 ├── agent_memory.py   # ការចងចាំចម្រុះវេនសម្រាប់ CodeAgent (RAM តែប៉ុណ្ណោះ — មិនរក្សាទុកទៅថាសទេ)
 ├── general_agent.py  # CodeAgent សម្រាប់ការសន្ទនាទូទៅបែប Agent (web search)
 ├── rag_agent.py      # CodeAgent សម្រាប់ RAG បែប Agent (retriever tool)
-├── deep_research_agent.py # Agent គ្រប់គ្រង + agent ស្វែងរកតាមអ៊ីនធឺណិត សម្រាប់ស្រាវជ្រាវស៊ីជម្រៅ
+├── deep_research_agent.py # Agent គ្រប់គ្រង + ToolCallingAgent ស្វែងរកតាមអ៊ីនធឺណិត សម្រាប់ស្រាវជ្រាវស៊ីជម្រៅ
 ├── data_analysis.py  # CodeAgent សម្រាប់វិភាគ CSV/Excel
+├── playwright_search_tool.py # Playwright + DuckDuckGo search tools (ជំនួស SerpAPI ដែលត្រូវចំណាយលុយ)
+├── agent_streaming.py  # ការផ្សាយបន្តផ្ទាល់ ActionStep/PlanningStep សម្រាប់គ្រប់ផ្ទាំង agentic
 ├── chat.py           # Handler សន្ទនាសម្រាប់ផ្ទាំង General/RAG/Vision
 ├── ui.py             # ការសង់ចំណុចប្រទាក់ Gradio និងការភ្ជាប់ event ទាំងអស់
 ├── index_docs.py     # ស្គ្រីប CLI សម្រាប់បញ្ចូលឯកសារ
@@ -256,12 +267,19 @@ The UI is fully bilingual — switch between **Khmer** and **English** instantly
 
 ### 🆕 What's New in This Release
 
-- **🔬 New Deep Research tab**: a manager agent + a dedicated web-search sub-agent break a question into sub-questions, periodically re-plan (`planning_interval`), and write a verified, sourced Markdown report
-- **New models**: added the **Gemma 4** family (E2B/12B/26B-A4B/31B, now Apache 2.0-licensed) and the **Qwen3.6** family (27B dense / 35B-A3B MoE) — both need a newer `transformers` release (see the Text LLMs table below)
-- **🧠 Conversation Memory (Experimental)**: a new toggle on every agentic tab lets follow-up questions refer back to earlier turns (RAM-only, never persisted to disk)
-- **🧠 Configurable Context Window**: pick anywhere from 4K to 128K tokens for GGUF models directly in the UI
-- **GPU-incompatibility detection**: the UI now shows a clear warning if a detected GPU (e.g. an older Pascal/sm_6x card) isn't supported by the installed PyTorch build, instead of silently falling back to CPU with no explanation
-- **Data Analysis agent** can now install missing Python packages itself (`install_package` tool) and runs a fuller EDA with multiple charts
+- **⚙️ Centralized Model Settings accordion**: all provider/backend config and per-tab model assignment moved into a single global accordion with three sections — Provider/Backend, Model Assignments (7 per-tab rows with provider dropdown + model dropdown + load/unload), and Generation Settings. Tab sidebars now show a clean read-only badge instead of model dropdowns.
+- **🖥️ whisper.cpp server backend** (`whisper_cpp_backend.py`): STT can now run via a `whisper-server.exe` subprocess, with automatic model file discovery, port management, and settings persistence.
+- **🖥️ Embedding server support**: GGUF embedding models can run via llama.cpp's `/v1/embeddings` endpoint (`EmbeddingServerModel`) — no separate local HuggingFace model needed for vector generation.
+- **🌐 Hugging Face Inference API**: every model type (LLM, VLM, STT, Embedding) can now use remote models (e.g. `google/gemma-4-31B-it` via DeepInfra, Together, or Replicate) without loading anything locally — each with its own provider dropdown per tab.
+- **Provider-aware model filtering**: changing the provider dropdown per tab automatically filters the companion model dropdown to show only compatible models.
+- **Per-tab provider persistence**: each tab remembers its chosen provider and model across restarts via `user_config.json` keys (`provider_gen`, `provider_rag`, etc.).
+- **🔬 Deep Research overhaul**: the search sub-agent now uses `ToolCallingAgent` (instead of `CodeAgent`) for reliable structured tool calls, with `provide_run_summary=True` and `planning_interval=4` — matching the canonical `open_deep_research` pattern.
+- **Free web search**: Playwright + DuckDuckGo replaces the paid SerpAPI `GoogleSearchTool` — no API key needed.
+- **New models**: added the **Gemma 4** family (E2B/12B/26B-A4B/31B, now Apache 2.0-licensed) and the **Qwen3.6** family (27B dense / 35B-A3B MoE) — both need a newer `transformers` release (see the Text LLMs table below).
+- **🧠 Conversation Memory (Experimental)**: a new toggle on every agentic tab lets follow-up questions refer back to earlier turns (RAM-only, never persisted to disk).
+- **🧠 Configurable Context Window**: pick anywhere from 4K to 128K tokens for GGUF models directly in the UI.
+- **GPU-incompatibility detection**: the UI now shows a clear warning if a detected GPU (e.g. an older Pascal/sm_6x card) isn't supported by the installed PyTorch build, instead of silently falling back to CPU with no explanation.
+- **Data Analysis agent** can now install missing Python packages itself (`install_package` tool) and runs a fuller EDA with multiple charts.
 
 ### 📑 Table of Contents
 - [Architecture](#️-architecture)
@@ -276,15 +294,15 @@ The UI is fully bilingual — switch between **Khmer** and **English** instantly
 
 | Component | Default |
 |---|---|
-| LLM | `Qwen/Qwen3-0.6B` (HuggingFace) **or** a local `.gguf` model via llama.cpp |
-| Vision LLM | `HuggingFaceTB/SmolVLM-500M-Instruct` |
-| Speech-to-Text | `openai/whisper-small` |
-| Embedding | `BAAI/bge-m3` |
+| LLM | `Qwen/Qwen3-0.6B` (HuggingFace) **or** `.gguf` via llama.cpp **or** remote via Inference API |
+| Vision LLM | `HuggingFaceTB/SmolVLM-500M-Instruct` (HuggingFace) **or** GGUF via llama.cpp **or** remote via Inference API |
+| Speech-to-Text | `openai/whisper-small` (HuggingFace) **or** whisper.cpp server **or** remote via Inference API |
+| Embedding | `BAAI/bge-m3` (HuggingFace) **or** GGUF via llama.cpp server **or** remote via Inference API |
 | Visual Retriever | `vidore/colsmolvlm-v0.1` |
 | Vector store | ChromaDB (`./chroma_db/`) |
 | Visual Index | `vidore/colsmolvlm-v0.1` (`./visual_index/`) |
 | Supported document types | PDF, TXT, MD, DOCX |
-| Agent type | `smolagents.CodeAgent` |
+| Agent type | `CodeAgent` (General/RAG/Data Analysis); `ToolCallingAgent` (Deep Research search sub-agent) |
 | UI | Gradio |
 
 > **Note**: `HardwareManager` automatically detects your hardware (NVIDIA, AMD, or Apple Silicon) and can help fix your environment via the "Fix Environment" button in the UI.
@@ -383,7 +401,8 @@ The app is organized into eight main tabs, in this order:
 
 #### Key Features
 - **Bilingual UI**: full Khmer/English interface — switch instantly with the language dropdown
-- **Two model backends**: HuggingFace/transformers or local GGUF models via llama.cpp, in the same dropdown
+- **Three model backends**: HuggingFace/transformers, local server (llama.cpp / whisper.cpp), or remote via Hugging Face Inference API (DeepInfra, Together, Replicate, etc.) — per-tab provider + model selection in a single accordion
+- **Centralized model settings**: all provider/backend config, per-tab model assignment (7 tabs), and generation settings live in one global accordion — tab sidebars show read-only badges
 - **Conversation Memory (Experimental)**: a "🧠 Conversation Memory" toggle on every agentic tab lets follow-up questions refer back to earlier turns. Memory only lives for the current running session (not saved to disk), and resets on a model switch, "Clear", or an app restart
 - **DOCX support**: document indexing supports Word (.docx) files, including text inside tables
 - **Environment Self-Fixing**: the "Fix Environment" button installs the correct PyTorch build for your GPU automatically
@@ -467,16 +486,19 @@ For people with beefier hardware who want noticeably stronger local models than 
 ├── i18n.py            # Khmer/English UI strings
 ├── hardware.py        # GPU/device detection, environment self-fix
 ├── user_config.py     # Persisted settings (e.g. GGUF model folder, context window)
-├── llama_backend.py   # Optional llama.cpp (GGUF) model backend (text + vision)
-├── branding.py        # Logo, app name/version, ℹ️ About tab content
+├── llama_backend.py      # Optional llama.cpp (GGUF) model backend (text + vision)
+├── whisper_cpp_backend.py # Optional whisper.cpp server backend (STT via subprocess)
+├── branding.py           # Logo, app name/version, ℹ️ About tab content
 ├── model_registry.py  # Model dropdown options (LLM/VLM/STT) + GGUF rescan
 ├── models.py          # LLM/VLM/STT loading, caching, unloading, inference
 ├── knowledge_base.py  # Document indexing (PDF/TXT/MD/DOCX), ChromaDB, visual index, retrieval
 ├── agent_memory.py    # Multi-turn memory helper for CodeAgents (in-RAM only — no disk persistence, see file docstring)
 ├── general_agent.py   # Agentic General Chat CodeAgent (web search tools)
 ├── rag_agent.py        # Agentic RAG CodeAgent (retriever tool)
-├── deep_research_agent.py # Manager + web-search sub-agent for Deep Research
+├── deep_research_agent.py # Manager + ToolCallingAgent web-search sub-agent for Deep Research
 ├── data_analysis.py   # CodeAgent for CSV/Excel exploration
+├── playwright_search_tool.py # Playwright + DuckDuckGo search tools (free SerpAPI replacement)
+├── agent_streaming.py  # Live-streaming of every ActionStep/PlanningStep for all agentic tabs
 ├── chat.py            # Chat-turn handlers for General/RAG/Vision tabs
 ├── ui.py              # Gradio Blocks UI + all event wiring
 ├── index_docs.py      # CLI indexing script

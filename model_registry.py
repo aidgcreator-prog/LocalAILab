@@ -5,6 +5,7 @@ constants, and the "rescan GGUF folder" action that rebuilds MODEL_OPTIONS
 at runtime.
 """
 
+import os
 import re
 from typing import Optional
 
@@ -12,8 +13,136 @@ import gradio as gr
 
 import llama_backend
 import user_config
+import whisper_cpp_backend
 from hardware import HardwareManager
 from i18n import LANGUAGES
+
+# ──────────────────────────────────────────────────────────────────
+# Provider sentinels — each model type can run via one of three
+# backends.  Persisted per‑tab so every chat tab can pick its own.
+# ──────────────────────────────────────────────────────────────────
+PROVIDER_LOCAL_HF = "__provider_local_hf__"
+PROVIDER_SERVER    = "__provider_server__"
+PROVIDER_HF_API    = "__provider_hf_api__"
+PROVIDER_LITELLM   = "__provider_litellm__"
+
+# Label -> sentinel — shared UI labels that use the sentinel when
+# the model is configured through the shared HF fields below.
+HF_API_ENTRY_LABEL = "🌐 Hugging Face Inference API (remote)"
+HF_INFERENCE_API_SENTINEL = "__hf_inference_api__"
+
+LITELLM_ENTRY_LABEL = "🔗 LiteLLM (OpenAI/Anthropic/Groq/…)"
+LITELLM_SENTINEL = "__litellm__"
+
+LLM_PROVIDER_OPTIONS = {
+    "🧩 Local HuggingFace":         PROVIDER_LOCAL_HF,
+    "🖥️ llama.cpp server":          PROVIDER_SERVER,
+    "🌐 HF Inference API":          PROVIDER_HF_API,
+    "🔗 LiteLLM (OpenAI/Anthropic/…)": PROVIDER_LITELLM,
+}
+VLM_PROVIDER_OPTIONS = {
+    "🧩 Local HuggingFace":         PROVIDER_LOCAL_HF,
+    "🖥️ llama.cpp server":          PROVIDER_SERVER,
+    "🌐 HF Inference API":          PROVIDER_HF_API,
+}
+STT_PROVIDER_OPTIONS = {
+    "🧩 Local HuggingFace":         PROVIDER_LOCAL_HF,
+    "🖥️ whisper.cpp server":        PROVIDER_SERVER,
+    "🌐 HF Inference API":          PROVIDER_HF_API,
+}
+EMBED_PROVIDER_OPTIONS = {
+    "🧩 Local HuggingFace":         PROVIDER_LOCAL_HF,
+    "🖥️ llama.cpp server":          PROVIDER_SERVER,
+    "🌐 HF Inference API":          PROVIDER_HF_API,
+}
+
+# Per-tab provider persistence keys.
+_PROVIDER_KEYS = {
+    "gen":   "provider_gen",
+    "rag":   "provider_rag",
+    "data":  "provider_data",
+    "dr":    "provider_dr",
+    "vlm":   "provider_vlm",
+    "stt":   "provider_stt",
+    "embed": "provider_embed",
+}
+_DEFAULT_PROVIDER = PROVIDER_LOCAL_HF
+
+
+def get_saved_provider(tab_key: str) -> str:
+    """Persisted provider sentinel for a tab, falling back to local HF."""
+    config_key = _PROVIDER_KEYS.get(tab_key)
+    if config_key is None:
+        return _DEFAULT_PROVIDER
+    return str(user_config.USER_CONFIG.get(config_key, _DEFAULT_PROVIDER))
+
+
+def set_saved_provider(tab_key: str, sentinel: str) -> None:
+    config_key = _PROVIDER_KEYS.get(tab_key)
+    if config_key:
+        user_config.save_user_config({config_key: sentinel})
+
+
+def get_provider_label(provider_map: dict, sentinel: str) -> str:
+    """Reverse‑lookup the dropdown label for a provider sentinel."""
+    for label, val in provider_map.items():
+        if val == sentinel:
+            return label
+    return next(iter(provider_map))
+
+
+# ──────────────────────────────────────────────────────────────────
+# Model‑list filtering — each provider shows a different set of
+# model choices in the dropdown.
+# ──────────────────────────────────────────────────────────────────
+def get_model_options_for_provider(provider: str, model_type: str) -> dict:
+    """Return the label→model_id dict that should appear in the dropdown
+    for *model_type* ('llm' / 'vlm' / 'stt' / 'embed') when the user has
+    chosen *provider*."""
+    if provider == PROVIDER_HF_API:
+        return {HF_API_ENTRY_LABEL: HF_INFERENCE_API_SENTINEL}
+
+    if provider == PROVIDER_LITELLM:
+        return {LITELLM_ENTRY_LABEL: LITELLM_SENTINEL}
+
+    if provider == PROVIDER_SERVER:
+        if model_type == "llm":
+            out = {}
+            for k, v in llama_backend.discover_gguf_models().items():
+                out[k] = v
+            return out
+        elif model_type == "vlm":
+            out = {}
+            for k, (mpath, _) in llama_backend.discover_gguf_vlm_models().items():
+                out[k] = mpath
+            return out
+        elif model_type == "stt":
+            return dict(whisper_cpp_backend.discover_whisper_models())
+        elif model_type == "embed":
+            out = {}
+            for k, v in llama_backend.discover_gguf_models().items():
+                out[k] = v
+            return out
+        return {}
+
+    # PROVIDER_LOCAL_HF — only HF‑hub entries (no .gguf)
+    if model_type == "llm":
+        return dict(BASE_MODEL_OPTIONS)
+    elif model_type == "vlm":
+        return dict(BASE_VLM_OPTIONS)
+    elif model_type == "stt":
+        return dict(STT_OPTIONS)
+    elif model_type == "embed":
+        return dict(EMBED_OPTIONS)
+    return {}
+
+
+def get_model_label_for_id(options: dict, model_id: str, fallback: str) -> str:
+    """Reverse‑lookup a model dropdown label from its value."""
+    for label, val in options.items():
+        if val == model_id:
+            return label
+    return fallback
 
 # ──────────────────────────────────────────────────────────────────
 # Shared constants
@@ -517,18 +646,15 @@ GEMMA4_IDS = {
 }
 
 # ──────────────────────────────────────────────────────────────────
-# Hugging Face Inference API — sentinel + persisted settings.
-#
-# When the user picks this sentinel from the model dropdown,
-# models.get_llm() builds smolagents.InferenceClientModel instead of
-# loading weights locally. Pattern matches the existing
-# get_saved_llm_server_timeout() / set_llm_server_timeout().
+# Hugging Face Inference API — persisted settings.  The sentinel
+# constant HF_INFERENCE_API_SENTINEL is defined near the top of this
+# file alongside the other provider constants.
 # ──────────────────────────────────────────────────────────────────
-HF_INFERENCE_API_SENTINEL = "__hf_inference_api__"
-
-
 def get_saved_hf_token() -> str:
-    return str(user_config.USER_CONFIG.get("hf_token", ""))
+    val = str(user_config.USER_CONFIG.get("hf_token", "")).strip()
+    if val and val != "hf_abc123":
+        return val
+    return os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACEHUB_API_TOKEN", "")
 
 
 def set_hf_token(token: str) -> None:
@@ -550,6 +676,33 @@ def get_saved_hf_provider() -> str:
 
 def set_hf_provider(provider: str) -> None:
     user_config.save_user_config({"hf_provider": provider})
+
+
+# ──────────────────────────────────────────────────────────────────
+# LiteLLM — persisted settings (model id, API key, API base).
+# ──────────────────────────────────────────────────────────────────
+def get_saved_litellm_model_id() -> str:
+    return str(user_config.USER_CONFIG.get("litellm_model_id", ""))
+
+
+def set_litellm_model_id(model_id: str) -> None:
+    user_config.save_user_config({"litellm_model_id": model_id})
+
+
+def get_saved_litellm_api_key() -> str:
+    return str(user_config.USER_CONFIG.get("litellm_api_key", ""))
+
+
+def set_litellm_api_key(key: str) -> None:
+    user_config.save_user_config({"litellm_api_key": key})
+
+
+def get_saved_litellm_api_base() -> str:
+    return str(user_config.USER_CONFIG.get("litellm_api_base", ""))
+
+
+def set_litellm_api_base(base: str) -> None:
+    user_config.save_user_config({"litellm_api_base": base})
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -595,7 +748,12 @@ BASE_MODEL_OPTIONS = {
     # the same model dropdown; models.get_llm() detects the sentinel and builds
     # smolagents.InferenceClientModel instead of loading locally. Requires a
     # HF API token and model ID configured in the Model Settings accordion.
-    "🌐 Hugging Face Inference API (remote, configure below)": HF_INFERENCE_API_SENTINEL,
+    HF_API_ENTRY_LABEL: HF_INFERENCE_API_SENTINEL,
+    # LiteLLM — remote via OpenAI/Anthropic/Groq etc. Picked via the same
+    # model dropdown; models.get_llm() detects the sentinel and builds
+    # smolagents.LiteLLMModel instead of loading locally. Requires a model
+    # ID and API key configured in the Model Settings accordion.
+    LITELLM_ENTRY_LABEL: LITELLM_SENTINEL,
 }
 
 # MODEL_OPTIONS starts as a copy of the base HuggingFace models. Any local
@@ -639,6 +797,7 @@ def rescan_gguf_models(folder_path: Optional[str], lang_key: str = "kh"):
 
     # Persists to user_config.json and updates llama_backend.LLAMA_CPP_MODEL_DIR
     llama_backend.set_model_dir(folder_path)
+    whisper_cpp_backend.set_whisper_model_dir(folder_path)
 
     MODEL_OPTIONS.clear()
     MODEL_OPTIONS.update(BASE_MODEL_OPTIONS)
@@ -747,18 +906,41 @@ DEFAULT_VLM_MODEL = VLM_OPTIONS[DEFAULT_VLM_LABEL]
 # GGUF models, which need just the one file.
 GGUF_VLM_MMPROJ_MAP = {}
 
+# Maps a GGUF vision model's main .gguf path -> {label: mmproj_path} for
+# all compatible mmproj files in the same folder. Populated by
+# _rebuild_gguf_vlm_options(). Used by the mmproj dropdown in Vision Chat.
+VLM_MMPROJ_CANDIDATES_MAP: dict[str, dict[str, str]] = {}
+
+
+def get_mmproj_choices_for_vlm(model_path: str) -> dict[str, str]:
+    """Return {label: mmproj_path} for the mmproj dropdown in Vision Chat.
+    If explicit candidates exist for this model path, return those.
+    Otherwise fall back to scanning the model's folder."""
+    cached = VLM_MMPROJ_CANDIDATES_MAP.get(model_path)
+    if cached:
+        return cached
+    fresh = llama_backend.get_mmproj_candidates_for_model(model_path)
+    if fresh:
+        VLM_MMPROJ_CANDIDATES_MAP[model_path] = fresh
+    return fresh
+
 
 def _rebuild_gguf_vlm_options(folder: Optional[str] = None):
     """(Re)populate VLM_OPTIONS with discovered GGUF vision-model pairs
     from `folder` (or the current LLAMA_CPP_MODEL_DIR) and refresh
-    GGUF_VLM_MMPROJ_MAP to match. Mutates both dicts in place (never
-    reassigns), same pattern as MODEL_OPTIONS's text-LLM rescan."""
+    GGUF_VLM_MMPROJ_MAP and VLM_MMPROJ_CANDIDATES_MAP to match.
+    Mutates all dicts in place (never reassigns), same pattern as
+    MODEL_OPTIONS's text-LLM rescan."""
     VLM_OPTIONS.clear()
     VLM_OPTIONS.update(BASE_VLM_OPTIONS)
     GGUF_VLM_MMPROJ_MAP.clear()
+    VLM_MMPROJ_CANDIDATES_MAP.clear()
     for label, (model_path, mmproj_path) in llama_backend.discover_gguf_vlm_models(folder).items():
         VLM_OPTIONS[label] = model_path
         GGUF_VLM_MMPROJ_MAP[model_path] = mmproj_path
+        candidates = llama_backend.get_mmproj_candidates_for_model(model_path)
+        if candidates:
+            VLM_MMPROJ_CANDIDATES_MAP[model_path] = candidates
 
 
 _rebuild_gguf_vlm_options()

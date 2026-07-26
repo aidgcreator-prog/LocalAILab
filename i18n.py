@@ -80,6 +80,11 @@ LANGUAGES = {
         "label_vis_rag": "🔍 ក៏ស្វែងរករូបភាពពាក់ព័ន្ធពី Visual Index (Visual RAG)",
         "label_vis_rag_info": "ត្រូវការ Visual Index ជាមុន",
         "label_vis_rag_info_detail": "ត្រូវការឯកសារ PDF ដែលបានបញ្ចូលជា Visual Index ជាមុនសិន (ផ្ទាំង 📂) — បើគ្មានទេ វានឹងមិនរកឃើញរូបភាពណាមួយឡើយ។ បរិបទអត្ថបទត្រូវបានទាញយកជានិច្ច ដោយមិនអាស្រ័យលើប្រអប់នេះ។",
+        "label_provider_section": "── Provider / Backend ──",
+        "label_models_section": "── Model Assignments ──",
+        "label_generation_section": "── Generation Settings ──",
+        "label_provider": "Provider",
+        "label_assigned_model": "គំរូ: {model} · {provider}",
         "label_embed": "🧩 ម៉ូដែល Embedding",
         "info_embed": "ត្រូវការសម្អាត និងបញ្ចូលឡើងវិញ ប្រសិនបើប្តូរបន្ទាប់ពីបានបញ្ចូលឯកសារ",
         "info_embed_detail": (
@@ -218,6 +223,11 @@ LANGUAGES = {
         "label_vis_rag": "🔍 Also search visual index for related images (Visual RAG)",
         "label_vis_rag_info": "Requires a Visual Index first",
         "label_vis_rag_info_detail": "Requires PDFs already indexed into the Visual Index first (📂 tab) — otherwise no images will be found. Text context is always retrieved regardless of this box.",
+        "label_provider_section": "── Provider / Backend ──",
+        "label_models_section": "── Model Assignments ──",
+        "label_generation_section": "── Generation Settings ──",
+        "label_provider": "Provider",
+        "label_assigned_model": "Model: {model} · {provider}",
         "label_embed": "🧩 Embedding Model",
         "info_embed": "Needs a clear + re-index if changed after documents are indexed",
         "info_embed_detail": (

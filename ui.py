@@ -63,6 +63,7 @@ import knowledge_base as kb
 import llama_backend
 import model_registry as mr
 import models
+import whisper_cpp_backend
 import rag_agent
 from hardware import DEVICE
 from i18n import LANGUAGES
@@ -150,120 +151,8 @@ def build_ui():
         gpu_warning_html = gr.HTML(value=_gpu_warning_html("kh"))
 
         with gr.Accordion(L["accordion_model_settings"], open=False) as acc_model_settings:
-            # ── GGUF model folder (optional, user-configurable) ─────────
-            # No path is hardcoded — leave blank to skip GGUF entirely, or
-            # point it at any folder of .gguf files and click Scan. This can
-            # also be pre-set via the LLAMA_CPP_MODEL_DIR environment variable.
-            # The scan-result textbox stays hidden until a scan actually runs.
-            with gr.Row():
-                gguf_dir_tb = gr.Textbox(
-                    value=llama_backend.LLAMA_CPP_MODEL_DIR,
-                    placeholder=L["gguf_dir_placeholder"],
-                    label=L["label_gguf_dir"], scale=8,
-                )
-                scan_gguf_btn = gr.Button(L["btn_scan_gguf"], scale=1)
-                ctx_window_dd = gr.Dropdown(
-                    choices=list(mr.CONTEXT_WINDOW_OPTIONS.keys()),
-                    value=mr.get_saved_context_window_label(),
-                    label=L["label_context_window"],
-                    info=L["info_context_window"],
-                    scale=3,
-                )
-            gguf_scan_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-            ctx_window_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-            with gr.Accordion(L["accordion_details"], open=False) as acc_ctx_detail:
-                ctx_window_detail_md = gr.Markdown(L["info_context_window_detail"])
-
-            # ── Max New Tokens + Reasoning toggle ────────────────────────
-            # Both apply globally, to every tab/model backend. See
-            # model_registry.py's MAX_NEW_TOKENS_OPTIONS / REASONING_
-            # DISABLE_TAG docstrings for the full "why": MAX_NEW_TOKENS is
-            # SHARED between a model's <think>...</think> reasoning and its
-            # actual answer/code — a heavy thinking-tuned model (e.g.
-            # Qwen3.6-35B-A3B) can burn the whole budget reasoning and never
-            # write a real answer or tool call, which shows up in agentic
-            # tabs as a step that parses to an EMPTY code block ("Executing
-            # parsed code:" with nothing between the separators, Out: None)
-            # — a wasted step, not a tool-access failure. Raising the token
-            # budget and/or turning reasoning off directly addresses this.
-            with gr.Row():
-                max_tokens_dd = gr.Dropdown(
-                    choices=list(mr.MAX_NEW_TOKENS_OPTIONS.keys()),
-                    value=mr.get_saved_max_new_tokens_label(),
-                    label="🧮 Max New Tokens",
-                    info="Shared between a model's reasoning and its actual answer/code",
-                    scale=5,
-                )
-                reasoning_chk = gr.Checkbox(
-                    label="🧠 Enable Model Reasoning",
-                    value=mr.get_saved_reasoning_enabled(),
-                    info="Off = adds '/no_think' to every prompt (Qwen3-family models only; harmless no-op on others)",
-                    scale=5,
-                )
-            max_tokens_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-
-            # ── LLM Backend (GGUF only): in-process llama-cpp-python vs an ──
-            # external llama-server.exe process talked to over HTTP — see
-            # llama_backend.py's "llama-server (external process) backend"
-            # section and models.get_llm()'s GGUF branch for how this is
-            # actually dispatched. The exe path (like the GGUF folder above)
-            # is never hardcoded — leave it empty to keep using the original
-            # in-process backend.
-            with gr.Row():
-                llama_server_exe_tb = gr.Textbox(
-                    value=llama_backend.LLAMA_SERVER_EXE_PATH,
-                    placeholder=r"e.g. D:\llama.cpp\llama-server.exe — leave empty to use the in-process backend only",
-                    label="🖥️ llama-server.exe Path", scale=6,
-                )
-                llama_server_args_tb = gr.Textbox(
-                    value=llama_backend.LLAMA_SERVER_EXTRA_ARGS,
-                    placeholder="optional extra flags, e.g. --flash-attn --parallel 2",
-                    label="Extra llama-server Args", scale=4,
-                )
-                llm_backend_dd = gr.Dropdown(
-                    choices=list(mr.LLM_BACKEND_MODE_OPTIONS.keys()),
-                    value=mr.get_saved_llm_backend_label(),
-                    label="⚙️ LLM Backend (GGUF only)", scale=4,
-                )
-                llama_server_timeout_dd = gr.Dropdown(
-                    choices=list(mr.LLAMA_SERVER_TIMEOUT_OPTIONS.keys()),
-                    value=mr.get_saved_llm_server_timeout_label(),
-                    label="⏱️ llama-server Request Timeout", scale=3,
-                )
-            llama_server_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-            with gr.Accordion(L["accordion_details"], open=False) as acc_llama_server_detail:
-                llama_server_detail_md = gr.Markdown(
-                    "The default backend (**llama-cpp-python, in-process**) loads a "
-                    "`.gguf` model directly inside this app's own Python process — "
-                    "no extra setup needed beyond what SETUP.bat already installs.\n\n"
-                    "**llama-server (external process)** instead launches a real "
-                    "`llama-server` executable (from "
-                    "[llama.cpp's releases](https://github.com/ggml-org/llama.cpp/releases), "
-                    "or your own build) as a separate process and talks to it over "
-                    "its OpenAI-compatible HTTP API. Use this if you have a "
-                    "custom/optimized `llama-server` build, want a model to stay "
-                    "loaded independently of this app, or don't have "
-                    "llama-cpp-python installed at all. It reuses the exact same "
-                    "GGUF model folder configured above — only *how* a selected "
-                    "model actually runs changes, not where models are found.\n\n"
-                    "Point '🖥️ llama-server.exe Path' at the executable, optionally "
-                    "add extra CLI flags, then switch '⚙️ LLM Backend' to the "
-                    "server option. The process is started lazily on first use and "
-                    "reused across turns/tabs as long as the model, context window, "
-                    "and backend selection don't change; it's stopped automatically "
-                    "when you switch back, change those settings, or close the app.\n\n"
-                    "**⏱️ llama-server Request Timeout**: how long (in seconds) this "
-                    "app will wait for a single generation to finish before giving "
-                    "up. The default (300s) is enough for most models, but a large "
-                    "or CPU-bound model (e.g. a 30B+ MoE GGUF checkpoint) combined "
-                    "with a long agentic prompt — Deep Research's manager+sub-agent "
-                    "history especially — can genuinely need more time than that. "
-                    "If you see an error like '⚠️ llama-server didn't finish "
-                    "responding within 300s' or 'Error in code parsing' right after "
-                    "a long pause, raise this value and retry. Takes effect on the "
-                    "next request — no need to reload the model or restart "
-                    "llama-server."
-                )
+            # ── Provider / Backend ────────────────────────────────
+            provider_section_md = gr.Markdown(f"### {L['label_provider_section']}")
             with gr.Row():
                 hf_token_tb = gr.Textbox(
                     value=mr.get_saved_hf_token(),
@@ -281,8 +170,73 @@ def build_ui():
                     label="🤗 HF Provider (optional)", scale=3,
                 )
             hf_api_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-            free_vram_btn = gr.Button(L["btn_free_vram"], variant="stop", size="sm")
-            free_vram_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+            with gr.Row():
+                litellm_model_id_tb = gr.Textbox(
+                    value=mr.get_saved_litellm_model_id(),
+                    placeholder="e.g. anthropic/claude-4-sonnet-20250514 or gpt-4o",
+                    label="🔗 LiteLLM Model ID", scale=4,
+                )
+                litellm_api_key_tb = gr.Textbox(
+                    value=mr.get_saved_litellm_api_key(),
+                    placeholder="sk-... or your API key",
+                    label="🔗 LiteLLM API Key", type="password", scale=4,
+                )
+                litellm_api_base_tb = gr.Textbox(
+                    value=mr.get_saved_litellm_api_base(),
+                    placeholder="optional — leave blank for default",
+                    label="🔗 LiteLLM API Base URL", scale=3,
+                )
+            litellm_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+            with gr.Row():
+                llama_server_exe_tb = gr.Textbox(
+                    value=llama_backend.LLAMA_SERVER_EXE_PATH,
+                    placeholder=r"e.g. D:\llama.cpp\llama-server.exe",
+                    label="🖥️ llama-server.exe Path", scale=5,
+                )
+                llama_server_args_tb = gr.Textbox(
+                    value=llama_backend.LLAMA_SERVER_EXTRA_ARGS,
+                    placeholder="optional extra flags",
+                    label="Extra llama-server Args", scale=3,
+                )
+                llama_server_timeout_dd = gr.Dropdown(
+                    choices=list(mr.LLAMA_SERVER_TIMEOUT_OPTIONS.keys()),
+                    value=mr.get_saved_llm_server_timeout_label(),
+                    label="⏱️ llama-server Timeout", scale=3,
+                )
+            llama_server_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+            with gr.Accordion(L["accordion_details"], open=False) as acc_llama_server_detail:
+                llama_server_detail_md = gr.Markdown(
+                    "The default backend (**llama-cpp-python, in-process**) loads a "
+                    "`.gguf` model directly inside this app's own Python process — "
+                    "no extra setup needed beyond what SETUP.bat already installs.\n\n"
+                    "**llama-server (external process)** instead launches a real "
+                    "`llama-server` executable as a separate process and talks to it over "
+                    "its OpenAI-compatible HTTP API.\n\n"
+                    "**⏱️ llama-server Request Timeout**: how long (in seconds) this "
+                    "app will wait for a single generation to finish before giving "
+                    "up. The default (300s) is enough for most models, but a large "
+                    "or CPU-bound model can genuinely need more time than that."
+                )
+            with gr.Row():
+                whisper_server_exe_tb = gr.Textbox(
+                    value=whisper_cpp_backend.WHISPER_CPP_SERVER_EXE_PATH,
+                    placeholder=r"e.g. D:\whisper.cpp\whisper-server.exe",
+                    label="🖥️ whisper.cpp Server Path", scale=5,
+                )
+                whisper_server_args_tb = gr.Textbox(
+                    value=whisper_cpp_backend.WHISPER_CPP_SERVER_EXTRA_ARGS,
+                    placeholder="optional extra flags",
+                    label="Extra whisper-server Args", scale=3,
+                )
+            whisper_server_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+            with gr.Row():
+                gguf_dir_tb = gr.Textbox(
+                    value=llama_backend.LLAMA_CPP_MODEL_DIR,
+                    placeholder=L["gguf_dir_placeholder"],
+                    label=L["label_gguf_dir"], scale=8,
+                )
+                scan_gguf_btn = gr.Button(L["btn_scan_gguf"], scale=2)
+            gguf_scan_status = gr.Textbox(show_label=False, interactive=False, visible=False)
 
         # ── Tabs ──────────────────────────────────────────────────
         with gr.Tabs():
@@ -293,6 +247,46 @@ def build_ui():
                     with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
                         gen_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
                         gen_desc = gr.Markdown(L["tab_general_desc"])
+                        provider_dd_gen = gr.Dropdown(
+                            choices=list(mr.LLM_PROVIDER_OPTIONS.keys()),
+                            value=mr.get_provider_label(mr.LLM_PROVIDER_OPTIONS, mr.get_saved_provider("gen")),
+                            label=L.get("label_provider", "Provider"),
+                        )
+                        model_dd_gen = gr.Dropdown(
+                            choices=list(mr.MODEL_OPTIONS.keys()),
+                            value=mr.DEFAULT_LLM_LABEL,
+                            label="Model",
+                        )
+                        with gr.Row():
+                            reload_gen = gr.Button(L["btn_load"], size="sm", scale=1)
+                            unload_gen_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                        reload_gen_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+                        # ── Generation Settings (shared) ────────
+                        gr.Markdown(f"### {L['label_generation_section']}")
+                        ctx_window_dd = gr.Dropdown(
+                            choices=list(mr.CONTEXT_WINDOW_OPTIONS.keys()),
+                            value=mr.get_saved_context_window_label(),
+                            label=L["label_context_window"],
+                            info=L["info_context_window"],
+                        )
+                        max_tokens_dd = gr.Dropdown(
+                            choices=list(mr.MAX_NEW_TOKENS_OPTIONS.keys()),
+                            value=mr.get_saved_max_new_tokens_label(),
+                            label="🧮 Max New Tokens",
+                            info="Shared between reasoning and answer",
+                        )
+                        reasoning_chk = gr.Checkbox(
+                            label="🧠 Enable Reasoning",
+                            value=mr.get_saved_reasoning_enabled(),
+                            info="Off = '/no_think' prepended (Qwen3-family only)",
+                        )
+                        ctx_window_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+                        max_tokens_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+                        with gr.Accordion(L["accordion_details"], open=False) as acc_ctx_detail:
+                            ctx_window_detail_md = gr.Markdown(L["info_context_window_detail"])
+                        free_vram_btn = gr.Button(L["btn_free_vram"], variant="stop", size="sm")
+                        free_vram_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+                        # ── Tab-specific settings ───────────────
                         gen_agentic_chk = gr.Checkbox(
                             label=L["label_gen_agentic"], value=False,
                             info=L["info_gen_agentic"],
@@ -304,16 +298,6 @@ def build_ui():
                         with gr.Accordion(L["accordion_details"], open=False) as acc_gen_detail:
                             gen_agentic_detail_md = gr.Markdown(L["info_gen_agentic_detail"])
                             gen_memory_detail_md  = gr.Markdown(L["info_memory_detail"])
-                        model_dd_gen = gr.Dropdown(choices=list(mr.MODEL_OPTIONS.keys()), value=mr.DEFAULT_LLM_LABEL, label=L["label_llm"])
-                        with gr.Row():
-                            reload_gen     = gr.Button(L["btn_load"], size="sm")
-                            unload_gen_btn = gr.Button(L["btn_unload"], size="sm")
-                        reload_gen_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        # Holds the just-submitted message across the
-                        # stash -> clear -> answer chain (see module
-                        # docstring: "INPUT-BOX CLEARING" above) — never
-                        # re-read msg_gen's own value inside do_chat_general,
-                        # since by then it has already been cleared.
                         pending_gen_msg = gr.State("")
                     with gr.Column(scale=7):
                         with gr.Accordion(L["accordion_chat"], open=False) as acc_gen_chat:
@@ -335,7 +319,26 @@ def build_ui():
                     with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
                         vis_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
                         vis_desc = gr.Markdown(L["tab_vision_desc"])
-                        vlm_dd      = gr.Dropdown(choices=list(mr.VLM_OPTIONS.keys()), value=mr.DEFAULT_VLM_LABEL, label=L["label_vlm"])
+                        provider_dd_vlm = gr.Dropdown(
+                            choices=list(mr.VLM_PROVIDER_OPTIONS.keys()),
+                            value=mr.get_provider_label(mr.VLM_PROVIDER_OPTIONS, mr.get_saved_provider("vlm")),
+                            label=L.get("label_provider", "Provider"),
+                        )
+                        vlm_dd = gr.Dropdown(
+                            choices=list(mr.VLM_OPTIONS.keys()),
+                            value=mr.DEFAULT_VLM_LABEL,
+                            label="Model",
+                        )
+                        mmproj_dd_vis = gr.Dropdown(
+                            choices=[],
+                            value=None,
+                            label="mmproj (vision projector)",
+                            visible=False,
+                        )
+                        with gr.Row():
+                            load_vlm_btn = gr.Button(L["btn_load"], size="sm", scale=1)
+                            unload_vlm_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                        load_vlm_out = gr.Textbox(show_label=False, interactive=False, visible=False)
                         vis_rag_chk = gr.Checkbox(
                             label=L["label_vis_rag"], value=False,
                             info=L["label_vis_rag_info"],
@@ -347,12 +350,6 @@ def build_ui():
                         with gr.Accordion(L["accordion_details"], open=False) as acc_vis_detail:
                             vis_rag_detail_md    = gr.Markdown(L["label_vis_rag_info_detail"])
                             vis_memory_detail_md = gr.Markdown(L["info_memory_detail"])
-                        with gr.Row():
-                            load_vlm_btn   = gr.Button(L["btn_load"], size="sm")
-                            unload_vlm_btn = gr.Button(L["btn_unload"], size="sm")
-                        load_vlm_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        # See pending_gen_msg above — same stash-then-clear
-                        # pattern applied to Vision Chat's message box.
                         pending_vis_msg = gr.State("")
                     with gr.Column(scale=7):
                         with gr.Accordion(L["accordion_chat"], open=False) as acc_vis_chat:
@@ -371,16 +368,25 @@ def build_ui():
                     with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
                         stt_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
                         stt_desc = gr.Markdown(L["tab_stt_desc"])
-                        stt_dd      = gr.Dropdown(choices=list(mr.STT_OPTIONS.keys()), value=mr.DEFAULT_STT_LABEL, label=L["label_stt"])
+                        provider_dd_stt = gr.Dropdown(
+                            choices=list(mr.STT_PROVIDER_OPTIONS.keys()),
+                            value=mr.get_provider_label(mr.STT_PROVIDER_OPTIONS, mr.get_saved_provider("stt")),
+                            label=L.get("label_provider", "Provider"),
+                        )
+                        stt_dd = gr.Dropdown(
+                            choices=list(mr.STT_OPTIONS.keys()),
+                            value=mr.DEFAULT_STT_LABEL,
+                            label="Model",
+                        )
+                        with gr.Row():
+                            load_stt_btn = gr.Button(L["btn_load"], size="sm", scale=1)
+                            unload_stt_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                        load_stt_out = gr.Textbox(show_label=False, interactive=False, visible=False)
                         stt_lang_dd = gr.Dropdown(
                             choices=[("Auto-detect", "auto"), ("English", "english"), ("Khmer", "khmer"),
                                      ("French", "french"), ("Chinese", "chinese"), ("Japanese", "japanese")],
                             value="auto", label=L["label_stt_lang"],
                         )
-                        with gr.Row():
-                            load_stt_btn   = gr.Button(L["btn_load"], size="sm")
-                            unload_stt_btn = gr.Button(L["btn_unload"], size="sm")
-                        load_stt_out = gr.Textbox(show_label=False, interactive=False, visible=False)
                         stt_hint = gr.Markdown(L["stt_khmer_hint"])
                         with gr.Accordion(L["accordion_details"], open=False) as acc_stt_detail:
                             stt_hint_detail_md = gr.Markdown(L["stt_khmer_hint_detail"])
@@ -396,7 +402,20 @@ def build_ui():
                     with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
                         data_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
                         data_desc = gr.Markdown(L["tab_data_desc"])
-                        model_dd_data  = gr.Dropdown(choices=list(mr.MODEL_OPTIONS.keys()), value=mr.DEFAULT_LLM_LABEL, label=L["label_llm"])
+                        provider_dd_data = gr.Dropdown(
+                            choices=list(mr.LLM_PROVIDER_OPTIONS.keys()),
+                            value=mr.get_provider_label(mr.LLM_PROVIDER_OPTIONS, mr.get_saved_provider("data")),
+                            label=L.get("label_provider", "Provider"),
+                        )
+                        model_dd_data = gr.Dropdown(
+                            choices=list(mr.MODEL_OPTIONS.keys()),
+                            value=mr.DEFAULT_LLM_LABEL,
+                            label="Model",
+                        )
+                        with gr.Row():
+                            reload_data_btn = gr.Button(L["btn_load"], size="sm", scale=1)
+                            unload_data_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                        reload_data_out = gr.Textbox(show_label=False, interactive=False, visible=False)
                         data_memory_chk = gr.Checkbox(
                             label=L["label_memory"], value=True,
                             info=L["info_memory"],
@@ -405,8 +424,6 @@ def build_ui():
                             data_memory_detail_md = gr.Markdown(L["info_memory_detail"])
                         reset_data_btn = gr.Button(L["btn_reset_agent"], size="sm")
                         reset_data_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        # See pending_gen_msg above — same stash-then-clear
-                        # pattern applied to Data Analysis's question box.
                         pending_data_question = gr.State("")
                     with gr.Column(scale=7):
                         with gr.Accordion(L["accordion_chat"], open=False) as acc_data_chat:
@@ -435,13 +452,18 @@ def build_ui():
                     value="…", interactive=False,
                     show_label=False, elem_classes=["status-bar"]
                 )
+                provider_dd_embed = gr.Dropdown(
+                    choices=list(mr.EMBED_PROVIDER_OPTIONS.keys()),
+                    value=mr.get_provider_label(mr.EMBED_PROVIDER_OPTIONS, mr.get_saved_provider("embed")),
+                    label=L.get("label_provider", "Provider"),
+                )
+                embed_dd = gr.Dropdown(
+                    choices=list(mr.EMBED_OPTIONS.keys()),
+                    value=mr.get_default_embed_label(),
+                    label="Model",
+                )
                 with gr.Row():
-                    embed_dd = gr.Dropdown(
-                        choices=list(mr.EMBED_OPTIONS.keys()),
-                        value=mr.get_default_embed_label(),
-                        label=L["label_embed"], info=L["info_embed"], scale=8,
-                    )
-                    load_embed_btn   = gr.Button(L["btn_load"], size="sm", scale=1)
+                    load_embed_btn = gr.Button(L["btn_load"], size="sm", scale=1)
                     unload_embed_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
                 load_embed_out = gr.Textbox(show_label=False, interactive=False, visible=False)
                 with gr.Accordion(L["accordion_details"], open=False) as acc_embed_detail:
@@ -477,9 +499,20 @@ def build_ui():
                     with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
                         rag_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
                         rag_desc = gr.Markdown(L["tab_rag_desc"])
-                        # Same index stats as the Knowledge Base tab (text
-                        # chunks / visual index) — shown here too since RAG
-                        # Chat is the other place retrieval actually matters.
+                        provider_dd_rag = gr.Dropdown(
+                            choices=list(mr.LLM_PROVIDER_OPTIONS.keys()),
+                            value=mr.get_provider_label(mr.LLM_PROVIDER_OPTIONS, mr.get_saved_provider("rag")),
+                            label=L.get("label_provider", "Provider"),
+                        )
+                        model_dd_rag = gr.Dropdown(
+                            choices=list(mr.MODEL_OPTIONS.keys()),
+                            value=mr.DEFAULT_LLM_LABEL,
+                            label="Model",
+                        )
+                        with gr.Row():
+                            reload_rag = gr.Button(L["btn_load"], size="sm", scale=1)
+                            unload_rag_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                        reload_rag_out = gr.Textbox(show_label=False, interactive=False, visible=False)
                         rag_status_bar = gr.Textbox(
                             value="…", interactive=False,
                             show_label=False, elem_classes=["status-bar"]
@@ -503,13 +536,15 @@ def build_ui():
                                 minimum=1, maximum=15, step=1, value=6,
                                 label="Max Steps (agentic mode only)",
                             )
-                        model_dd_rag = gr.Dropdown(choices=list(mr.MODEL_OPTIONS.keys()), value=mr.DEFAULT_LLM_LABEL, label=L["label_llm"])
-                        with gr.Row():
-                            reload_rag     = gr.Button(L["btn_load"], size="sm")
-                            unload_rag_btn = gr.Button(L["btn_unload"], size="sm")
-                        reload_rag_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        # See pending_gen_msg above — same stash-then-clear
-                        # pattern applied to RAG Chat's message box.
+                            rag_tool_calling_chk = gr.Checkbox(
+                                label="Use native tool calling (ToolCallingAgent)",
+                                value=False,
+                                info="Uses ToolCallingAgent instead of CodeAgent. "
+                                     "Only works with models that support native "
+                                     "function-calling (LiteLLM, HF Inference API "
+                                     "on capable models). Falls back to CodeAgent "
+                                     "if unsupported.",
+                            )
                         pending_rag_msg = gr.State("")
                     with gr.Column(scale=7):
                         with gr.Accordion(L["accordion_chat"], open=False) as acc_rag_chat:
@@ -528,6 +563,20 @@ def build_ui():
                     with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
                         dr_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
                         dr_desc = gr.Markdown(L["tab_deep_research_desc"])
+                        provider_dd_dr = gr.Dropdown(
+                            choices=list(mr.LLM_PROVIDER_OPTIONS.keys()),
+                            value=mr.get_provider_label(mr.LLM_PROVIDER_OPTIONS, mr.get_saved_provider("dr")),
+                            label=L.get("label_provider", "Provider"),
+                        )
+                        model_dd_dr = gr.Dropdown(
+                            choices=list(mr.MODEL_OPTIONS.keys()),
+                            value=mr.DEFAULT_LLM_LABEL,
+                            label="Model",
+                        )
+                        with gr.Row():
+                            reload_dr = gr.Button(L["btn_load"], size="sm", scale=1)
+                            unload_dr_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                        reload_dr_out = gr.Textbox(show_label=False, interactive=False, visible=False)
                         dr_memory_chk = gr.Checkbox(
                             label=L["label_memory"], value=True,
                             info=L["info_memory"],
@@ -555,19 +604,8 @@ def build_ui():
                             )
                         with gr.Accordion(L["accordion_details"], open=False) as acc_dr_detail:
                             dr_memory_detail_md = gr.Markdown(L["info_memory_detail"])
-                        model_dd_dr = gr.Dropdown(choices=list(mr.MODEL_OPTIONS.keys()), value=mr.DEFAULT_LLM_LABEL, label=L["label_llm"])
-                        with gr.Row():
-                            reload_dr     = gr.Button(L["btn_load"], size="sm")
-                            unload_dr_btn = gr.Button(L["btn_unload"], size="sm")
-                        reload_dr_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        # Rebuilds just the manager+search-agent wrapper
-                        # (not the underlying LLM) — useful if a run gets
-                        # stuck mid-delegation, same role as Data
-                        # Analysis's reset button.
                         reset_dr_btn = gr.Button(L["btn_reset_agent"], size="sm")
                         reset_dr_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        # See pending_gen_msg above — same stash-then-clear
-                        # pattern applied to Deep Research's message box.
                         pending_dr_msg = gr.State("")
                     with gr.Column(scale=7):
                         with gr.Accordion(L["accordion_chat"], open=False) as acc_dr_chat:
@@ -729,7 +767,8 @@ def build_ui():
 
         llama_server_exe_tb.submit(do_set_llama_server_path, [llama_server_exe_tb], [llama_server_status])
         llama_server_args_tb.submit(do_set_llama_server_args, [llama_server_args_tb], [llama_server_status])
-        llm_backend_dd.change(do_change_llm_backend, [llm_backend_dd], [llama_server_status])
+        # llm_backend_dd was removed from the sidebar; backend switching
+        # is now handled per-tab via the provider dropdown in the accordion.
         llama_server_timeout_dd.change(do_change_llama_server_timeout, [llama_server_timeout_dd], [llama_server_status])
 
         # ── Hugging Face Inference API settings ────────────────────
@@ -749,6 +788,22 @@ def build_ui():
         hf_token_tb.submit(do_set_hf_token, [hf_token_tb], [hf_api_status])
         hf_model_id_tb.submit(do_set_hf_model_id, [hf_model_id_tb], [hf_api_status])
         hf_provider_tb.submit(do_set_hf_provider, [hf_provider_tb], [hf_api_status])
+
+        def do_set_litellm_model_id(model_id):
+            mr.set_litellm_model_id(model_id)
+            return gr.update(value=f"✅ LiteLLM model ID saved: '{model_id}'", visible=True)
+
+        def do_set_litellm_api_key(api_key):
+            mr.set_litellm_api_key(api_key)
+            return gr.update(value=f"✅ LiteLLM API key saved.", visible=True)
+
+        def do_set_litellm_api_base(api_base):
+            mr.set_litellm_api_base(api_base)
+            return gr.update(value=f"✅ LiteLLM API base saved: '{api_base}'", visible=True)
+
+        litellm_model_id_tb.submit(do_set_litellm_model_id, [litellm_model_id_tb], [litellm_status])
+        litellm_api_key_tb.submit(do_set_litellm_api_key, [litellm_api_key_tb], [litellm_status])
+        litellm_api_base_tb.submit(do_set_litellm_api_base, [litellm_api_base_tb], [litellm_status])
 
         # ── Free All VRAM (unloads every model + resets all agents) ──
         def do_free_vram(lang_key):
@@ -888,7 +943,8 @@ def build_ui():
                    if use_agentic else "📚 Retrieving context and thinking…")
             return gr.update(value=msg, visible=True)
 
-        def do_chat_rag(pending_message, history, model_label, use_agentic, use_memory, theme, subtheme, max_steps, lang_key):
+        def do_chat_rag(pending_message, history, model_label, use_agentic, use_memory,
+                        theme, subtheme, max_steps, use_tool_calling, lang_key):
             # See do_chat_general()'s matching comment above — chat.chat_rag()
             # is a generator on both paths; the agentic path streams a live
             # bubble per retriever call / model step instead of one frozen
@@ -896,7 +952,8 @@ def build_ui():
             last_history = history
             for updated_history, _ in chat.chat_rag(
                 pending_message, history, model_label, use_agentic, use_memory,
-                theme, subtheme, max_steps, lang_key=lang_key
+                theme, subtheme, max_steps, lang_key=lang_key,
+                use_tool_calling=use_tool_calling,
             ):
                 last_history = updated_history
                 yield last_history, gr.update(open=True), gr.update()
@@ -905,13 +962,13 @@ def build_ui():
         msg_rag.submit(stash_rag, [msg_rag], [msg_rag, pending_rag_msg], queue=False).then(
             show_thinking_rag, [rag_agentic_chk], [status_rag], queue=False
         ).then(
-            do_chat_rag, [pending_rag_msg, bot_rag, model_dd_rag, rag_agentic_chk, rag_memory_chk, theme_tb_rag, subtheme_tb_rag, rag_max_steps, lang_state],
+            do_chat_rag, [pending_rag_msg, bot_rag, model_dd_rag, rag_agentic_chk, rag_memory_chk, theme_tb_rag, subtheme_tb_rag, rag_max_steps, rag_tool_calling_chk, lang_state],
             [bot_rag, acc_rag_chat, status_rag]
         )
         send_rag.click(stash_rag, [msg_rag], [msg_rag, pending_rag_msg], queue=False).then(
             show_thinking_rag, [rag_agentic_chk], [status_rag], queue=False
         ).then(
-            do_chat_rag, [pending_rag_msg, bot_rag, model_dd_rag, rag_agentic_chk, rag_memory_chk, theme_tb_rag, subtheme_tb_rag, rag_max_steps, lang_state],
+            do_chat_rag, [pending_rag_msg, bot_rag, model_dd_rag, rag_agentic_chk, rag_memory_chk, theme_tb_rag, subtheme_tb_rag, rag_max_steps, rag_tool_calling_chk, lang_state],
             [bot_rag, acc_rag_chat, status_rag]
         )
 
@@ -1002,10 +1059,14 @@ def build_ui():
         reset_dr_btn.click(reset_dr_agent_fn, outputs=[reset_dr_out])
 
         # Vision Chat
-        def load_vlm_fn(label):
+        def load_vlm_fn(label, mmproj_label):
             mid = mr.VLM_OPTIONS.get(label, mr.DEFAULT_VLM_MODEL)
+            mmproj_path = None
+            if mmproj_label and mid:
+                candidates = mr.get_mmproj_choices_for_vlm(mid)
+                mmproj_path = candidates.get(mmproj_label)
             try:
-                models.force_reload_vlm(mid)
+                models.force_reload_vlm(mid, mmproj_path=mmproj_path)
                 return gr.update(value=f"✅ '{mid}' loaded", visible=True)
             except Exception as e:
                 return gr.update(value=f"❌ {e}", visible=True)
@@ -1023,25 +1084,25 @@ def build_ui():
                    if use_visual_rag else "🖼️ Analyzing the image and thinking…")
             return gr.update(value=msg, visible=True)
 
-        def do_chat_vision(pending_message, uploaded_image, history, vlm_label, use_visual_rag, use_memory, lang_key):
-            history, img_reset = chat.chat_vision(pending_message, uploaded_image, history, vlm_label, use_visual_rag, use_memory, lang_key=lang_key)
+        def do_chat_vision(pending_message, uploaded_image, history, vlm_label, use_visual_rag, use_memory, lang_key, mmproj_label):
+            history, img_reset = chat.chat_vision(pending_message, uploaded_image, history, vlm_label, use_visual_rag, use_memory, lang_key=lang_key, mmproj_label=mmproj_label)
             return history, img_reset, gr.update(open=True), gr.update(visible=False)
 
         send_vis.click(stash_vis, [msg_vis], [msg_vis, pending_vis_msg], queue=False).then(
             show_thinking_vis, [vis_rag_chk], [status_vis], queue=False
         ).then(
-            do_chat_vision, [pending_vis_msg, img_upload, bot_vis, vlm_dd, vis_rag_chk, vis_memory_chk, lang_state],
+            do_chat_vision, [pending_vis_msg, img_upload, bot_vis, vlm_dd, vis_rag_chk, vis_memory_chk, lang_state, mmproj_dd_vis],
             [bot_vis, img_upload, acc_vis_chat, status_vis]
         )
         msg_vis.submit(stash_vis, [msg_vis], [msg_vis, pending_vis_msg], queue=False).then(
             show_thinking_vis, [vis_rag_chk], [status_vis], queue=False
         ).then(
-            do_chat_vision, [pending_vis_msg, img_upload, bot_vis, vlm_dd, vis_rag_chk, vis_memory_chk, lang_state],
+            do_chat_vision, [pending_vis_msg, img_upload, bot_vis, vlm_dd, vis_rag_chk, vis_memory_chk, lang_state, mmproj_dd_vis],
             [bot_vis, img_upload, acc_vis_chat, status_vis]
         )
         clear_vis.click(lambda: ([], None, gr.update(open=False), gr.update(visible=False)),
                         outputs=[bot_vis, img_upload, acc_vis_chat, status_vis])
-        load_vlm_btn.click(load_vlm_fn, [vlm_dd], [load_vlm_out])
+        load_vlm_btn.click(load_vlm_fn, [vlm_dd, mmproj_dd_vis], [load_vlm_out])
         unload_vlm_btn.click(unload_vlm_fn, [lang_state], [load_vlm_out])
 
         # Speech to Text
@@ -1133,6 +1194,103 @@ def build_ui():
         clear_data.click(clear_data_fn,
                          outputs=[bot_data, data_gallery, data_report_file, acc_data_chat, acc_data_results, status_data])
         reset_data_btn.click(reset_data_agent_fn, outputs=[reset_data_out])
+
+        # Data Analysis — Load / Unload (NEW)
+        def reload_data_fn(label):
+            data_analysis.reset_agent()
+            mid = mr.MODEL_OPTIONS.get(label, mr.DEFAULT_LLM_MODEL)
+            try:
+                models.force_reload_llm(mid)
+                return gr.update(value=f"✅ '{mid}' loaded", visible=True)
+            except Exception as e:
+                return gr.update(value=f"❌ {e}", visible=True)
+
+        def unload_data_fn(lang_key):
+            msg = models.unload_llm_fn(lang_key)
+            data_analysis.reset_agent()
+            return gr.update(value=msg, visible=True)
+
+        reload_data_btn.click(reload_data_fn, [model_dd_data], [reload_data_out])
+        unload_data_btn.click(unload_data_fn, [lang_state], [reload_data_out])
+
+        # ── whisper.cpp server settings ──────────────────────────
+        def do_set_whisper_server_path(path):
+            whisper_cpp_backend.set_whisper_server_exe_path(path)
+            return gr.update(value=f"✅ whisper-server path saved", visible=True)
+
+        def do_set_whisper_server_args(args_str):
+            whisper_cpp_backend.set_whisper_server_extra_args(args_str)
+            return gr.update(value=f"✅ Extra whisper-server args saved.", visible=True)
+
+        whisper_server_exe_tb.submit(do_set_whisper_server_path, [whisper_server_exe_tb], [whisper_server_status])
+        whisper_server_args_tb.submit(do_set_whisper_server_args, [whisper_server_args_tb], [whisper_server_status])
+
+        # ── Provider change → filter model dropdown choices ──────
+        def _filter_models_for_provider(provider_label, provider_map, model_type, current_model_dd, model_options_map):
+            sentinel = provider_map.get(provider_label, mr.PROVIDER_LOCAL_HF)
+            mr.set_saved_provider(model_type, sentinel)
+            choices_dict = mr.get_model_options_for_provider(sentinel, model_type)
+            choices = list(choices_dict.keys())
+            # Try to keep the current selection if still valid
+            current = current_model_dd if current_model_dd in choices else (choices[0] if choices else None)
+            return gr.update(choices=choices, value=current)
+
+        provider_dd_gen.change(
+            lambda p, m: _filter_models_for_provider(p, mr.LLM_PROVIDER_OPTIONS, "llm", m, mr.MODEL_OPTIONS),
+            [provider_dd_gen, model_dd_gen], [model_dd_gen],
+        )
+        provider_dd_rag.change(
+            lambda p, m: _filter_models_for_provider(p, mr.LLM_PROVIDER_OPTIONS, "llm", m, mr.MODEL_OPTIONS),
+            [provider_dd_rag, model_dd_rag], [model_dd_rag],
+        )
+        provider_dd_data.change(
+            lambda p, m: _filter_models_for_provider(p, mr.LLM_PROVIDER_OPTIONS, "llm", m, mr.MODEL_OPTIONS),
+            [provider_dd_data, model_dd_data], [model_dd_data],
+        )
+        provider_dd_dr.change(
+            lambda p, m: _filter_models_for_provider(p, mr.LLM_PROVIDER_OPTIONS, "llm", m, mr.MODEL_OPTIONS),
+            [provider_dd_dr, model_dd_dr], [model_dd_dr],
+        )
+        def _update_mmproj_choices(vlm_label: str, visible: bool = True) -> gr.update:
+            if not visible:
+                return gr.update(choices=[], value=None, visible=False)
+            mid = mr.VLM_OPTIONS.get(vlm_label)
+            if not mid or not str(mid).lower().endswith(".gguf"):
+                return gr.update(choices=[], value=None, visible=False)
+            candidates = mr.get_mmproj_choices_for_vlm(mid)
+            choices = list(candidates.keys())
+            auto = mr.GGUF_VLM_MMPROJ_MAP.get(mid)
+            value = None
+            if auto:
+                for lbl, path in candidates.items():
+                    if path == auto:
+                        value = lbl
+                        break
+            return gr.update(choices=choices, value=value, visible=bool(choices))
+
+        provider_dd_vlm.change(
+            lambda p, m: _filter_models_for_provider(p, mr.VLM_PROVIDER_OPTIONS, "vlm", m, mr.VLM_OPTIONS),
+            [provider_dd_vlm, vlm_dd], [vlm_dd],
+        ).then(
+            lambda p: gr.update(visible="llama.cpp" in p),
+            [provider_dd_vlm], [mmproj_dd_vis],
+        ).then(
+            lambda p, m: _update_mmproj_choices(m, "llama.cpp" in p),
+            [provider_dd_vlm, vlm_dd], [mmproj_dd_vis],
+        )
+
+        vlm_dd.change(
+            lambda m, p: _update_mmproj_choices(m, "llama.cpp" in p),
+            [vlm_dd, provider_dd_vlm], [mmproj_dd_vis],
+        )
+        provider_dd_stt.change(
+            lambda p, m: _filter_models_for_provider(p, mr.STT_PROVIDER_OPTIONS, "stt", m, mr.STT_OPTIONS),
+            [provider_dd_stt, stt_dd], [stt_dd],
+        )
+        provider_dd_embed.change(
+            lambda p, m: _filter_models_for_provider(p, mr.EMBED_PROVIDER_OPTIONS, "embed", m, mr.EMBED_OPTIONS),
+            [provider_dd_embed, embed_dd], [embed_dd],
+        )
 
         # Knowledge Base — Embedding Model
         def load_embed_fn(label, lang_key):
@@ -1355,6 +1513,20 @@ def build_ui():
                 gr.update(label=l["accordion_details"]), gr.update(value=l["label_vis_rag_info_detail"]), gr.update(value=l["info_memory_detail"]),
                 gr.update(label=l["accordion_details"]), gr.update(value=l["stt_khmer_hint_detail"]),
                 gr.update(label=l["accordion_details"]), gr.update(value=l["info_memory_detail"]),
+                # ── Global Model Settings accordion (new) ──────────
+                gr.update(value=f"### {l['label_provider_section']}"),
+                gr.update(value=f"### {l['label_models_section']}"),
+                gr.update(value=f"### {l['label_generation_section']}"),
+                gr.update(label=l["label_provider"]),
+                gr.update(label=l["label_provider"]),
+                gr.update(label=l["label_provider"]),
+                gr.update(label=l["label_provider"]),
+                gr.update(label=l["label_provider"]),
+                gr.update(label=l["label_provider"]),
+                gr.update(label=l["label_provider"]),
+                gr.update(value=l["btn_load"]),
+                gr.update(value=l["btn_unload"]),
+                gr.update(visible=False),
             )
 
         _lang_outputs = [
@@ -1373,7 +1545,7 @@ def build_ui():
             # Deep Research
             msg_dr, send_dr, clear_dr, acc_dr_chat, dr_settings_header, dr_desc, dr_memory_chk, model_dd_dr, reload_dr, unload_dr_btn, reset_dr_btn,
             # Vision Chat
-            msg_vis, send_vis, clear_vis, acc_vis_chat, vis_settings_header, vis_desc, vlm_dd, vis_rag_chk, vis_memory_chk, load_vlm_btn, unload_vlm_btn,
+            msg_vis, send_vis, clear_vis, acc_vis_chat, vis_settings_header, vis_desc, vlm_dd, mmproj_dd_vis, vis_rag_chk, vis_memory_chk, load_vlm_btn, unload_vlm_btn,
             # STT
             stt_audio, transcribe_btn, acc_stt_result, stt_output, stt_settings_header, stt_desc,
             stt_dd, stt_lang_dd, load_stt_btn, unload_stt_btn, stt_hint,
@@ -1398,6 +1570,15 @@ def build_ui():
             acc_vis_detail, vis_rag_detail_md, vis_memory_detail_md,
             acc_stt_detail, stt_hint_detail_md,
             acc_data_detail, data_memory_detail_md,
+            # Accordion section headers
+            provider_section_md,
+            # Provider dropdowns
+            provider_dd_gen, provider_dd_rag, provider_dd_data, provider_dd_dr,
+            provider_dd_vlm, provider_dd_stt, provider_dd_embed,
+            # Data Analysis load/unload buttons
+            reload_data_btn, unload_data_btn,
+            # Whisper server status (reset hidden)
+            whisper_server_status,
         ]
 
         lang_dropdown.change(switch_lang, [lang_dropdown], _lang_outputs)
@@ -1414,24 +1595,11 @@ def build_ui():
         # runs after the user explicitly switches languages, well after
         # the initial page mount has finished.
 
-        # Narrow demo.load(): populates ONLY the two index-stats textboxes
-        # (Knowledge Base tab + RAG Chat tab), not the 68-component
-        # language re-init the comment above avoids. This is what actually
-        # defers the ChromaDB client open until after the UI has mounted,
-        # instead of during build_ui().
-        demo.load(kb.get_index_stats, [lang_state], [kb_status_bar, rag_status_bar])
-
         # ── Live-refresh index stats on tab click ────────────────
-        # The demo.load() call above only runs once, right after the page
-        # mounts — it does NOT re-fire just because the user later clicks
-        # into the Knowledge Base or RAG Chat tab. That means the chunk
-        # count shown can go stale: e.g. documents indexed from another
-        # browser tab/session, via the CLI (index_docs.py), or even just
-        # left open for a while, won't be reflected until an explicit
-        # upload/delete/clear/refresh action fires elsewhere in THIS tab.
-        # Hooking .select() on both tabs makes every click into either one
-        # re-read the real ChromaDB count, so what's on screen always
-        # matches the current on-disk index the moment you look at it.
+        # NOT done via demo.load() — the embedding model should NOT load
+        # until the user explicitly visits the Knowledge Base or RAG Chat
+        # tab. The .select() hooks below populate the status bars on first
+        # visit and refresh them on every subsequent click.
         tab_kb.select(kb.get_index_stats, [lang_state], [kb_status_bar, rag_status_bar])
         tab_rag.select(kb.get_index_stats, [lang_state], [kb_status_bar, rag_status_bar])
 

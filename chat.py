@@ -472,21 +472,25 @@ def chat_rag_direct(user_message: str, history: list, model_label: str, use_memo
 
 
 def chat_rag(user_message: str, history: list, model_label: str, use_agentic: bool = True, use_memory: bool = True,
-             theme: str = "", subtheme: str = "", max_steps: Optional[int] = None, lang_key: str = "kh"):
+             theme: str = "", subtheme: str = "", max_steps: Optional[int] = None,
+             lang_key: str = "kh", use_tool_calling: bool = False):
     """RAG Chat entry point. Dispatches to one of two retrieval strategies:
 
-    - use_agentic=True (default): a smolagents CodeAgent (see rag_agent.py)
-      decides for itself whether/when to call the `retriever` tool against
-      ChromaDB — and can call it more than once to refine its search —
-      before writing a final answer. Strictly grounded: the agent is
-      instructed (system + per-task level) to answer ONLY from retrieved
-      content, and the answer is also checked after the fact against the
-      RetrieverTool's own self-tracked call/found counts
-      (rag_agent.get_retriever_stats()). If it never searched, or searched
-      and found nothing relevant, the answer is replaced with a clear
-      "not in the knowledge base" message instead of trusting whatever the
-      model wrote. Best with capable models (roughly Qwen3-4B and above) —
-      small models often fumble the tool-calling/code-parsing steps.
+    - use_agentic=True (default): a smolagents CodeAgent or ToolCallingAgent
+      (see rag_agent.py) decides for itself whether/when to call the
+      `retriever` tool against ChromaDB — and can call it more than once
+      to refine its search — before writing a final answer. Strictly
+      grounded: the agent is instructed (system + per-task level) to answer
+      ONLY from retrieved content, and the answer is also checked after
+      the fact against the RetrieverTool's own self-tracked call/found
+      counts (rag_agent.get_retriever_stats()). If it never searched, or
+      searched and found nothing relevant, the answer is replaced with a
+      clear "not in the knowledge base" message instead of trusting
+      whatever the model wrote.
+
+      `use_tool_calling=True` requests ToolCallingAgent (native function-
+      calling API) instead of CodeAgent (code generation). Falls back to
+      CodeAgent if the loaded model doesn't support native tool calls.
 
     - use_agentic=False: see chat_rag_direct() — always retrieves context
       first, then asks the LLM directly in one call. No tool-calling
@@ -511,7 +515,7 @@ def chat_rag(user_message: str, history: list, model_label: str, use_agentic: bo
     history.append({"role": "user", "content": user_message})
     model_id = mr.MODEL_OPTIONS.get(model_label, mr.DEFAULT_LLM_MODEL)
     try:
-        agent = rag_agent.get_rag_agent(model_id, theme, subtheme, max_steps)
+        agent = rag_agent.get_rag_agent(model_id, theme, subtheme, max_steps, use_tool_calling=use_tool_calling)
         rag_agent.reset_retriever_stats()
         task = rag_agent.build_strict_task(user_message, lang_key)
         # See chat_general_direct()'s matching comment — a no-op unless
@@ -572,15 +576,20 @@ def chat_rag(user_message: str, history: list, model_label: str, use_agentic: bo
 
 
 def chat_vision(user_message: str, uploaded_image, history: list,
-                vlm_label: str, use_visual_rag: bool, use_memory: bool = True, lang_key: str = "kh"):
+                vlm_label: str, use_visual_rag: bool, use_memory: bool = True,
+                lang_key: str = "kh", mmproj_label: str = ""):
     if not user_message.strip() and uploaded_image is None:
         return history, None
     history = history or []
     history.append({"role": "user", "content": user_message or "(image)"})
     vlm_id = mr.VLM_OPTIONS.get(vlm_label, mr.DEFAULT_VLM_MODEL)
+    mmproj_path = mr.GGUF_VLM_MMPROJ_MAP.get(vlm_id) if not mmproj_label else None
+    if mmproj_label and vlm_id:
+        candidates = mr.get_mmproj_choices_for_vlm(vlm_id)
+        mmproj_path = candidates.get(mmproj_label) or mmproj_path
     try:
         # Pre-load VLM outside vlm_answer so errors surface cleanly
-        models.get_vlm(vlm_id)
+        models.get_vlm(vlm_id, mmproj_path=mmproj_path)
         pil_images = []
         if uploaded_image is not None:
             if isinstance(uploaded_image, Image.Image):
@@ -600,7 +609,7 @@ def chat_vision(user_message: str, uploaded_image, history: list,
             convo = "\n".join(f"{t['role']}: {t['content']}" for t in recent)
             context = f"Recent conversation:\n{convo}\n\n{context}" if context else f"Recent conversation:\n{convo}"
         t0  = time.time()
-        ans = models.vlm_answer(user_message, pil_images, context=context, model_id=vlm_id)
+        ans = models.vlm_answer(user_message, pil_images, context=context, model_id=vlm_id, mmproj_path=mmproj_path)
         elapsed  = time.time() - t0
         response = (f"{ans}\n\n*⏱ {elapsed:.1f}s | VLM: `{vlm_id}` ({DEVICE.upper()})"
                     f" | images: {len(pil_images)}*")

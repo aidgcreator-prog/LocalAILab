@@ -751,6 +751,8 @@ if ($llamaCppInstalled) {
     Write-Host "[ចំណាំ] llama-cpp-python (GGUF, in-process): បានរំលងតាមជម្រើសរបស់អ្នក។ ម៉ូដែល GGUF" -ForegroundColor Cyan
     Write-Host "        នៅតែអាចប្រើបាន តាមរយៈ backend 'llama-server (external process)' — កំណត់ផ្លូវ" -ForegroundColor Cyan
     Write-Host "        llama-server.exe នៅផ្នែកខាងលើនៃ UI របស់កម្មវិធី។" -ForegroundColor Cyan
+    Write-Host "        (សម្រាប់ Speech-to-Text តាមរយៈ whisper.cpp សូមទាញយកដោយឡែក" -ForegroundColor Cyan
+    Write-Host "         នូវ whisper-server.exe ពី https://github.com/ggerganov/whisper.cpp/releases)" -ForegroundColor Cyan
 } else {
     Write-Host "[ព្រមាន] llama-cpp-python (GGUF): មិនអាចដំឡើងបានទេ - ម៉ូដែល .gguf នឹងមិនអាចប្រើបានទេ។" -ForegroundColor Yellow
 }
@@ -780,7 +782,9 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 Write-Host " ជំហានបន្ទាប់:"
 Write-Host "   ១. ចាប់ផ្តើមកម្មវិធី:        ចុចពីរដងលើ  RUN.bat"
-Write-Host "   ២. បើកផ្ទាំង `"Knowledge Base`" ដើម្បីបង្ហោះ និងបញ្ចូលឯកសាររបស់អ្នក។"
+Write-Host "   ២. កំណត់រចនាសម្ព័ន្ធ Model Settings (⚙️) ក្នុង UI: provider, ម៉ូដែលតាមផ្ទាំង"
+Write-Host "      — ជម្រើស: ទាញយក whisper-server.exe ពី whisper.cpp/releases សម្រាប់ STT server"
+Write-Host "   ៣. បើកផ្ទាំង `"Knowledge Base`" ដើម្បីបង្ហោះ និងបញ្ចូលឯកសាររបស់អ្នក។"
 Write-Host ""
 Write-Host " កម្មវិធីនឹងបើកនៅ:  http://localhost:7861"
 Write-Host ""

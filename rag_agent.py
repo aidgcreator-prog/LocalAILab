@@ -22,11 +22,29 @@ import inspect
 import threading
 from typing import Optional
 
-from smolagents import CodeAgent
+from smolagents import CodeAgent, ToolCallingAgent
 
 import model_registry as mr
 import models
 from knowledge_base import RetrieverTool
+
+
+def _supports_native_tool_calls(llm) -> bool:
+    """Heuristic: does *llm* support native tool-calling (function-calling
+    API) — meaning we should use ToolCallingAgent instead of CodeAgent?"""
+    cls_name = type(llm).__name__
+    # LiteLLMModel wraps every provider's native tool-calling API.
+    if cls_name == "LiteLLMModel":
+        return True
+    # InferenceClientModel — depends on the model endpoint.
+    if cls_name == "InferenceClientModel":
+        model_id = getattr(llm, "model_id", "") or ""
+        # Known tool-calling models on HF Inference API.
+        tc_hints = ("qwen3", "qwen2.5", "llama-3", "llama-4", "phi-4",
+                    "deepseek-v3", "deepseek-r1", "mistral-large",
+                    "gemma-3", "gemma-4", "command-r")
+        return any(h in model_id.lower() for h in tc_hints)
+    return False
 
 _rag_agent            = None
 _rag_agent_model_id   = None
@@ -155,7 +173,9 @@ def get_retriever_stats() -> tuple:
 RAG_AGENT_DEFAULT_MAX_STEPS = 6
 
 
-def _build_code_agent(llm, tool: RetrieverTool, model_id: str = "", max_steps: Optional[int] = None) -> CodeAgent:
+def _build_code_agent(llm, tool: RetrieverTool, model_id: str = "",
+                      max_steps: Optional[int] = None,
+                      use_tool_calling: bool = False) -> CodeAgent:
     # See general_agent._build_code_agent()'s comment / model_registry.
     # get_max_steps_for_model() — larger/slower local GGUF models pay a
     # much higher per-step cost when a parsing loop goes wrong, so their
@@ -163,35 +183,50 @@ def _build_code_agent(llm, tool: RetrieverTool, model_id: str = "", max_steps: O
     # the full default.
     if max_steps is None:
         max_steps = mr.get_max_steps_for_model(model_id, RAG_AGENT_DEFAULT_MAX_STEPS)
+
+    AgentClass = ToolCallingAgent if use_tool_calling else CodeAgent
+    agent_name = AgentClass.__name__
+
     kwargs = dict(
         model=llm,
         tools=[tool],
         max_steps=max_steps,
         verbosity_level=1,
     )
-    # smolagents' CodeAgent normally expects the model to wrap its answer in
-    # <code>...</code> tags. In practice a lot of models — especially
-    # "thinking"/reasoning-tuned ones, and pretty much anything running
-    # through a raw llama.cpp chat template rather than transformers' own
-    # template — are far more reliably biased (from code-heavy pretraining)
-    # toward plain ```python fenced blocks instead, and will just write
-    # prose otherwise, causing every step to fail parsing (see the "regex
-    # pattern <code>(.*?)</code> was not found" error). Newer smolagents
-    # versions expose `code_block_tags` on CodeAgent to switch to the more
-    # broadly-compatible markdown-fence convention — use it when available.
+
+    if AgentClass is CodeAgent:
+        # smolagents' CodeAgent normally expects the model to wrap its
+        # answer in <code>...</code> tags. Switch to ```python markdown
+        # fences when the installed version supports it — much more broadly
+        # compatible across models and backends (see the long comment
+        # below for why).
+        try:
+            params = inspect.signature(CodeAgent.__init__).parameters
+            if "code_block_tags" in params:
+                kwargs["code_block_tags"] = "markdown"
+        except (TypeError, ValueError):
+            pass
+
+    # Both agent types accept `instructions` if the installed version
+    # exposes it — use the same strict-grounding prompt for either.
     try:
-        params = inspect.signature(CodeAgent.__init__).parameters
-        if "code_block_tags" in params:
-            kwargs["code_block_tags"] = "markdown"
+        params = inspect.signature(AgentClass.__init__).parameters
         if "instructions" in params:
             kwargs["instructions"] = STRICT_SYSTEM_INSTRUCTIONS
     except (TypeError, ValueError):
         pass
-    return CodeAgent(**kwargs)
+
+    print(f"[RAGAgent] Building {agent_name} on '{model_id or '(shared)'}' …")
+    return AgentClass(**kwargs)
 
 
-def get_rag_agent(model_id: Optional[str] = None, theme: str = "", subtheme: str = "", max_steps: Optional[int] = None):
-    """Lazily build (or rebuild, if the model/theme/subtheme/max_steps changed) the agentic-RAG CodeAgent."""
+def get_rag_agent(model_id: Optional[str] = None, theme: str = "", subtheme: str = "",
+                  max_steps: Optional[int] = None, use_tool_calling: bool = False):
+    """Lazily build (or rebuild) the agentic-RAG CodeAgent or ToolCallingAgent.
+
+    `use_tool_calling` requests native tool-calling (ToolCallingAgent);
+    auto-falls-back to CodeAgent if the loaded model doesn't support it.
+    """
     global _rag_agent, _rag_agent_model_id, _rag_agent_theme, _rag_agent_subtheme, _rag_agent_max_steps, _rag_tool
     target = model_id or models._llm_model_id
 
@@ -202,18 +237,20 @@ def get_rag_agent(model_id: Optional[str] = None, theme: str = "", subtheme: str
         if _rag_agent is not None and target == _rag_agent_model_id and theme == _rag_agent_theme and subtheme == _rag_agent_subtheme and max_steps == _rag_agent_max_steps:
             return _rag_agent
 
-        print(f"[RAGAgent] Building CodeAgent on '{target}' …")
         llm = models.get_llm(target)
+        use_tc = use_tool_calling and _supports_native_tool_calls(llm)
         _rag_tool  = RetrieverTool(theme=theme, subtheme=subtheme)
-        _rag_agent = _build_code_agent(llm, _rag_tool, target, max_steps)
+        _rag_agent = _build_code_agent(llm, _rag_tool, target, max_steps, use_tool_calling=use_tc)
         _rag_agent_model_id = target
         _rag_agent_theme = theme
         _rag_agent_subtheme = subtheme
         _rag_agent_max_steps = max_steps
-        # Standard smolagents behaviour: a freshly-built CodeAgent starts
+        # Standard smolagents behaviour: a freshly-built agent starts
         # with empty memory. See agent_memory.py's module docstring for
         # why this app no longer tries to restore memory from a previous
         # model or app session.
+        tc_label = "ToolCallingAgent" if use_tc else "CodeAgent"
+        print(f"[RAGAgent] Built {tc_label} on '{target}' …")
         return _rag_agent
 
 
