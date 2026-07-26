@@ -420,6 +420,17 @@ def build_ui():
                             label=L["label_memory"], value=True,
                             info=L["info_memory"],
                         )
+                        analysis_type_data = gr.Radio(
+                            choices=[
+                                ("exploratory", L["analysis_exploratory"]),
+                                ("sales", L["analysis_sales"]),
+                                ("customer", L["analysis_customer"]),
+                                ("financial", L["analysis_financial"]),
+                                ("payroll", L["analysis_payroll"]),
+                            ],
+                            label=L["label_analysis_type"],
+                            value="exploratory",
+                        )
                         with gr.Accordion(L["accordion_details"], open=False) as acc_data_detail:
                             data_memory_detail_md = gr.Markdown(L["info_memory_detail"])
                         reset_data_btn = gr.Button(L["btn_reset_agent"], size="sm")
@@ -1133,6 +1144,76 @@ def build_ui():
             data_analysis.reset_agent()
             return gr.update(value="✅ Agent reset — will rebuild on next run.", visible=True)
 
+        ANALYSIS_PROMPTS = {
+            "exploratory": "",
+            "sales": (
+                "Perform a full sales analysis following this workflow:\n"
+                "1. Show total sales by month (line chart)\n"
+                "2. Identify top-performing products (bar chart)\n"
+                "3. Break down by customer segment (pie/donut chart)\n"
+                "4. Compare this year vs last year (grouped bar chart)\n"
+                "5. Forecast next quarter based on trends\n\n"
+                "Write the final report using the Insight Report template:\n"
+                "## Executive Summary\n"
+                "## Key Metrics (table: Metric | Value | Change)\n"
+                "## Trends\n"
+                "## Recommendations"
+            ),
+            "customer": (
+                "Perform a full customer analysis following this workflow:\n"
+                "1. Show customer distribution by segment (bar chart)\n"
+                "2. Calculate key metrics per segment (avg spend, count)\n"
+                "3. Identify top customers by value\n"
+                "4. Analyze purchase frequency patterns\n\n"
+                "Write the final report using the Insight Report template:\n"
+                "## Executive Summary\n"
+                "## Key Metrics\n"
+                "## Customer Segments\n"
+                "## Recommendations"
+            ),
+            "financial": (
+                "Perform a full financial analysis following this workflow:\n"
+                "1. Calculate profit margins by product (bar chart)\n"
+                "2. Show expense breakdown (pie chart)\n"
+                "3. Analyze revenue vs expense trends over time (line chart)\n"
+                "4. Compare budget vs actual (grouped bar chart)\n\n"
+                "Write the final report using the Insight Report template:\n"
+                "## Executive Summary\n"
+                "## Key Metrics\n"
+                "## Trends\n"
+                "## Recommendations"
+            ),
+            "payroll": (
+                "Perform a full payroll analysis following this workflow:\n"
+                "1. LOAD & VALIDATE — Load the payroll data; check for missing "
+                "values in employee ID, hours worked, pay rate, deductions, and "
+                "tax fields. Report any data quality issues.\n"
+                "2. GROSS PAY — Calculate gross pay per employee (hours × rate, "
+                "or salary proration). Show distribution with a histogram + "
+                "boxplot. Flag any outliers.\n"
+                "3. DEDUCTIONS & TAX — Break down deductions (health insurance, "
+                "retirement, tax withholdings, etc.) per employee. Plot a "
+                "stacked bar chart of deductions by department.\n"
+                "4. NET PAY — Calculate net pay (gross − deductions − tax). "
+                "Show summary stats (mean, median, min, max). Plot net pay "
+                "distribution.\n"
+                "5. DEPARTMENT SUMMARY — Aggregate payroll by department: total "
+                "gross, total deductions, total net, headcount, avg salary. "
+                "Plot a grouped bar chart comparing departments.\n"
+                "6. COST TRENDS — If the data has a date column, plot total "
+                "payroll cost over time (line chart).\n\n"
+                "Write the final report using the Insight Report template:\n"
+                "## Executive Summary\n"
+                "## Key Metrics (total gross, total deductions, total net, "
+                "headcount, avg cost per employee)\n"
+                "## Department Breakdown (table)\n"
+                "## Recommendations"
+            ),
+        }
+
+        def set_analysis_prompt(choice):
+            return ANALYSIS_PROMPTS.get(choice, "")
+
         def stash_data(question):
             # See stash_gen() above.
             return "", question
@@ -1168,6 +1249,8 @@ def build_ui():
                 yield h, gallery, report_file, gr.update(open=True), gr.update(open=True), gr.update()
             h, gallery, report_file = last
             yield h, gallery, report_file, gr.update(open=True), gr.update(open=True), gr.update(visible=False)
+
+        analysis_type_data.change(set_analysis_prompt, [analysis_type_data], [msg_data])
 
         send_data.click(stash_data, [msg_data], [msg_data, pending_data_question], queue=False).then(
             show_thinking_data, None, [status_data], queue=False
@@ -1481,6 +1564,16 @@ def build_ui():
                 gr.update(label=l["label_llm"]),
                 gr.update(label=l["label_memory"], info=l["info_memory"]),
                 gr.update(value=l["btn_reset_agent"]),
+                gr.update(
+                    label=l["label_analysis_type"],
+                    choices=[
+                        ("exploratory", l["analysis_exploratory"]),
+                        ("sales", l["analysis_sales"]),
+                        ("customer", l["analysis_customer"]),
+                        ("financial", l["analysis_financial"]),
+                        ("payroll", l["analysis_payroll"]),
+                    ],
+                ),
                 # Knowledge Base
                 gr.update(label=l["label_embed"], info=l["info_embed"]),
                 gr.update(value=l["btn_load"]),
@@ -1515,7 +1608,6 @@ def build_ui():
                 gr.update(label=l["accordion_details"]), gr.update(value=l["info_memory_detail"]),
                 # ── Global Model Settings accordion (new) ──────────
                 gr.update(value=f"### {l['label_provider_section']}"),
-                gr.update(value=f"### {l['label_models_section']}"),
                 gr.update(value=f"### {l['label_generation_section']}"),
                 gr.update(label=l["label_provider"]),
                 gr.update(label=l["label_provider"]),
@@ -1551,7 +1643,7 @@ def build_ui():
             stt_dd, stt_lang_dd, load_stt_btn, unload_stt_btn, stt_hint,
             # Data Analysis
             data_file_up, msg_data, send_data, clear_data, acc_data_chat, acc_data_results, data_gallery, data_report_file,
-            data_settings_header, data_desc, model_dd_data, data_memory_chk, reset_data_btn,
+            data_settings_header, data_desc, model_dd_data, data_memory_chk, reset_data_btn, analysis_type_data,
             # Knowledge Base
             embed_dd, load_embed_btn, unload_embed_btn, acc_embed_detail, embed_detail_md,
             acc_add, file_up, vis_ret_dd, theme_tb, subtheme_tb, up_btn, unload_visual_btn, up_msg,

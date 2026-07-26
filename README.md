@@ -24,7 +24,7 @@
 - **🧠 ចងចាំការសន្ទនា (កំពុងសាកល្បង)**៖ ប្រអប់ថ្មីនៅគ្រប់ផ្ទាំង agentic
 - **🧠 វិន្ដូបរិបទ**៖ ជ្រើសរើសពី 4K ដល់ 128K សម្រាប់ GGUF
 - **ការរកឃើញ GPU មិនត្រូវគ្នា**៖ ព្រមានក្នុង UI ជំនួសឱ្យការគាំងស្ងាត់ៗ
-- **Data Analysis Agent**៖ ដំឡើង Python package ដោយខ្លួនឯង និង EDA ពេញលេញ
+- **Data Analysis Agent**៖ ដំឡើង Python package ដោយខ្លួនឯង EDA ពេញលេញ **និងជម្រើសវិភាគតាមប្រភេទ (ការលក់, អតិថិជន, ហិរញ្ញវត្ថុ, ប្រាក់ខែ)** — ជ្រើសរើស workflow ដើម្បីបំពេញប្រអប់សំណួរដោយស្វ័យប្រវត្តិ
 - **🔧 ជ្រើសរើស Embedding ឥតបញ្ហា**៖ ChromaDB បង្កើត collection ដាច់ដោយឡែកតាម dimension
 
 ### 📑 មាតិកា
@@ -70,7 +70,15 @@ pip install -r requirements.txt
 pip install torch torchvision
 ```
 
-នៅលើ Windows គ្រាន់តែចុចពីរដងលើ **SETUP.bat** ដើម្បីធ្វើអ្វីៗខាងលើដោយស្វ័យប្រវត្តិ (រកឃើញ GPU ដំឡើង PyTorch ត្រឹមត្រូវ ជាដើម)។
+#### 💻 ដំឡើងតែមួយបន្ទាត់ (ម៉ាស៊ីនថ្មី)
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/SmolAgent/main/install.ps1 | iex
+```
+
+ពាក្យបញ្ជាតែមួយនេះ ដំឡើង Python + Git (បើគ្មាន) ទាញយក repo បង្កើត Python environment រកឃើញ GPU ដំឡើង PyTorch + dependencies ទាំងអស់ និងបង្កើត shortcut លើ Desktop។
+
+បើម៉ាស៊ីនអ្នកមាន Python រួចហើយ គ្រាន់តែចុចពីរដងលើ **SETUP.bat** ដើម្បីធ្វើ GPU detection + dependency install ដោយស្វ័យប្រវត្តិ។
 
 <details>
 <summary><strong>ជម្រើស — ការគាំទ្រម៉ូដែល llama.cpp (GGUF)</strong></summary>
@@ -139,7 +147,7 @@ python app.py
 | 1 | 💬 **ការសន្ទនាទូទៅ** | ការសន្ទនាផ្ទាល់ជាមួយ LLM — មិនមានការទាញយកឯកសារ។ របៀប Agent (ស្រេចចិត្ត) អាចស្វែងរកតាមអ៊ីនធឺណិត |
 | 2 | 🖼️ **ការសន្ទនាចក្ខុវិស័យ** | បង្ហោះរូបភាព ហើយសួរសំណួរ — គាំទ្រការទាញយកបរិបទចម្រុះ និង Visual RAG |
 | 3 | 🎙️ **និយាយទៅជាអក្សរ** | ថត/បង្ហោះសំឡេង ហើយបំលែងទៅជាអក្សរដោយ Whisper (រកឃើញភាសាស្វ័យប្រវត្តិ ឬកំណត់ភាសាផ្ទាល់) |
-| 4 | 📊 **វិភាគទិន្នន័យ** | បង្ហោះ CSV/Excel ឱ្យ AI Agent វិភាគ បង្កើតក្រាហ្វិក និងសរសេររបាយការណ៍ Markdown |
+| 4 | 📊 **វិភាគទិន្នន័យ** | បង្ហោះ CSV/Excel ឱ្យ AI Agent វិភាគ បង្កើតក្រាហ្វិក និងសរសេររបាយការណ៍ Markdown — មានជម្រើស workflow វិភាគតាមប្រភេទ (ការលក់, អតិថិជន, ហិរញ្ញវត្ថុ, ប្រាក់ខែ) |
 | 5 | 📂 **មូលដ្ឋានចំណេះដឹង** | គ្រប់គ្រងឯកសារដែលបានបញ្ចូល (PDF/TXT/MD/DOCX) មើលតារាង និងសម្អាតការបញ្ចូល |
 | 6 | 📚 **ការសន្ទនា RAG** | ទាញយកពីមូលដ្ឋានចំណេះដឹងជាមុន (ដោយផ្ទាល់ ឬដោយ Agent) មុននឹងឆ្លើយ |
 | 7 | 🔬 **ស្រាវជ្រាវស៊ីជម្រៅ** | Agent គ្រប់គ្រង + agent ស្វែងរកតាមអ៊ីនធឺណិត បំបែកសំណួរជាសំណួររង រៀបចំផែនការឡើងវិញ រួចសរសេររបាយការណ៍ Markdown ដែលមានប្រភពយោង (ត្រូវការម៉ូដែលធំ)
@@ -249,8 +257,9 @@ python app.py
 ├── ui.py             # ការសង់ចំណុចប្រទាក់ Gradio និងការភ្ជាប់ event ទាំងអស់
 ├── index_docs.py     # ស្គ្រីប CLI សម្រាប់បញ្ចូលឯកសារ
 ├── requirements.txt  # Dependencies របស់ Python (រួមទាំង python-docx, llama-cpp-python)
-├── SETUP.bat/.ps1    # កម្មវិធីដំឡើងលើ Windows ដោយចុចតែម្តង
+├── SETUP.bat/.ps1    # កម្មវិធីដំឡើងលើ Windows (GPU detection, venv, deps)
 ├── RUN.bat/.ps1      # កម្មវិធីដំណើរការលើ Windows ដោយចុចតែម្តង
+├── install.bat/.ps1  # កម្មវិធីដំឡើងតាមអ៊ីនធឺណិត (Python+Git+clone+setup+shortcut)
 ├── README.md         # ឯកសារនេះ
 ├── chroma_db/        # បង្កើតដោយស្វ័យប្រវត្តិ; ការផ្ទុកទិន្នន័យជាប់លាប់របស់ ChromaDB
 └── visual_index/     # បង្កើតដោយស្វ័យប្រវត្តិ; ការផ្ទុក Visual Index
@@ -279,7 +288,7 @@ The UI is fully bilingual — switch between **Khmer** and **English** instantly
 - **🧠 Conversation Memory (Experimental)**: a new toggle on every agentic tab lets follow-up questions refer back to earlier turns (RAM-only, never persisted to disk).
 - **🧠 Configurable Context Window**: pick anywhere from 4K to 128K tokens for GGUF models directly in the UI.
 - **GPU-incompatibility detection**: the UI now shows a clear warning if a detected GPU (e.g. an older Pascal/sm_6x card) isn't supported by the installed PyTorch build, instead of silently falling back to CPU with no explanation.
-- **Data Analysis agent** can now install missing Python packages itself (`install_package` tool) and runs a fuller EDA with multiple charts.
+- **Data Analysis agent** can now install missing Python packages itself (`install_package` tool), runs a fuller EDA with multiple charts, **and offers guided analysis workflows (Sales, Customer, Financial, Payroll) via an Analysis Type selector** — pick a workflow to pre-fill the question box with step-by-step instructions.
 
 ### 📑 Table of Contents
 - [Architecture](#️-architecture)
@@ -324,7 +333,15 @@ pip install -r requirements.txt
 pip install torch torchvision
 ```
 
-On Windows, just double-click **SETUP.bat** to do all of the above automatically (detects your GPU, installs the matching PyTorch build, etc).
+#### 💻 One-liner Windows install (fresh machine)
+
+```powershell
+iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/SmolAgent/main/install.ps1 | iex
+```
+
+This single command installs Python + Git (if missing), clones the repo, sets up the Python environment, detects your GPU, installs PyTorch + all dependencies, and creates a desktop shortcut — zero clicks required after the prompt.
+
+On a machine that already has Python, just double-click **SETUP.bat** to do the GPU detection + dependency install automatically.
 
 <details>
 <summary><strong>Optional — llama.cpp (GGUF) model support</strong></summary>
@@ -393,7 +410,7 @@ The app is organized into eight main tabs, in this order:
 | 1 | 💬 **General Chat** | Direct LLM conversation — no retrieval. Optional Agentic Mode adds live web search |
 | 2 | 🖼️ **Vision Chat** | Upload an image and ask questions — supports hybrid text context and Visual RAG |
 | 3 | 🎙️ **Speech to Text** | Record or upload audio, transcribed via Whisper (auto-detect or forced language) |
-| 4 | 📊 **Data Analysis** | Upload CSV/Excel; the AI agent explores it, builds charts, and writes a report |
+| 4 | 📊 **Data Analysis** | Upload CSV/Excel; the AI agent explores it, builds charts, and writes a report. Pick a guided workflow (Sales, Customer, Financial, Payroll) or use the default EDA |
 | 5 | 📂 **Knowledge Base** | Manage indexed documents (PDF/TXT/MD/DOCX), view the table, clear the index |
 | 6 | 📚 **RAG Chat** | Retrieves from the knowledge base first (directly or agentically), then answers |
 | 7 | 🔬 **Deep Research** | A manager agent + web-search sub-agent break the question into sub-questions, re-plan as they go, and write a structured Markdown report with sources (needs a capable model) |
@@ -503,8 +520,9 @@ For people with beefier hardware who want noticeably stronger local models than 
 ├── ui.py              # Gradio Blocks UI + all event wiring
 ├── index_docs.py      # CLI indexing script
 ├── requirements.txt   # Python dependencies (incl. python-docx, llama-cpp-python)
-├── SETUP.bat/.ps1     # Windows one-click installer
+├── SETUP.bat/.ps1     # Windows one-click installer (GPU detection, venv, deps)
 ├── RUN.bat/.ps1       # Windows one-click launcher
+├── install.bat/.ps1   # Windows one-liner installer (Python+Git+clone+setup+shortcut)
 ├── README.md          # This file
 ├── chroma_db/         # Auto-created; ChromaDB persistent storage
 └── visual_index/      # Auto-created; visual index storage

@@ -307,7 +307,67 @@ correlation is possible). Aim for several charts, not just one.
      fails. (plt.savefig() is a separate whitelisted call and works fine for
      charts — only raw open() is blocked.)
 
-7. As your FINAL ANSWER, return the full Markdown report text.
+7. REPORT TEMPLATES — Use these structured formats for your report sections:
+
+   Data Overview (after LOAD & OVERVIEW):
+   ```
+   ## Dataset Overview
+   **Rows**: N  **Columns**: M
+   ### Column Summary
+   | Column | Type | Non-null | Unique | Sample Values |
+   |--------|------|----------|--------|---------------|
+   | ...    | ...  | ...      | ...    | ...           |
+   ### Data Quality
+   - X missing values in [column]
+   - Y potential duplicates
+   ```
+
+   Statistical Summary (after UNIVARIATE ANALYSIS):
+   ```
+   ## Statistical Summary
+   ### [Metric Name]
+   - **Mean**: X  **Median**: Y  **Std Dev**: Z
+   - **Min/Max**: A / B
+   ### Key Findings
+   1. [Finding with statistical support]
+   2. [Finding with statistical support]
+   ```
+
+   Insight Report (final report structure):
+   ```
+   ## Analysis Report: [Topic]
+   ### Executive Summary
+   [2-3 sentence overview of key findings]
+   ### Key Metrics
+   | Metric | Value | Change |
+   |--------|-------|--------|
+   | ...    | ...   | ...    |
+   ### Trends
+   1. **[Trend 1]**: [Description with data]
+   2. **[Trend 2]**: [Description with data]
+   ### Recommendations
+   1. [Actionable recommendation]
+   2. [Actionable recommendation]
+   ```
+
+8. VISUALIZATION GUIDANCE — Choose the right chart for your data:
+   | Data Type         | Best Chart       |
+   |-------------------|------------------|
+   | Trends over time  | Line chart       |
+   | Part of whole     | Pie/Donut chart  |
+   | Comparison        | Bar chart        |
+   | Distribution      | Histogram        |
+   | Correlation       | Scatter plot     |
+
+9. PAYROLL ANALYSIS GUIDANCE — If the user asks about payroll or
+   compensation data, always compute: gross pay, total deductions, tax
+   withholdings, net pay. Validate that deductions never exceed gross pay.
+   Flag records with negative net pay or missing tax fields. Report totals:
+   total gross, total deductions, total net, headcount, avg cost per
+   employee, and department-level aggregates. Follow the payroll workflow
+   steps if provided in the user's request.
+
+10. As your FINAL ANSWER, return the full Markdown report text.
 """
         # See chat.py's chat_general_direct() matching comment — a no-op
         # unless the "🧠 Enable Model Reasoning" toggle (⚙️ Model Settings)
