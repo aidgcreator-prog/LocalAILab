@@ -68,7 +68,7 @@ function New-DesktopShortcut {
     if ($Arguments) { $sc.Arguments = $Arguments }
     $sc.WorkingDirectory = $WorkingDir
     $sc.Description = "$Name by LocalAiLab"
-    if ($IconPath) { $sc.IconLocation = $IconPath }
+    if ($IconPath) { $sc.IconLocation = "$IconPath, 0" }
     $sc.Save()
     return $path
 }
@@ -271,7 +271,7 @@ if (-not $NoShortcut) {
         $logoJpg = Join-Path $targetDir "logo.jpg"
         $logoIco = Join-Path $targetDir "logo.ico"
         if (Test-Path $logoJpg) {
-            Convert-JpgToIco -JpgPath $logoJpg -IcoPath $logoIco
+            try { Convert-JpgToIco -JpgPath $logoJpg -IcoPath $logoIco } catch {}
         }
         $scPath = New-DesktopShortcut -Target $runBat -WorkingDir $targetDir -Name "Multipurpose AI Assistant" -IconPath $logoIco
         Write-Ok "Desktop shortcut created: $scPath"
