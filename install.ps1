@@ -274,16 +274,16 @@ Write-Host "============================================================" -Foreg
 Write-Host "  $([char]0x2705) Installation complete!" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "  $([char]0x1F4C1)  Location:    $targetDir"
+Write-Host "  $([System.Char]::ConvertFromUtf32(0x1F4C1))  Location:    $targetDir"
 if (-not $NoShortcut) {
-    Write-Host "  $([char]0x1F5A5)  Shortcut:    Desktop $([char]0x2192) Multipurpose AI Assistant"
+    Write-Host "  $([System.Char]::ConvertFromUtf32(0x1F5A5))  Shortcut:    Desktop $([char]0x2192) Multipurpose AI Assistant"
 }
 Write-Host ""
 Write-Host "  $([char]0x25B6)  To run:"
 Write-Host "       - double-click RUN.bat in the folder above"
 Write-Host "       - or click the desktop shortcut"
 Write-Host ""
-Write-Host "  $([char]0x1F527)  Setup:       Open $([char]0x2699) Settings in the app to configure"
+Write-Host "  $([System.Char]::ConvertFromUtf32(0x1F527))  Setup:       Open $([char]0x2699) Settings in the app to configure"
 Write-Host "                your model provider and model assignments."
 Write-Host ""
 
