@@ -144,6 +144,18 @@ LANGUAGES = {
         "err_status_bar": "📚 Text chunks: {n}  |  Visual index: {vis}  |  Device: {dev}",
         "err_reasoning": "🧠 ការគិត (ចុចដើម្បីពង្រីក)",
         "err_answer": "💬 ចម្លើយ",
+        "reasoning_truncated": "🧠 ការគិត (ត្រូវបានកាត់ផ្តាច់ - ម៉ូដែលអស់ budget មុននឹងឆ្លើយ)",
+        "reasoning_no_answer": "🧠 ការគិត (ម៉ូដែលបានបញ្ចប់ការគិត ប៉ុន្តែមិនបានសរសេរចម្លើយ)",
+        "no_reasoning_text": "(គ្មានអត្ថបទការគិតត្រូវបានចាប់យក)",
+        "truncated_notice": "⚠️ *ម៉ូដែលហាក់ដូចជាអស់ generation budget ខណៈពេលកំពុងគិត មុននឹងអាចសរសេរចម្លើយពិតប្រាកដ។ ការគិតឆៅត្រូវបានបង្ហាញខាងលើក្នុងករណីដែលវាអាចមានប្រយោជន៍ ប៉ុន្តែអ្នកប្រហែលជាចង់សាកល្បងម្តងទៀត — `MAX_NEW_TOKENS` ធំជាង (សូមមើល `model_registry.py`) ឬ prompt ខ្លី/សាមញ្ញជាងអាចជួយបាន។*",
+        "think_gen": "🤖 កំពុងគិត…",
+        "think_gen_agentic": "🌐🤖 កំពុងគិត… agent អាចស្វែងរកតាមអ៊ីនធឺណិត ឬអានទំព័របណ្តាញ មុននឹងឆ្លើយ",
+        "think_rag": "📚 កំពុងទាញយកបរិបទ និងកំពុងគិត…",
+        "think_rag_agentic": "📚🤖 កំពុងស្វែងរកមូលដ្ឋានចំណេះដឹង និងកំពុងគិត…",
+        "think_dr": "🔬🤖 កំពុងស្រាវជ្រាវ… កំពុងបំបែកសំណួររបស់អ្នកជាសំណួររង កំពុងស្វែងរក និងរៀបចំផែនការឡើងវិញតាមតម្រូវការ។ នេះអាចចំណាយពេលច្រើននាទី។",
+        "think_vis": "🖼️ កំពុងវិភាគរូបភាព និងកំពុងគិត…",
+        "think_vis_rag": "🖼️🔍 កំពុងវិភាគរូបភាព (និង visual index) និងកំពុងគិត…",
+        "think_data": "📊🤖 កំពុងវិភាគទិន្នន័យរបស់អ្នក កំពុងបង្កើតក្រាហ្វិក និងសរសេររបាយការណ៍… នេះអាចចំណាយពេលពីរបីនាទី។",
         "err_src_none": " | គ្មានឯកសារបញ្ចូលឡើយ",
         "err_src_list": " | ប្រភព: ",
         "err_elapsed": "⏱ {elapsed:.1f}s | model: <code>{model}</code> ({dev})",
@@ -295,6 +307,24 @@ LANGUAGES = {
         "err_status_bar": "📚 Text chunks: {n}  |  Visual index: {vis}  |  Device: {dev}",
         "err_reasoning": "🧠 Reasoning (click to expand)",
         "err_answer": "💬 Answer",
+        "reasoning_truncated": "🧠 Reasoning (truncated - model ran out of budget before answering)",
+        "reasoning_no_answer": "🧠 Reasoning (model finished thinking but wrote no answer)",
+        "no_reasoning_text": "(no reasoning text captured)",
+        "truncated_notice": (
+            "⚠️ *The model appears to have run out of generation budget while "
+            "still reasoning, before it could write an actual answer. Its "
+            "raw reasoning is shown above in case it's useful, but you may want "
+            "to retry — a larger `MAX_NEW_TOKENS` (see `model_registry.py`) or a "
+            "shorter/simpler prompt can help.*"
+        ),
+        "think_gen": "🤖 Thinking…",
+        "think_gen_agentic": "🌐🤖 Thinking… the agent may search the web or read pages before answering.",
+        "think_rag": "📚 Retrieving context and thinking…",
+        "think_rag_agentic": "📚🤖 Searching the knowledge base and thinking…",
+        "think_dr": "🔬🤖 Researching… breaking your question into sub-questions, searching, and re-planning as needed. This can take several minutes.",
+        "think_vis": "🖼️ Analyzing the image and thinking…",
+        "think_vis_rag": "🖼️🔍 Analyzing the image (and visual index) and thinking…",
+        "think_data": "📊🤖 Analyzing your data, building charts, and writing the report… this can take a few minutes.",
         "err_src_none": " | no docs indexed",
         "err_src_list": " | sources: ",
         "err_elapsed": "⏱ {elapsed:.1f}s | model: <code>{model}</code> ({dev})",

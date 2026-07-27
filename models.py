@@ -759,7 +759,7 @@ def get_vlm(model_id: Optional[str] = None, mmproj_path: Optional[str] = None):
     return _vlm_model, _vlm_processor
 
 
-def vlm_answer(question: str, images: list, context: str = "", model_id: Optional[str] = None, mmproj_path: Optional[str] = None) -> str:
+def vlm_answer(question: str, images: list, context: str = "", model_id: Optional[str] = None, mmproj_path: Optional[str] = None, lang_key: str = "kh") -> str:
     try:
         model, processor = get_vlm(model_id, mmproj_path=mmproj_path)
         # GGUF vision model (llama.cpp) — self-contained answer() method.
@@ -769,7 +769,8 @@ def vlm_answer(question: str, images: list, context: str = "", model_id: Optiona
         if isinstance(model, InferenceApiVLMModel):
             return model.answer(question, images, context=context, max_tokens=mr.get_saved_max_new_tokens())
         arch = getattr(model, "_arch", "smolvlm")
-        system_prompt = "You are a helpful assistant. Answer based on images and context."
+        lang_instruction = "Answer in Khmer.\n\n" if lang_key == "kh" else ""
+        system_prompt = lang_instruction + "You are a helpful assistant. Answer based on images and context."
         user_text = question + (f"\n\nContext:\n{context}" if context else "")
         if arch == "qwen_vl":
             from qwen_vl_utils import process_vision_info

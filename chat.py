@@ -10,6 +10,7 @@ from typing import Optional
 
 from PIL import Image
 
+from i18n import LANGUAGES
 import knowledge_base as kb
 import model_registry as mr
 import models
@@ -48,17 +49,7 @@ DEEP_RESEARCH_MEMORY_TURNS = 4
 
 
 
-# Shown in place of a real answer when generation appears to have been cut
-# off before the model finished writing one — see format_llm_response()'s
-# two fallback branches below. Kept as a constant so both branches (and
-# any future caller) stay in sync on the wording.
-_TRUNCATED_ANSWER_NOTICE = (
-    "⚠️ *The model appears to have run out of generation budget while "
-    "still reasoning, before it could write an actual answer. Its "
-    "raw reasoning is shown above in case it's useful, but you may want "
-    "to retry — a larger `MAX_NEW_TOKENS` (see `model_registry.py`) or a "
-    "shorter/simpler prompt can help.*"
-)
+
 
 # Reusable HTML templates for format_llm_response() — extracted to
 # module-level constants so the same HTML strings aren't built from scratch
@@ -80,40 +71,37 @@ _ANSWER_TPL = (
 )
 
 
-def format_llm_response(text: str) -> str:
+def format_llm_response(text: str, lang_key: str = "kh") -> str:
+    l = LANGUAGES.get(lang_key, LANGUAGES["kh"])
     m = re.search(r" thinking(.*?) response(.*)", text, re.DOTALL)
 
-    # Case 1: no  thinking... response pair found at all
     if not m:
-        # Check for unclosed  thinking tag
         if " thinking" in text and " response" not in text:
             partial_thinking = text.split(" thinking", 1)[1].strip()
             return _DETAILS_TPL.format(
                 open="open", border="#a87c1f",
-                summary="🧠 Reasoning (truncated - model ran out of budget before answering)",
-                body=partial_thinking if partial_thinking else "(no reasoning text captured)",
-            ) + _ANSWER_TPL.format(border="#a87c1f", fs=15, body=_TRUNCATED_ANSWER_NOTICE)
+                summary=l["reasoning_truncated"],
+                body=partial_thinking if partial_thinking else l["no_reasoning_text"],
+            ) + _ANSWER_TPL.format(border="#a87c1f", fs=15, body=l["truncated_notice"])
         return text
 
     thinking = m.group(1).strip()
     answer = m.group(2).strip()
 
-    # Case 2: closed  thinking... response but empty answer
     if not answer:
         return _DETAILS_TPL.format(
             open="open", border="#a87c1f",
-            summary="🧠 Reasoning (model finished thinking but wrote no answer)",
-            body=thinking if thinking else "(no reasoning text captured)",
-        ) + _ANSWER_TPL.format(border="#a87c1f", fs=15, body=_TRUNCATED_ANSWER_NOTICE)
+            summary=l["reasoning_no_answer"],
+            body=thinking if thinking else l["no_reasoning_text"],
+        ) + _ANSWER_TPL.format(border="#a87c1f", fs=15, body=l["truncated_notice"])
 
-    # Case 3: normal case with both thinking and answer
     return _DETAILS_TPL.format(
         open="", border="#555",
-        summary="🧠 Reasoning (click to expand)",
+        summary=l["err_reasoning"],
         body=thinking,
     ) + _ANSWER_TPL.format(
         border="#4CAF50", fs=16,
-        body="<b>💬 Answer</b>\n" + answer,
+        body=f"<b>{l['err_answer']}</b>\n" + answer,
     )
 def _strip_response_html(text: str) -> str:
     """Recover the plain-text answer from a previously HTML-formatted
@@ -126,20 +114,7 @@ def _strip_response_html(text: str) -> str:
         return text
     text = re.sub(r"<details.*?</details>", "", text, flags=re.DOTALL)
     text = re.sub(r"<hr>.*$", "", text, flags=re.DOTALL)
-    # Drop the "💬 Answer" bold label itself, if present, so it doesn't
-    # leak into memory as stray leading text. NOTE: this is now a plain
-    # removal (not a "find <b>Answer</b>...</div> and extract only what's
-    # inside" match like before) — the old approach silently extracted
-    # NOTHING (leaving the calling loop in _recent_memory_messages() to
-    # treat the whole turn as empty and drop it) whenever the assistant's
-    # HTML didn't contain that exact marker followed by a matching
-    # </div> — which is exactly what happens for format_llm_response()'s
-    # truncated-answer / empty-answer fallback branches (see chat.py's
-    # format_llm_response()), silently breaking memory continuity from
-    # that turn onward. Stripping every tag unconditionally afterward
-    # works correctly for BOTH the normal success path and every
-    # fallback branch, with no dependency on a specific HTML shape.
-    text = re.sub(r"<b>\U0001F4AC Answer</b>\s*", "", text)
+    text = re.sub(r"<b>\U0001F4AC[^<]*</b>\s*", "", text)
     text = re.sub(r"<[^>]+>", "", text)
     return text.strip()
 
@@ -226,7 +201,7 @@ def chat_general_direct(user_message: str, history: list, model_label: str, use_
         # off in ⚙️ Model Settings.
         user_message_final = mr.apply_reasoning_toggle(user_message)
         ans, elapsed = models._call_llm(model_id, system, user_message_final, history=memory_messages)
-        formatted = format_llm_response(ans)
+        formatted = format_llm_response(ans, lang_key)
 
         response = (
             formatted +
@@ -326,7 +301,7 @@ def chat_general_agentic(user_message: str, history: list, model_label: str, use
                 for title, url in used_sources
             )
             ans += "\n\n---\n" + "\n".join(ref_lines)
-        formatted = format_llm_response(ans)
+        formatted = format_llm_response(ans, lang_key)
         response = (
             formatted +
             f"\n\n<hr><sub>⏱ {elapsed:.1f}s | model: <code>{model_id}</code> "
@@ -396,7 +371,7 @@ def chat_rag_direct(user_message: str, history: list, model_label: str, use_memo
         context, sources = kb.retrieve_context(user_message, theme, subtheme)
         if not context:
             ans = rag_agent.NOTHING_FOUND_MESSAGE
-            formatted = format_llm_response(ans)
+            formatted = format_llm_response(ans, lang_key)
             response = (
                 formatted +
                 f"\n\n<hr><sub>model: <code>{model_id}</code> ({DEVICE.upper()}) "
@@ -458,7 +433,7 @@ def chat_rag_direct(user_message: str, history: list, model_label: str, use_memo
             if sources:
                 refs = "\n".join(f"- {s}" for s in sorted(sources))
                 ans += f"\n\n---\n**📚 Sources retrieved this turn:**\n{refs}"
-            formatted = format_llm_response(ans)
+            formatted = format_llm_response(ans, lang_key)
             response = (
                 formatted +
                 f"\n\n<hr><sub>⏱ {elapsed:.1f}s | model: <code>{model_id}</code> "
@@ -561,7 +536,7 @@ def chat_rag(user_message: str, history: list, model_label: str, use_agentic: bo
                 refs = "\n".join(f"- {s}" for s in sorted(sources_used))
                 ans += f"\n\n---\n**📚 Sources retrieved this turn:**\n{refs}"
 
-        formatted = format_llm_response(ans)
+        formatted = format_llm_response(ans, lang_key)
         response = (
             formatted +
             f"\n\n<hr><sub>⏱ {elapsed:.1f}s | model: <code>{model_id}</code> "
@@ -609,7 +584,7 @@ def chat_vision(user_message: str, uploaded_image, history: list,
             convo = "\n".join(f"{t['role']}: {t['content']}" for t in recent)
             context = f"Recent conversation:\n{convo}\n\n{context}" if context else f"Recent conversation:\n{convo}"
         t0  = time.time()
-        ans = models.vlm_answer(user_message, pil_images, context=context, model_id=vlm_id, mmproj_path=mmproj_path)
+        ans = models.vlm_answer(user_message, pil_images, context=context, model_id=vlm_id, mmproj_path=mmproj_path, lang_key=lang_key)
         elapsed  = time.time() - t0
         response = (f"{ans}\n\n*⏱ {elapsed:.1f}s | VLM: `{vlm_id}` ({DEVICE.upper()})"
                     f" | images: {len(pil_images)}*")
@@ -713,7 +688,7 @@ def chat_deep_research(user_message: str, history: list, model_label: str, use_m
                 for title, url in used_sources
             )
             ans += "\n\n---\n" + "\n".join(ref_lines)
-        formatted = format_llm_response(ans)
+        formatted = format_llm_response(ans, lang_key)
         response = (
             formatted +
             f"\n\n<hr><sub>⏱ {elapsed:.1f}s | model: <code>{model_id}</code> "

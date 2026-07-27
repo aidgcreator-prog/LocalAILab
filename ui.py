@@ -862,17 +862,9 @@ def build_ui():
             # call takes. See module docstring: "INPUT-BOX CLEARING".
             return "", user_message
 
-        def show_thinking_gen(use_agentic):
-            # Fires second, also synchronously (queue=False) — shows an
-            # immediate "something is happening" status line the instant
-            # Send is pressed, rather than leaving the UI looking frozen/
-            # unresponsive for however long the LLM/agent call underneath
-            # takes (agentic runs especially — see general_agent.py's
-            # module docstring, this can be minutes with a slow local
-            # model). Cleared again by do_chat_general() once the real
-            # answer is ready.
-            msg = ("🌐🤖 Thinking… the agent may search the web or read pages before answering."
-                   if use_agentic else "🤖 Thinking…")
+        def show_thinking_gen(use_agentic, lang_key):
+            l = LANGUAGES.get(lang_key, LANGUAGES["kh"])
+            msg = l["think_gen_agentic"] if use_agentic else l["think_gen"]
             return gr.update(value=msg, visible=True)
 
         def do_chat_general(pending_message, history, model_label, use_agentic, use_memory, lang_key):
@@ -894,13 +886,13 @@ def build_ui():
             yield last_history, gr.update(open=True), gr.update(visible=False)
 
         msg_gen.submit(stash_gen, [msg_gen], [msg_gen, pending_gen_msg], queue=False).then(
-            show_thinking_gen, [gen_agentic_chk], [status_gen], queue=False
+            show_thinking_gen, [gen_agentic_chk, lang_state], [status_gen], queue=False
         ).then(
             do_chat_general, [pending_gen_msg, bot_gen, model_dd_gen, gen_agentic_chk, gen_memory_chk, lang_state],
             [bot_gen, acc_gen_chat, status_gen]
         )
         send_gen.click(stash_gen, [msg_gen], [msg_gen, pending_gen_msg], queue=False).then(
-            show_thinking_gen, [gen_agentic_chk], [status_gen], queue=False
+            show_thinking_gen, [gen_agentic_chk, lang_state], [status_gen], queue=False
         ).then(
             do_chat_general, [pending_gen_msg, bot_gen, model_dd_gen, gen_agentic_chk, gen_memory_chk, lang_state],
             [bot_gen, acc_gen_chat, status_gen]
@@ -948,10 +940,9 @@ def build_ui():
             # See stash_gen() above.
             return "", user_message
 
-        def show_thinking_rag(use_agentic):
-            # See show_thinking_gen() above.
-            msg = ("📚🤖 Searching the knowledge base and thinking…"
-                   if use_agentic else "📚 Retrieving context and thinking…")
+        def show_thinking_rag(use_agentic, lang_key):
+            l = LANGUAGES.get(lang_key, LANGUAGES["kh"])
+            msg = l["think_rag_agentic"] if use_agentic else l["think_rag"]
             return gr.update(value=msg, visible=True)
 
         def do_chat_rag(pending_message, history, model_label, use_agentic, use_memory,
@@ -971,13 +962,13 @@ def build_ui():
             yield last_history, gr.update(open=True), gr.update(visible=False)
 
         msg_rag.submit(stash_rag, [msg_rag], [msg_rag, pending_rag_msg], queue=False).then(
-            show_thinking_rag, [rag_agentic_chk], [status_rag], queue=False
+            show_thinking_rag, [rag_agentic_chk, lang_state], [status_rag], queue=False
         ).then(
             do_chat_rag, [pending_rag_msg, bot_rag, model_dd_rag, rag_agentic_chk, rag_memory_chk, theme_tb_rag, subtheme_tb_rag, rag_max_steps, rag_tool_calling_chk, lang_state],
             [bot_rag, acc_rag_chat, status_rag]
         )
         send_rag.click(stash_rag, [msg_rag], [msg_rag, pending_rag_msg], queue=False).then(
-            show_thinking_rag, [rag_agentic_chk], [status_rag], queue=False
+            show_thinking_rag, [rag_agentic_chk, lang_state], [status_rag], queue=False
         ).then(
             do_chat_rag, [pending_rag_msg, bot_rag, model_dd_rag, rag_agentic_chk, rag_memory_chk, theme_tb_rag, subtheme_tb_rag, rag_max_steps, rag_tool_calling_chk, lang_state],
             [bot_rag, acc_rag_chat, status_rag]
@@ -1016,16 +1007,9 @@ def build_ui():
             # See stash_gen() above.
             return "", user_message
 
-        def show_thinking_dr():
-            # See show_thinking_gen() above. Deep Research is the
-            # slowest tab (manager + sub-agent, periodic re-planning —
-            # see deep_research_agent.py), so the message sets that
-            # expectation explicitly.
-            return gr.update(
-                value="🔬🤖 Researching… breaking your question into sub-questions, "
-                      "searching, and re-planning as needed. This can take several minutes.",
-                visible=True,
-            )
+        def show_thinking_dr(lang_key):
+            l = LANGUAGES.get(lang_key, LANGUAGES["kh"])
+            return gr.update(value=l["think_dr"], visible=True)
 
         def do_chat_deep_research(pending_message, history, model_label, use_memory, use_playwright, headless, manager_max_steps, search_max_steps, timeout, lang_key):
             # See do_chat_general()'s matching comment above. This is the
@@ -1045,13 +1029,13 @@ def build_ui():
             yield last_history, gr.update(open=True), gr.update(visible=False)
 
         msg_dr.submit(stash_dr, [msg_dr], [msg_dr, pending_dr_msg], queue=False).then(
-            show_thinking_dr, None, [status_dr], queue=False
+            show_thinking_dr, [lang_state], [status_dr], queue=False
         ).then(
             do_chat_deep_research, [pending_dr_msg, bot_dr, model_dd_dr, dr_memory_chk, dr_use_playwright_chk, dr_headless_chk, dr_manager_max_steps, dr_search_max_steps, dr_timeout, lang_state],
             [bot_dr, acc_dr_chat, status_dr]
         )
         send_dr.click(stash_dr, [msg_dr], [msg_dr, pending_dr_msg], queue=False).then(
-            show_thinking_dr, None, [status_dr], queue=False
+            show_thinking_dr, [lang_state], [status_dr], queue=False
         ).then(
             do_chat_deep_research, [pending_dr_msg, bot_dr, model_dd_dr, dr_memory_chk, dr_use_playwright_chk, dr_headless_chk, dr_manager_max_steps, dr_search_max_steps, dr_timeout, lang_state],
             [bot_dr, acc_dr_chat, status_dr]
@@ -1089,10 +1073,9 @@ def build_ui():
             # See stash_gen() above.
             return "", user_message
 
-        def show_thinking_vis(use_visual_rag):
-            # See show_thinking_gen() above.
-            msg = ("🖼️🔍 Analyzing the image (and visual index) and thinking…"
-                   if use_visual_rag else "🖼️ Analyzing the image and thinking…")
+        def show_thinking_vis(use_visual_rag, lang_key):
+            l = LANGUAGES.get(lang_key, LANGUAGES["kh"])
+            msg = l["think_vis_rag"] if use_visual_rag else l["think_vis"]
             return gr.update(value=msg, visible=True)
 
         def do_chat_vision(pending_message, uploaded_image, history, vlm_label, use_visual_rag, use_memory, lang_key, mmproj_label):
@@ -1100,13 +1083,13 @@ def build_ui():
             return history, img_reset, gr.update(open=True), gr.update(visible=False)
 
         send_vis.click(stash_vis, [msg_vis], [msg_vis, pending_vis_msg], queue=False).then(
-            show_thinking_vis, [vis_rag_chk], [status_vis], queue=False
+            show_thinking_vis, [vis_rag_chk, lang_state], [status_vis], queue=False
         ).then(
             do_chat_vision, [pending_vis_msg, img_upload, bot_vis, vlm_dd, vis_rag_chk, vis_memory_chk, lang_state, mmproj_dd_vis],
             [bot_vis, img_upload, acc_vis_chat, status_vis]
         )
         msg_vis.submit(stash_vis, [msg_vis], [msg_vis, pending_vis_msg], queue=False).then(
-            show_thinking_vis, [vis_rag_chk], [status_vis], queue=False
+            show_thinking_vis, [vis_rag_chk, lang_state], [status_vis], queue=False
         ).then(
             do_chat_vision, [pending_vis_msg, img_upload, bot_vis, vlm_dd, vis_rag_chk, vis_memory_chk, lang_state, mmproj_dd_vis],
             [bot_vis, img_upload, acc_vis_chat, status_vis]
@@ -1218,19 +1201,11 @@ def build_ui():
             # See stash_gen() above.
             return "", question
 
-        def show_thinking_data():
-            # See show_thinking_gen() above. Data Analysis runs a full EDA
-            # (load, chart, correlate, write a report — see
-            # data_analysis.py's task prompt), so it's typically the
-            # longest-running single call in the app; the message sets
-            # that expectation explicitly.
-            return gr.update(
-                value="📊🤖 Analyzing your data, building charts, and writing the report… "
-                      "this can take a few minutes.",
-                visible=True,
-            )
+        def show_thinking_data(lang_key):
+            l = LANGUAGES.get(lang_key, LANGUAGES["kh"])
+            return gr.update(value=l["think_data"], visible=True)
 
-        def do_data_analysis(files, pending_question, model_label, history, use_memory):
+        def do_data_analysis(files, pending_question, model_label, history, use_memory, lang_key):
             # data_analysis.run_data_analysis() is a generator (see
             # data_analysis.py): yields once per live agent step during
             # the EDA (load, chart, correlate, ...) using gr.update()
@@ -1243,7 +1218,7 @@ def build_ui():
             # actually done.
             last = (history, gr.update(), gr.update())
             for h, gallery, report_file in data_analysis.run_data_analysis(
-                files, pending_question, model_label, history, use_memory
+                files, pending_question, model_label, history, use_memory, lang_key=lang_key
             ):
                 last = (h, gallery, report_file)
                 yield h, gallery, report_file, gr.update(open=True), gr.update(open=True), gr.update()
@@ -1253,15 +1228,15 @@ def build_ui():
         analysis_type_data.change(set_analysis_prompt, [analysis_type_data], [msg_data])
 
         send_data.click(stash_data, [msg_data], [msg_data, pending_data_question], queue=False).then(
-            show_thinking_data, None, [status_data], queue=False
+            show_thinking_data, [lang_state], [status_data], queue=False
         ).then(
-            do_data_analysis, [data_file_up, pending_data_question, model_dd_data, bot_data, data_memory_chk],
+            do_data_analysis, [data_file_up, pending_data_question, model_dd_data, bot_data, data_memory_chk, lang_state],
             [bot_data, data_gallery, data_report_file, acc_data_chat, acc_data_results, status_data]
         )
         msg_data.submit(stash_data, [msg_data], [msg_data, pending_data_question], queue=False).then(
-            show_thinking_data, None, [status_data], queue=False
+            show_thinking_data, [lang_state], [status_data], queue=False
         ).then(
-            do_data_analysis, [data_file_up, pending_data_question, model_dd_data, bot_data, data_memory_chk],
+            do_data_analysis, [data_file_up, pending_data_question, model_dd_data, bot_data, data_memory_chk, lang_state],
             [bot_data, data_gallery, data_report_file, acc_data_chat, acc_data_results, status_data]
         )
 
@@ -1595,9 +1570,12 @@ def build_ui():
                 # Status bars (Knowledge Base tab + RAG Chat tab)
                 kb.get_index_stats(lk),
                 kb.get_index_stats(lk),
-                # Status indicators — always reset to hidden on a language switch
-                gr.update(visible=False), gr.update(visible=False), gr.update(visible=False),
-                gr.update(visible=False), gr.update(visible=False),
+                # Status indicators — reset to hidden with correct language text
+                gr.update(value=l["think_gen"], visible=False),
+                gr.update(value=l["think_rag"], visible=False),
+                gr.update(value=l["think_dr"], visible=False),
+                gr.update(value=l["think_vis"], visible=False),
+                gr.update(value=l["think_data"], visible=False),
                 # "Details" accordions (collapsed long explanations) + their content
                 gr.update(label=l["accordion_details"]), gr.update(value=l["info_context_window_detail"]),
                 gr.update(label=l["accordion_details"]), gr.update(value=l["info_gen_agentic_detail"]), gr.update(value=l["info_memory_detail"]),

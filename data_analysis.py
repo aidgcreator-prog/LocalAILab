@@ -173,7 +173,7 @@ def save_data_files(files) -> list:
     return paths
 
 
-def run_data_analysis(files, question: str, model_label: str, history: list, use_memory: bool = True):
+def run_data_analysis(files, question: str, model_label: str, history: list, use_memory: bool = True, lang_key: str = "kh"):
     """Hand uploaded data + the user's question to the CodeAgent and collect its report.
 
     `use_memory` controls the "🧠 Conversation Memory" checkbox: when on,
@@ -234,7 +234,9 @@ def run_data_analysis(files, question: str, model_label: str, history: list, use
         file_list_str = "\n".join(f"- {p}" for p in paths)
         report_path = str(Path(mr.DATA_OUTPUT_DIR) / "report.md")
 
-        task = f"""You are a data analysis assistant performing a thorough Exploratory
+        lang_instruction = "Answer in Khmer.\n\n" if lang_key == "kh" else ""
+
+        task = f"""{lang_instruction}You are a data analysis assistant performing a thorough Exploratory
 Data Analysis (EDA) with pandas and matplotlib, in a local Python sandbox.
 
 Data file(s) provided by the user:
