@@ -53,7 +53,9 @@ import models
 
 _general_agent          = None
 _general_agent_model_id = None
-_general_agent_lock     = threading.Lock()
+_general_agent_max_steps = None
+_general_agent_execution_timeout = None
+_general_agent_lock      = threading.Lock()
 
 # ──────────────────────────────────────────────────────────────────
 # Citation tracking — DuckDuckGoSearchTool / VisitWebpageTool are
@@ -349,7 +351,9 @@ def build_task_with_citation_reminder(user_message: str, lang_key: str = "kh") -
 GENERAL_AGENT_DEFAULT_MAX_STEPS = 8
 
 
-def _build_code_agent(llm, model_id: str = "") -> CodeAgent:
+def _build_code_agent(llm, model_id: str = "",
+                       max_steps: Optional[int] = None,
+                       execution_timeout: Optional[int] = None) -> CodeAgent:
     global _search_tool, _webpage_tool
     _search_tool  = TrackedDuckDuckGoSearchTool()
     _webpage_tool = TrackedVisitWebpageTool()
@@ -358,17 +362,16 @@ def _build_code_agent(llm, model_id: str = "") -> CodeAgent:
     # 30s-4min+ instead of a few seconds) — scale the step budget down for
     # those so a broken run fails fast instead of grinding through all 8
     # steps. See model_registry.get_max_steps_for_model().
-    max_steps = mr.get_max_steps_for_model(model_id, GENERAL_AGENT_DEFAULT_MAX_STEPS)
+    if max_steps is None:
+        max_steps = mr.get_max_steps_for_model(model_id, GENERAL_AGENT_DEFAULT_MAX_STEPS)
     kwargs = dict(
         model=llm,
-        # SpeechToTextTool() only downloads/loads its Whisper checkpoint
-        # lazily on first actual call (smolagents' Tool.setup() pattern —
-        # see Tool.__call__ in smolagents/tools.py), so instantiating it
-        # here up front costs nothing unless the agent actually uses it.
         tools=[_search_tool, _webpage_tool, SpeechToTextTool()],
         max_steps=max_steps,
         verbosity_level=1,
     )
+    if execution_timeout is not None and execution_timeout > 0:
+        kwargs["executor_kwargs"] = {"timeout_seconds": execution_timeout}
     # Same markdown-fence compatibility switch used by rag_agent.py and
     # data_analysis.py — many models (esp. "thinking"-tuned ones, or
     # anything running through a raw llama.cpp chat template) write plain
@@ -411,23 +414,43 @@ def get_tool_usage() -> tuple:
     return queries, urls, links
 
 
-def get_general_agent(model_id: Optional[str] = None):
-    """Lazily build (or rebuild, if the model changed) the agentic
-    General Chat CodeAgent."""
+def get_general_agent(model_id: Optional[str] = None,
+                       max_steps: Optional[int] = None,
+                       execution_timeout: Optional[int] = None):
+    """Lazily build (or rebuild, if the model/settings changed) the agentic
+    General Chat CodeAgent.
+
+    Args:
+        model_id: HuggingFace model id or GGUF path. Falls back to the
+            currently loaded LLM if not given.
+        max_steps: Maximum agentic steps before giving up. Uses
+            GENERAL_AGENT_DEFAULT_MAX_STEPS scaled by model size if None.
+        execution_timeout: Seconds before the Python sandbox kills a single
+            code-execution block. Uses smolagents' default (30s) if None.
+    """
     global _general_agent, _general_agent_model_id
+    global _general_agent_max_steps, _general_agent_execution_timeout
     target = model_id or models._llm_model_id
 
-    if _general_agent is not None and target == _general_agent_model_id:
+    if (_general_agent is not None
+            and target == _general_agent_model_id
+            and max_steps == _general_agent_max_steps
+            and execution_timeout == _general_agent_execution_timeout):
         return _general_agent
 
     with _general_agent_lock:
-        if _general_agent is not None and target == _general_agent_model_id:
+        if (_general_agent is not None
+                and target == _general_agent_model_id
+                and max_steps == _general_agent_max_steps
+                and execution_timeout == _general_agent_execution_timeout):
             return _general_agent
 
         print(f"[GeneralAgent] Building CodeAgent on '{target}' …")
         llm = models.get_llm(target)
-        _general_agent = _build_code_agent(llm, target)
+        _general_agent = _build_code_agent(llm, target, max_steps, execution_timeout)
         _general_agent_model_id = target
+        _general_agent_max_steps = max_steps
+        _general_agent_execution_timeout = execution_timeout
         # Standard smolagents behaviour: a freshly-built CodeAgent starts
         # with empty memory (agent.memory.steps == []). This only happens
         # on first use in this tab, or after a model switch/reset — see
@@ -444,7 +467,10 @@ def reset_agent():
     reference — mirrors rag_agent.reset_agent() / data_analysis.reset_agent().
     """
     global _general_agent, _general_agent_model_id, _search_tool, _webpage_tool
+    global _general_agent_max_steps, _general_agent_execution_timeout
     _general_agent = None
     _general_agent_model_id = None
+    _general_agent_max_steps = None
+    _general_agent_execution_timeout = None
     _search_tool = None
     _webpage_tool = None

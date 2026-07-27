@@ -25,6 +25,8 @@ from knowledge_base import get_file_path
 
 _data_agent          = None
 _data_agent_model_id = None
+_data_agent_max_steps = None
+_data_agent_execution_timeout = None
 _data_agent_lock      = threading.Lock()
 
 # How many conversation turns the Data Analysis CodeAgent is allowed to
@@ -94,16 +96,34 @@ def save_report(content: str, filename: str = "report.md") -> str:
         return f"❌ Failed to save report: {e}"
 
 
-def get_data_agent(model_id: Optional[str] = None):
-    """Lazily build (or rebuild, if the model changed) the data-analysis CodeAgent."""
+def get_data_agent(model_id: Optional[str] = None,
+                   max_steps: Optional[int] = None,
+                   execution_timeout: Optional[int] = None):
+    """Lazily build (or rebuild, if the model changed) the data-analysis CodeAgent.
+
+    Args:
+        model_id: HuggingFace model id or GGUF path. Falls back to the currently
+            loaded LLM if not given.
+        max_steps: Maximum agentic steps before the agent gives up. Uses the
+            module-level default (DATA_AGENT_MAX_STEPS) if not given.
+        execution_timeout: Seconds before the Python sandbox kills a single
+            code-execution block. Uses smolagents' default (30s) if not given.
+    """
     global _data_agent, _data_agent_model_id
+    global _data_agent_max_steps, _data_agent_execution_timeout
     target = model_id or models._llm_model_id
 
-    if _data_agent is not None and target == _data_agent_model_id:
+    if (_data_agent is not None
+            and target == _data_agent_model_id
+            and max_steps == _data_agent_max_steps
+            and execution_timeout == _data_agent_execution_timeout):
         return _data_agent
 
     with _data_agent_lock:
-        if _data_agent is not None and target == _data_agent_model_id:
+        if (_data_agent is not None
+                and target == _data_agent_model_id
+                and max_steps == _data_agent_max_steps
+                and execution_timeout == _data_agent_execution_timeout):
             return _data_agent
 
         print(f"[DataAgent] Building CodeAgent on '{target}' …")
@@ -112,8 +132,13 @@ def get_data_agent(model_id: Optional[str] = None):
             model=llm,
             tools=[install_package, save_report],
             additional_authorized_imports=["*"],   # trusted local machine — full stdlib + installed pkgs
-            max_steps=mr.DATA_AGENT_MAX_STEPS,
+            max_steps=max_steps or mr.DATA_AGENT_MAX_STEPS,
         )
+        _data_agent_model_id = target
+        _data_agent_max_steps = max_steps
+        _data_agent_execution_timeout = execution_timeout
+        if execution_timeout is not None and execution_timeout > 0:
+            agent_kwargs["executor_kwargs"] = {"timeout_seconds": execution_timeout}
         # Some models (esp. "thinking"-tuned ones, or anything running
         # through a raw llama.cpp chat template) reliably write plain
         # ```python fenced code instead of the <code></code> tags
@@ -126,7 +151,6 @@ def get_data_agent(model_id: Optional[str] = None):
         except (TypeError, ValueError):
             pass
         _data_agent = CodeAgent(**agent_kwargs)
-        _data_agent_model_id = target
         # Standard smolagents behaviour: a freshly-built CodeAgent starts
         # with empty memory. This only happens on first use, or after a
         # model switch/reset via reset_agent() below — dataset changes are
@@ -148,8 +172,11 @@ def reset_agent():
     unloaded model alive).
     """
     global _data_agent, _data_agent_model_id
+    global _data_agent_max_steps, _data_agent_execution_timeout
     _data_agent = None
     _data_agent_model_id = None
+    _data_agent_max_steps = None
+    _data_agent_execution_timeout = None
 
 
 def save_data_files(files) -> list:
@@ -173,7 +200,10 @@ def save_data_files(files) -> list:
     return paths
 
 
-def run_data_analysis(files, question: str, model_label: str, history: list, use_memory: bool = True, lang_key: str = "kh"):
+def run_data_analysis(files, question: str, model_label: str, history: list,
+                       use_memory: bool = True, lang_key: str = "kh",
+                       max_steps: Optional[int] = None,
+                       execution_timeout: Optional[int] = None):
     """Hand uploaded data + the user's question to the CodeAgent and collect its report.
 
     `use_memory` controls the "🧠 Conversation Memory" checkbox: when on,
@@ -218,7 +248,7 @@ def run_data_analysis(files, question: str, model_label: str, history: list, use
                 stale_png.unlink()
             except OSError:
                 pass
-        agent = get_data_agent(model_id)
+        agent = get_data_agent(model_id, max_steps=max_steps, execution_timeout=execution_timeout)
         # New/changed dataset → old agent memory (referencing whatever the
         # previous file's columns/stats were) is no longer relevant, so
         # drop it even though the model itself hasn't changed. Only
@@ -236,123 +266,66 @@ def run_data_analysis(files, question: str, model_label: str, history: list, use
 
         lang_instruction = "Answer in Khmer.\n\n" if lang_key == "kh" else ""
 
-        task = f"""{lang_instruction}You are a data analysis assistant performing a thorough Exploratory
-Data Analysis (EDA) with pandas and matplotlib, in a local Python sandbox.
+        task = f"""{lang_instruction}You are a data analysis assistant working in a local Python sandbox
+with pandas, matplotlib, and common data-science libraries.
 
 Data file(s) provided by the user:
 {file_list_str}
 
 User request: {question}
 
-Do a REAL exploratory analysis, not just a one-paragraph summary. Work through
-every relevant section below (skip a section only if it genuinely doesn't apply —
-e.g. no categorical columns exist, or only one numeric column exists so no
-correlation is possible). Aim for several charts, not just one.
+Your job is to fulfil the user's request as written — whether that is an
+exploratory analysis, a payroll calculation, a data cleaning task, a specific
+computation, or anything else. Follow these principles:
 
-1. LOAD & OVERVIEW
-   - Load the file(s) with pandas (pd.read_csv for .csv, pd.read_excel for
+A. FOLLOW THE USER REQUEST FIRST
+   - Read the user's request carefully and do exactly what was asked.
+   - If the user asks a specific question (e.g. "calculate total salary",
+     "show me the top 10 rows", "filter by department"), answer that question
+     directly and precisely. Do not force a full EDA if the user didn't ask
+     for one.
+   - If the user asks something open-ended or gives no specific instruction,
+     default to a thorough exploratory data analysis (EDA) — load, profile,
+     visualise, correlate, and report insights.
+
+B. DERIVE BLANK BUT COMPUTABLE COLUMNS
+   - Inspect every column. If any column is completely empty (all NaN/null)
+     but its values CAN be calculated from other columns in the dataset,
+     compute and populate it. For example:
+       * "Total Compensation" = Salary + Bonus + Benefits
+       * "Net Pay" = Gross Pay - Deductions - Tax
+       * "Full Name" = First Name + " " + Last Name
+       * "Age" = current year - Birth Year
+   - After deriving, report which columns were empty and what formula you used.
+   - If a column is empty and CANNOT be derived (no source data exists to
+     compute it), note this clearly in the output.
+
+C. TOOL USAGE & CODE EXECUTION
+   - Load files with pandas (pd.read_csv for .csv, pd.read_excel for
      .xlsx/.xls — if a required package like 'openpyxl' is missing, call the
      install_package tool with its pip name first, then retry the import).
-   - Report shape, column names, dtypes, memory usage, missing-value counts
-     (and %), and duplicate-row count.
-   - Split columns into numeric vs categorical (use pd.api.types.is_numeric_dtype
-     / is_datetime64_any_dtype — do NOT use nonexistent methods like
-     select_d_dtype; the real pandas method is data.select_dtypes(include=...)).
+   - You can install any Python package you need with install_package().
+   - Save EVERY chart as a PNG with a descriptive filename inside
+     '{mr.DATA_OUTPUT_DIR}' (use plt.savefig(...); ALWAYS call plt.close()
+     right after savefig; never call plt.show()).
+   - To save your final report / answer text, call save_report(content=...).
+     Do NOT use Python's raw open()/write() — the sandbox blocks it.
+     (plt.savefig() is whitelisted separately and works fine.)
 
-2. UNIVARIATE ANALYSIS (per numeric column, or the most important few if there
-   are many)
-   - Descriptive statistics: mean, median, std, min, max, quartiles, skewness.
-   - For EACH numeric column (or top 5 most relevant if there are more), plot a
-     histogram AND a boxplot (either as two separate PNGs, or combined into one
-     figure with subplots) to show distribution shape and outliers.
-   - For each categorical column (or top 5 most relevant), plot a bar chart of
-     value counts (group rare categories into "Other" if there are more than
-     ~10 distinct values).
-   - Note any skew, outliers, or unusual patterns you observe in the text report.
+D. EXPLORATORY ANALYSIS (use when user gives no specific instruction)
+   When doing a default EDA, work through these sections as applicable:
 
-3. BIVARIATE / RELATIONSHIP ANALYSIS
-   - If there are 2+ numeric columns: compute the correlation matrix
-     (data.corr(numeric_only=True)) and plot it as a heatmap using
-     matplotlib's plt.imshow(...) with a colorbar and axis tick labels (no
-     seaborn required, but you may install_package("seaborn") and use it if
-     you prefer — either is fine).
-   - Pick the 1-3 most correlated (or most business-relevant, based on the
-     user's request) numeric column pairs and make scatter plots of each pair.
-   - If there's an obvious categorical grouping column, make at least one
-     grouped comparison chart (e.g. bar chart of a numeric column's mean per
-     category, or overlaid/side-by-side boxplots per category).
+   1. LOAD & OVERVIEW — shape, columns, dtypes, missing values, duplicates.
+   2. UNIVARIATE ANALYSIS — descriptive stats (mean, median, std, min/max,
+      quartiles, skewness), histograms + boxplots for numeric columns, bar
+      charts for categorical columns.
+   3. BIVARIATE / RELATIONSHIP ANALYSIS — correlation matrix heatmap, scatter
+      plots for top correlated pairs, grouped comparisons if a categorical
+      grouping column exists.
+   4. OUTLIERS — IQR method on key numeric columns.
+   5. KEY INSIGHTS — 3-5 concrete observations, not just restated stats.
 
-4. OUTLIERS
-   - Flag outliers using the IQR method (values beyond Q1 - 1.5*IQR or
-     Q3 + 1.5*IQR) for at least the 1-2 most important numeric columns, and
-     report how many outlier rows were found per column.
-
-5. SAVE EVERY CHART
-   - Save every chart as its own PNG with a descriptive filename inside the
-     directory '{mr.DATA_OUTPUT_DIR}' (use plt.savefig(...); ALWAYS call
-     plt.close() right after savefig so figures don't bleed into each other;
-     never call plt.show()).
-
-6. WRITE THE REPORT
-   - Write a well-structured Markdown report with headings for each section
-     above (Overview, Univariate Analysis, Correlation/Relationships,
-     Outliers, Key Insights), including the actual numbers you computed (not
-     placeholders) and 3-5 concrete bullet-point insights/observations at the
-     end — not just restating the stats, but what they mean (e.g. "X is
-     right-skewed with several high outliers", "A and B are strongly
-     correlated (r=0.82), suggesting...").
-   - Reference the chart filenames you created in the relevant sections so a
-     reader knows which chart supports which point.
-   - Call the save_report tool with that Markdown text to save it, e.g.:
-     save_report(content=report_text). Do NOT use Python's open()/write() to
-     save the report — the sandbox blocks raw open() and that call always
-     fails. (plt.savefig() is a separate whitelisted call and works fine for
-     charts — only raw open() is blocked.)
-
-7. REPORT TEMPLATES — Use these structured formats for your report sections:
-
-   Data Overview (after LOAD & OVERVIEW):
-   ```
-   ## Dataset Overview
-   **Rows**: N  **Columns**: M
-   ### Column Summary
-   | Column | Type | Non-null | Unique | Sample Values |
-   |--------|------|----------|--------|---------------|
-   | ...    | ...  | ...      | ...    | ...           |
-   ### Data Quality
-   - X missing values in [column]
-   - Y potential duplicates
-   ```
-
-   Statistical Summary (after UNIVARIATE ANALYSIS):
-   ```
-   ## Statistical Summary
-   ### [Metric Name]
-   - **Mean**: X  **Median**: Y  **Std Dev**: Z
-   - **Min/Max**: A / B
-   ### Key Findings
-   1. [Finding with statistical support]
-   2. [Finding with statistical support]
-   ```
-
-   Insight Report (final report structure):
-   ```
-   ## Analysis Report: [Topic]
-   ### Executive Summary
-   [2-3 sentence overview of key findings]
-   ### Key Metrics
-   | Metric | Value | Change |
-   |--------|-------|--------|
-   | ...    | ...   | ...    |
-   ### Trends
-   1. **[Trend 1]**: [Description with data]
-   2. **[Trend 2]**: [Description with data]
-   ### Recommendations
-   1. [Actionable recommendation]
-   2. [Actionable recommendation]
-   ```
-
-8. VISUALIZATION GUIDANCE — Choose the right chart for your data:
+E. VISUALIZATION GUIDANCE
    | Data Type         | Best Chart       |
    |-------------------|------------------|
    | Trends over time  | Line chart       |
@@ -361,15 +334,38 @@ correlation is possible). Aim for several charts, not just one.
    | Distribution      | Histogram        |
    | Correlation       | Scatter plot     |
 
-9. PAYROLL ANALYSIS GUIDANCE — If the user asks about payroll or
-   compensation data, always compute: gross pay, total deductions, tax
-   withholdings, net pay. Validate that deductions never exceed gross pay.
-   Flag records with negative net pay or missing tax fields. Report totals:
-   total gross, total deductions, total net, headcount, avg cost per
-   employee, and department-level aggregates. Follow the payroll workflow
-   steps if provided in the user's request.
+F. PAYROLL / COMPENSATION GUIDANCE
+   If the request involves payroll, compensation, or salary data:
+   - Compute gross pay, total deductions, tax withholdings, net pay.
+   - Validate that deductions never exceed gross pay; flag negative net pay.
+   - Report totals: total gross, total deductions, total net, headcount,
+     average cost per employee, and department-level aggregates.
+   - Derive any empty compensation columns (e.g. Total Compensation,
+     Net Pay) from available source columns.
 
-10. As your FINAL ANSWER, return the full Markdown report text.
+G. REPORT STRUCTURE
+   - Write a well-structured Markdown report with the actual numbers you
+     computed (no placeholders).
+   - Reference chart filenames you created so readers know which chart
+     supports which point.
+   - When doing a default EDA, use these templates:
+
+     ## Dataset Overview
+     **Rows**: N  **Columns**: M
+     | Column | Type | Non-null | Unique | Sample Values |
+     |--------|------|----------|--------|---------------|
+
+     ## Statistical Summary
+     - **Mean**: X  **Median**: Y  **Std Dev**: Z
+     - **Key Findings**: ...
+
+     ## Analysis Report: [Topic]
+     ### Executive Summary
+     ### Key Metrics | Value | Change
+     ### Trends & Recommendations
+
+H. As your FINAL ANSWER, return the full Markdown report or the direct answer
+   to the user's question.
 """
         # See chat.py's chat_general_direct() matching comment — a no-op
         # unless the "🧠 Enable Model Reasoning" toggle (⚙️ Model Settings)

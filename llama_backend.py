@@ -146,9 +146,13 @@ def discover_gguf_models(folder: Optional[str] = None) -> dict:
     If `folder` is not given, the current global LLAMA_CPP_MODEL_DIR is
     used. An empty/unset folder simply yields no GGUF models — the app
     works fine without one.
+
+    NOTE: this function does NOT require llama-cpp-python to be installed.
+    It only scans the filesystem for .gguf files. Whether the user actually
+    runs them via the in-process backend (needs llama-cpp-python) or the
+    external llama-server backend (needs a llama-server.exe binary) is
+    decided downstream in models.get_llm() — discovery is just file listing.
     """
-    if not LLAMA_CPP_AVAILABLE:
-        return {}
     folder = folder if folder is not None else LLAMA_CPP_MODEL_DIR
     if not folder:
         return {}
@@ -157,13 +161,7 @@ def discover_gguf_models(folder: Optional[str] = None) -> dict:
         return {}
     mode_tag = "llama.cpp | GPU" if LLAMA_CPP_GPU_AVAILABLE else "llama.cpp | CPU only — slow"
     found = {}
-    # rglob (not glob) walks every subfolder under `p`, not just its
-    # top-level contents — see the LLAMA_CPP_MODEL_DIR note above.
     for f in sorted(p.rglob("*.gguf")):
-        # mmproj (multimodal projector / CLIP vision encoder) files are
-        # only usable paired with a main vision model — see
-        # discover_gguf_vlm_models() below — they're not a standalone
-        # text LLM and would just fail to load if picked here.
         if "mmproj" in f.stem.lower():
             continue
         size_gb = f.stat().st_size / (1024 ** 3)
@@ -217,9 +215,11 @@ def discover_gguf_vlm_models(folder: Optional[str] = None) -> dict:
     scanning can now surface mmproj files from unrelated subfolders that
     might otherwise look like a better filename match than the *correct*
     (same-folder) one.
+
+    NOTE: this function does NOT require llama-cpp-python to be installed.
+    It only scans the filesystem for .gguf files — the same reasoning as
+    discover_gguf_models() above applies.
     """
-    if not LLAMA_CPP_AVAILABLE:
-        return {}
     folder = folder if folder is not None else LLAMA_CPP_MODEL_DIR
     if not folder:
         return {}
@@ -227,8 +227,6 @@ def discover_gguf_vlm_models(folder: Optional[str] = None) -> dict:
     if not p.exists():
         return {}
 
-    # rglob (not glob) walks every subfolder under `p` — see the
-    # LLAMA_CPP_MODEL_DIR note above.
     all_gguf     = sorted(p.rglob("*.gguf"))
     mmproj_files = [f for f in all_gguf if "mmproj" in f.stem.lower()]
     main_files   = [f for f in all_gguf if "mmproj" not in f.stem.lower()]

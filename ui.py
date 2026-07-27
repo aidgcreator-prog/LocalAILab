@@ -298,6 +298,19 @@ def build_ui():
                         with gr.Accordion(L["accordion_details"], open=False) as acc_gen_detail:
                             gen_agentic_detail_md = gr.Markdown(L["info_gen_agentic_detail"])
                             gen_memory_detail_md  = gr.Markdown(L["info_memory_detail"])
+                        with gr.Accordion("Advanced Agent Settings", open=False):
+                            gen_max_steps = gr.Slider(
+                                minimum=1, maximum=30, step=1, value=8,
+                                label="Max Steps",
+                                info="Agentic mode only. How many steps before giving up. "
+                                     "Raise for complex multi-step questions, lower to fail fast.",
+                            )
+                            gen_execution_timeout = gr.Slider(
+                                minimum=30, maximum=600, step=10, value=120,
+                                label="Code Execution Timeout (seconds)",
+                                info="Agentic mode only. How long a single Python code block "
+                                     "can run before being killed. Default in smolagents is 30s.",
+                            )
                         pending_gen_msg = gr.State("")
                     with gr.Column(scale=7):
                         with gr.Accordion(L["accordion_chat"], open=False) as acc_gen_chat:
@@ -433,6 +446,21 @@ def build_ui():
                         )
                         with gr.Accordion(L["accordion_details"], open=False) as acc_data_detail:
                             data_memory_detail_md = gr.Markdown(L["info_memory_detail"])
+                        with gr.Accordion("Advanced Agent Settings", open=False):
+                            data_max_steps = gr.Slider(
+                                minimum=1, maximum=30, step=1, value=15,
+                                label="Max Steps",
+                                info="How many agentic steps before giving up. "
+                                     "Larger values let the agent do more work (more charts, "
+                                     "deeper analysis) but take longer and cost more tokens.",
+                            )
+                            data_execution_timeout = gr.Slider(
+                                minimum=30, maximum=600, step=10, value=120,
+                                label="Code Execution Timeout (seconds)",
+                                info="How long a single Python code block is allowed to run "
+                                     "before being killed. Raise this for large datasets or "
+                                     "slow models. Default in smolagents is 30s.",
+                            )
                         reset_data_btn = gr.Button(L["btn_reset_agent"], size="sm")
                         reset_data_out = gr.Textbox(show_label=False, interactive=False, visible=False)
                         pending_data_question = gr.State("")
@@ -867,7 +895,8 @@ def build_ui():
             msg = l["think_gen_agentic"] if use_agentic else l["think_gen"]
             return gr.update(value=msg, visible=True)
 
-        def do_chat_general(pending_message, history, model_label, use_agentic, use_memory, lang_key):
+        def do_chat_general(pending_message, history, model_label, use_agentic,
+                            use_memory, lang_key, max_steps, execution_timeout):
             # chat.chat_general() is itself a generator (see chat.py):
             # for the direct path it yields once; for the agentic path it
             # yields once per LIVE agent step (thought/code, tool calls,
@@ -879,7 +908,9 @@ def build_ui():
             # below is actually exhausted.
             last_history = history
             for updated_history, _ in chat.chat_general(
-                pending_message, history, model_label, use_agentic, use_memory, lang_key=lang_key
+                pending_message, history, model_label, use_agentic, use_memory,
+                lang_key=lang_key, max_steps=max_steps,
+                execution_timeout=execution_timeout,
             ):
                 last_history = updated_history
                 yield last_history, gr.update(open=True), gr.update()
@@ -888,13 +919,17 @@ def build_ui():
         msg_gen.submit(stash_gen, [msg_gen], [msg_gen, pending_gen_msg], queue=False).then(
             show_thinking_gen, [gen_agentic_chk, lang_state], [status_gen], queue=False
         ).then(
-            do_chat_general, [pending_gen_msg, bot_gen, model_dd_gen, gen_agentic_chk, gen_memory_chk, lang_state],
+            do_chat_general,
+            [pending_gen_msg, bot_gen, model_dd_gen, gen_agentic_chk,
+             gen_memory_chk, lang_state, gen_max_steps, gen_execution_timeout],
             [bot_gen, acc_gen_chat, status_gen]
         )
         send_gen.click(stash_gen, [msg_gen], [msg_gen, pending_gen_msg], queue=False).then(
             show_thinking_gen, [gen_agentic_chk, lang_state], [status_gen], queue=False
         ).then(
-            do_chat_general, [pending_gen_msg, bot_gen, model_dd_gen, gen_agentic_chk, gen_memory_chk, lang_state],
+            do_chat_general,
+            [pending_gen_msg, bot_gen, model_dd_gen, gen_agentic_chk,
+             gen_memory_chk, lang_state, gen_max_steps, gen_execution_timeout],
             [bot_gen, acc_gen_chat, status_gen]
         )
 
@@ -1205,7 +1240,8 @@ def build_ui():
             l = LANGUAGES.get(lang_key, LANGUAGES["kh"])
             return gr.update(value=l["think_data"], visible=True)
 
-        def do_data_analysis(files, pending_question, model_label, history, use_memory, lang_key):
+        def do_data_analysis(files, pending_question, model_label, history,
+                              use_memory, lang_key, max_steps, execution_timeout):
             # data_analysis.run_data_analysis() is a generator (see
             # data_analysis.py): yields once per live agent step during
             # the EDA (load, chart, correlate, ...) using gr.update()
@@ -1218,7 +1254,9 @@ def build_ui():
             # actually done.
             last = (history, gr.update(), gr.update())
             for h, gallery, report_file in data_analysis.run_data_analysis(
-                files, pending_question, model_label, history, use_memory, lang_key=lang_key
+                files, pending_question, model_label, history, use_memory,
+                lang_key=lang_key, max_steps=max_steps,
+                execution_timeout=execution_timeout,
             ):
                 last = (h, gallery, report_file)
                 yield h, gallery, report_file, gr.update(open=True), gr.update(open=True), gr.update()
@@ -1230,13 +1268,17 @@ def build_ui():
         send_data.click(stash_data, [msg_data], [msg_data, pending_data_question], queue=False).then(
             show_thinking_data, [lang_state], [status_data], queue=False
         ).then(
-            do_data_analysis, [data_file_up, pending_data_question, model_dd_data, bot_data, data_memory_chk, lang_state],
+            do_data_analysis,
+            [data_file_up, pending_data_question, model_dd_data, bot_data,
+             data_memory_chk, lang_state, data_max_steps, data_execution_timeout],
             [bot_data, data_gallery, data_report_file, acc_data_chat, acc_data_results, status_data]
         )
         msg_data.submit(stash_data, [msg_data], [msg_data, pending_data_question], queue=False).then(
             show_thinking_data, [lang_state], [status_data], queue=False
         ).then(
-            do_data_analysis, [data_file_up, pending_data_question, model_dd_data, bot_data, data_memory_chk, lang_state],
+            do_data_analysis,
+            [data_file_up, pending_data_question, model_dd_data, bot_data,
+             data_memory_chk, lang_state, data_max_steps, data_execution_timeout],
             [bot_data, data_gallery, data_report_file, acc_data_chat, acc_data_results, status_data]
         )
 
@@ -1284,7 +1326,7 @@ def build_ui():
         whisper_server_args_tb.submit(do_set_whisper_server_args, [whisper_server_args_tb], [whisper_server_status])
 
         # ── Provider change → filter model dropdown choices ──────
-        def _filter_models_for_provider(provider_label, provider_map, model_type, current_model_dd, model_options_map):
+        def _filter_models_for_provider(provider_label, provider_map, model_type, current_model_dd):
             sentinel = provider_map.get(provider_label, mr.PROVIDER_LOCAL_HF)
             mr.set_saved_provider(model_type, sentinel)
             choices_dict = mr.get_model_options_for_provider(sentinel, model_type)
@@ -1294,19 +1336,19 @@ def build_ui():
             return gr.update(choices=choices, value=current)
 
         provider_dd_gen.change(
-            lambda p, m: _filter_models_for_provider(p, mr.LLM_PROVIDER_OPTIONS, "llm", m, mr.MODEL_OPTIONS),
+            lambda p, m: _filter_models_for_provider(p, mr.LLM_PROVIDER_OPTIONS, "llm", m),
             [provider_dd_gen, model_dd_gen], [model_dd_gen],
         )
         provider_dd_rag.change(
-            lambda p, m: _filter_models_for_provider(p, mr.LLM_PROVIDER_OPTIONS, "llm", m, mr.MODEL_OPTIONS),
+            lambda p, m: _filter_models_for_provider(p, mr.LLM_PROVIDER_OPTIONS, "llm", m),
             [provider_dd_rag, model_dd_rag], [model_dd_rag],
         )
         provider_dd_data.change(
-            lambda p, m: _filter_models_for_provider(p, mr.LLM_PROVIDER_OPTIONS, "llm", m, mr.MODEL_OPTIONS),
+            lambda p, m: _filter_models_for_provider(p, mr.LLM_PROVIDER_OPTIONS, "llm", m),
             [provider_dd_data, model_dd_data], [model_dd_data],
         )
         provider_dd_dr.change(
-            lambda p, m: _filter_models_for_provider(p, mr.LLM_PROVIDER_OPTIONS, "llm", m, mr.MODEL_OPTIONS),
+            lambda p, m: _filter_models_for_provider(p, mr.LLM_PROVIDER_OPTIONS, "llm", m),
             [provider_dd_dr, model_dd_dr], [model_dd_dr],
         )
         def _update_mmproj_choices(vlm_label: str, visible: bool = True) -> gr.update:
@@ -1327,7 +1369,7 @@ def build_ui():
             return gr.update(choices=choices, value=value, visible=bool(choices))
 
         provider_dd_vlm.change(
-            lambda p, m: _filter_models_for_provider(p, mr.VLM_PROVIDER_OPTIONS, "vlm", m, mr.VLM_OPTIONS),
+            lambda p, m: _filter_models_for_provider(p, mr.VLM_PROVIDER_OPTIONS, "vlm", m),
             [provider_dd_vlm, vlm_dd], [vlm_dd],
         ).then(
             lambda p: gr.update(visible="llama.cpp" in p),
@@ -1342,11 +1384,11 @@ def build_ui():
             [vlm_dd, provider_dd_vlm], [mmproj_dd_vis],
         )
         provider_dd_stt.change(
-            lambda p, m: _filter_models_for_provider(p, mr.STT_PROVIDER_OPTIONS, "stt", m, mr.STT_OPTIONS),
+            lambda p, m: _filter_models_for_provider(p, mr.STT_PROVIDER_OPTIONS, "stt", m),
             [provider_dd_stt, stt_dd], [stt_dd],
         )
         provider_dd_embed.change(
-            lambda p, m: _filter_models_for_provider(p, mr.EMBED_PROVIDER_OPTIONS, "embed", m, mr.EMBED_OPTIONS),
+            lambda p, m: _filter_models_for_provider(p, mr.EMBED_PROVIDER_OPTIONS, "embed", m),
             [provider_dd_embed, embed_dd], [embed_dd],
         )
 

@@ -215,7 +215,10 @@ def chat_general_direct(user_message: str, history: list, model_label: str, use_
     yield history, ""
 
 
-def chat_general_agentic(user_message: str, history: list, model_label: str, use_memory: bool = True, lang_key: str = "kh"):
+def chat_general_agentic(user_message: str, history: list, model_label: str,
+                          use_memory: bool = True, lang_key: str = "kh",
+                          max_steps: Optional[int] = None,
+                          execution_timeout: Optional[int] = None):
     """Agentic General Chat: a smolagents CodeAgent (see general_agent.py)
     with the library's own built-in web-search/webpage tools
     (DuckDuckGoSearchTool, VisitWebpageTool), deciding for itself whether
@@ -237,7 +240,7 @@ def chat_general_agentic(user_message: str, history: list, model_label: str, use
     history.append({"role": "user", "content": user_message})
     model_id = mr.MODEL_OPTIONS.get(model_label, mr.DEFAULT_LLM_MODEL)
     try:
-        agent = general_agent.get_general_agent(model_id)
+        agent = general_agent.get_general_agent(model_id, max_steps=max_steps, execution_timeout=execution_timeout)
         general_agent.reset_tool_usage()
         t0     = time.time()
         # reset=False keeps this CodeAgent's own memory (agent.memory.steps)
@@ -315,8 +318,11 @@ def chat_general_agentic(user_message: str, history: list, model_label: str, use
     yield history, ""
 
 
-def chat_general(user_message: str, history: list, model_label: str, use_agentic: bool = False, use_memory: bool = True,
-                 lang_key: str = "kh"):
+def chat_general(user_message: str, history: list, model_label: str,
+                 use_agentic: bool = False, use_memory: bool = True,
+                 lang_key: str = "kh",
+                 max_steps: Optional[int] = None,
+                 execution_timeout: Optional[int] = None):
     """General Chat entry point. Dispatches to:
 
     - use_agentic=False (default, unchanged behaviour): one direct LLM
@@ -340,7 +346,8 @@ def chat_general(user_message: str, history: list, model_label: str, use_agentic
     generator or a plain tuple".
     """
     if use_agentic:
-        yield from chat_general_agentic(user_message, history, model_label, use_memory, lang_key)
+        yield from chat_general_agentic(user_message, history, model_label, use_memory, lang_key,
+                                         max_steps=max_steps, execution_timeout=execution_timeout)
     else:
         yield from chat_general_direct(user_message, history, model_label, use_memory, lang_key)
 

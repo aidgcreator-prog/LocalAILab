@@ -248,7 +248,7 @@ def get_embed_model(model_id: Optional[str] = None):
             base_url = llama_backend.get_or_start_llama_server(
                 model_path=target,
                 n_ctx=mr.get_saved_context_window(),
-                n_gpu_layers=-1 if llama_backend.LLAMA_CPP_GPU_AVAILABLE else 0,
+                n_gpu_layers=-1,  # external llama-server has its own GPU support
             )
             _embed_model = EmbeddingServerModel(
                 model_path=target, base_url=base_url,
@@ -428,7 +428,7 @@ def get_llm(model_id: Optional[str] = None, n_ctx: Optional[int] = None):
                 base_url = llama_backend.get_or_start_llama_server(
                     model_path=target,
                     n_ctx=target_ctx,
-                    n_gpu_layers=-1 if llama_backend.LLAMA_CPP_GPU_AVAILABLE else 0,
+                    n_gpu_layers=-1,  # external llama-server has its own GPU support
                 )
                 _llm = llama_backend.LlamaServerModel(
                     base_url=base_url,
@@ -451,13 +451,34 @@ def get_llm(model_id: Optional[str] = None, n_ctx: Optional[int] = None):
 
             else:
                 if not llama_backend.LLAMA_CPP_AVAILABLE:
+                    if llama_backend.LLAMA_SERVER_EXE_PATH:
+                        print(f"[RAG] llama-cpp-python not installed — auto-fallbacking "
+                              f"to llama-server (external process) for '{target}' …")
+                        base_url = llama_backend.get_or_start_llama_server(
+                            model_path=target,
+                            n_ctx=target_ctx,
+                            n_gpu_layers=-1,  # external llama-server has its own GPU support
+                        )
+                        _llm = llama_backend.LlamaServerModel(
+                            base_url=base_url,
+                            model_path=target,
+                            temperature=0.6,
+                            top_p=0.95,
+                            max_new_tokens=mr.get_saved_max_new_tokens(),
+                            timeout=mr.get_saved_llm_server_timeout(),
+                        )
+                        _llm_n_ctx = target_ctx
+                        _llm_model_id = target
+                        return _llm
                     raise RuntimeError(
-                        "llama-cpp-python is not installed. Run SETUP.bat to install "
-                        "a hardware-matched build, or install it manually with the "
-                        "appropriate CUDA/Metal/ROCm build flags for GPU support — "
-                        "or switch the '⚙️ LLM Backend' dropdown to 'llama-server "
-                        "(external process)' instead, which only needs a "
-                        "llama-server executable, not llama-cpp-python."
+                        "llama-cpp-python is not installed, and no llama-server "
+                        "executable is configured.\n\n"
+                        "Option 1: Run SETUP.bat to install llama-cpp-python "
+                        "(supports GPU offload).\n"
+                        "Option 2: Set the '🖥️ llama-server.exe Path' under Model "
+                        "Settings to point at a llama-server.exe binary from "
+                        "https://github.com/ggml-org/llama.cpp/releases — then "
+                        "GGUF models run via the external server instead."
                     )
                 print(f"[RAG] Loading GGUF LLM '{target}' with context window "
                       f"{target_ctx} tokens on {DEVICE.upper()} …")

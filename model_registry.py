@@ -804,8 +804,6 @@ def rescan_gguf_models(folder_path: Optional[str], lang_key: str = "kh"):
 
     if not folder_path:
         msg = l["gguf_scan_disabled"]
-    elif not llama_backend.LLAMA_CPP_AVAILABLE:
-        msg = l["gguf_scan_no_backend"]
     else:
         found = llama_backend.discover_gguf_models(folder_path)
         MODEL_OPTIONS.update(found)
@@ -816,6 +814,9 @@ def rescan_gguf_models(folder_path: Optional[str], lang_key: str = "kh"):
                 msg += f" (+ {vlm_found_count} vision model pair(s) found for the 🎨 Vision LLM dropdown)"
         else:
             msg = l["gguf_scan_empty"].format(dir=folder_path)
+        if not llama_backend.LLAMA_CPP_AVAILABLE:
+            msg += (" ⚠️ llama-cpp-python not installed — in-process loading unavailable."
+                    " Use '⚙️ LLM Backend' > 'llama-server (external process)' to run GGUF models without it.")
 
     # Vision GGUF pairs (main model + mmproj) are scanned/rebuilt
     # independently of the plain text-model branch above —
