@@ -6,23 +6,27 @@
 
 ## 🇰🇭 ខ្មែរ
 
-ជំនួយការ AI ពហុមុខងារ ដោយ **LocalAiLab** ដែលដំណើរការនៅលើម៉ាស៊ីនរបស់អ្នកផ្ទាល់ បានបង្កើតឡើងដោយប្រើ [smolagents](https://github.com/huggingface/smolagents)។ មានចំណុចប្រទាក់ Gradio ការសន្ទនាទូទៅ វិភាគឯកសារតាមរយៈ RAG (Retrieval-Augmented Generation) ជាមួយការផ្ទុកទិន្នន័យជាប់លាប់ដោយ ChromaDB សមត្ថភាពពហុម៉ូដាល (រូបភាព/VLM) ការបំលែងសំឡេងទៅជាអក្សរ និងការវិភាគទិន្នន័យ CSV/Excel ដោយ AI Agent។ ប្រព័ន្ធនេះរកឃើញ និងប្រើ GPU របស់អ្នកដោយស្វ័យប្រវត្តិ (CUDA, AMD, ឬ Mac MPS) ប្រសិនបើមាន ឬប្រើ CPU ជំនួសវិញ។ ក្រៅពីម៉ូដែល HuggingFace/transformers ជាលំនាំដើម កម្មវិធីនេះក៏អាចប្រើម៉ូដែលមូលដ្ឋាន **GGUF តាមរយៈ llama.cpp** ផងដែរ។
+ជំនួយការ AI ពហុមុខងារ ដោយ **LocalAiLab** ដែលដំណើរការនៅលើម៉ាស៊ីនរបស់អ្នកផ្ទាល់ បានបង្កើតឡើងដោយប្រើ [smolagents](https://github.com/huggingface/smolagents)។ មានចំណុចប្រទាក់ Gradio ការសន្ទនាទូទៅ វិភាគឯកសារតាមរយៈ RAG (Retrieval-Augmented Generation) ជាមួយការផ្ទុកទិន្នន័យជាប់លាប់ដោយ ChromaDB សមត្ថភាពពហុម៉ូដាល (រូបភាព/VLM) ការបំលែងសំឡេងទៅជាអក្សរ និងការវិភាគទិន្នន័យ CSV/Excel ដោយ AI Agent។ ប្រព័ន្ធនេះរកឃើញ និងប្រើ GPU (CUDA ឬ AMD) ដោយស្វ័យប្រវត្តិប្រសិនបើមាន ឬប្រើ CPU ជំនួសវិញ។ ក្រៅពីម៉ូដែល HuggingFace/transformers ជាលំនាំដើម កម្មវិធីនេះក៏អាចប្រើម៉ូដែលមូលដ្ឋាន **GGUF តាមរយៈ llama.cpp** ផងដែរ។
+
+> ⚠️ **វេទិកា៖ Windows តែប៉ុណ្ណោះ។** ស្គ្រីបដំឡើង/ដំណើរការទាំងអស់ (`SETUP.bat/.ps1`, `RUN.bat/.ps1`, `install.bat/.ps1`) សរសេរជា PowerShell/Batch ហើយត្រូវការតែលើ Windows ប៉ុណ្ណោះ។ កម្មវិធីនេះ **មិនត្រូវបានគាំទ្រ ឬសាកល្បងលើ macOS (Mac) ទេ** — `requirements.txt` រួមមាន `bitsandbytes` ដែលជាធម្មតាមិនមាន wheel សម្រាប់ Apple Silicon/Intel Mac ដូច្នេះការដំឡើងអាចនឹងបរាជ័យតាំងពីជំហានដំបូង។ សូមមើលផ្នែក "🍎 macOS" ខាងក្រោមសម្រាប់ព័ត៌មានលម្អិត។
 
 ចំណុចប្រទាក់អាចប្តូរភាសាបានភ្លាមៗ (**ខ្មែរ** ⇄ **អង់គ្លេស**) នៅជ្រុងខាងលើស្តាំ។ ផ្ទាំង **ℹ️ អំពីកម្មវិធី** បង្ហាញព័ត៌មានទាំងពីរភាសាជានិច្ច (ខ្មែរខាងលើ អង់គ្លេសខាងក្រោម) ដោយមិនអាស្រ័យលើបញ្ជីទម្លាក់ភាសានោះទេ។
 
 ### 🆕 អ្វីដែលថ្មីក្នុងកំណែនេះ
 
-- **⚙️ ផ្នែកកំណត់ម៉ូដែលកណ្តាល**៖ ការកំណត់ provider/backend និងជ្រើសរើសម៉ូដែលតាមផ្ទាំងនីមួយៗ ត្រូវបានប្រមូលផ្តុំក្នុង accordion តែមួយ — ផ្នែក Provider/Backend, Model Assignments (៧ ជួរតាមផ្ទាំង), និង Generation Settings
+- **⚙️ Accordion "ការកំណត់ម៉ូដែល" ជាសកល**៖ ការកំណត់ provider/backend រួម (HF API token/model/provider, LiteLLM, ផ្លូវ `llama-server.exe`, ផ្លូវ `whisper-server.exe`, ថតម៉ូដែល GGUF) ត្រូវបានប្រមូលផ្តុំក្នុង accordion តែមួយនៅផ្នែកខាងលើកម្មវិធី។ ចំណែក **provider + model dropdown របស់ផ្ទាំងនីមួយៗ (និងប៊ូតុង Load/Unload)** នៅតែស្ថិតនៅក្នុងជ្រុងខាងស្តាំរបស់ផ្ទាំងនោះផ្ទាល់ (មិនមែនប្រមូលទៅក្នុង accordion កណ្តាលនោះទេ)។ ការកំណត់ Generation (វិន្ដូបរិបទ, Max New Tokens, ប្តូរបិទ/បើក Reasoning, "💥 ទំនេរ VRAM ទាំងអស់") សុទ្ធតែស្ថិតនៅផ្ទាំង 💬 ការសន្ទនាទូទៅ ប៉ុន្តែមានឥទ្ធិពលទៅលើកម្មវិធីទាំងមូល ព្រោះវារក្សាទុកជា setting សកល
+- **🔗 LiteLLM provider**៖ ក្រៅពី HuggingFace API អ្នកអាចភ្ជាប់ទៅ OpenAI/Anthropic/Groq/… ណាមួយដែល LiteLLM គាំទ្រ តាមរយៈ Model ID + API Key + API Base ផ្ទាល់ខ្លួន (មានតែសម្រាប់ LLM tab ប៉ុណ្ណោះ មិនមែន VLM/STT/Embedding ទេ)
 - **🖥️ whisper.cpp server backend** (`whisper_cpp_backend.py`)៖ STT អាចដំណើរការតាមរយៈ `whisper-server.exe` ដោយមានការគ្រប់គ្រង subprocess និង model discovery ដោយស្វ័យប្រវត្តិ
 - **🖥️ Embedding server**៖ ម៉ូដែល GGUF embedding អាចដំណើរការតាមរយៈ llama.cpp `/v1/embeddings` (`EmbeddingServerModel`)
 - **🌐 Hugging Face Inference API**៖ គ្រប់ប្រភេទម៉ូដែល (LLM, VLM, STT, Embedding) អាចប្រើម៉ូដែលពីចម្ងាយ (DeepInfra, Together, Replicate ៘) — មាន provider dropdown ផ្ទាល់ខ្លួនតាមផ្ទាំង
 - **តម្រងម៉ូដែលតាម Provider**៖ ពេលប្តូរ provider ក្នុងផ្ទាំងណាមួយ បញ្ជីម៉ូដែលនឹងត្រងចេញតែម៉ូដែលដែលត្រូវគ្នាដោយស្វ័យប្រវត្តិ
 - **រក្សាទុក Provider តាមផ្ទាំង**៖ ផ្ទាំងនីមួយៗនឹងចងចាំ provider និងម៉ូដែលដែលបានជ្រើសរើស សូម្បីតែបិទបើកកម្មវិធីឡើងវិញ (តាមរយៈ `user_config.json`)
+- **🖥️ Backend GGUF ពីរបែប**៖ ជ្រើសរើសបានក្នុងគ្រប់ផ្ទាំង LLM/VLM/Embedding តាមរយៈ provider dropdown របស់ផ្ទាំងនោះ — **"🧩 Local HuggingFace"** ដំណើរការក្នុងដំណើរការតែមួយ (in-process, `llama-cpp-python`) ឬ **"🖥️ llama.cpp server"** ដែលហៅ `llama-server.exe` ខាងក្រៅ (កំណត់ផ្លូវវានៅ accordion "⚙️ ការកំណត់ម៉ូដែល" ផ្នែក Provider/Backend)
 - **🔬 ផ្ទាំង Deep Research**៖ agent គ្រប់គ្រង + agent ស្វែងរកតាមអ៊ីនធឺណិតដាច់ដោយឡែក (`ToolCallingAgent`) បំបែកសំណួរជាសំណួររង រៀបចំផែនការឡើងវិញឥតឈប់ឈរ រួចសរសេររបាយការណ៍ Markdown
-- **ស្វែងរកតាមអ៊ីនធឺណិតដោយឥតគិតថ្លៃ**៖ Playwright + DuckDuckGo ជំនួស SerpAPI — មិនត្រូវការ API key
+- **ស្វែងរកតាមអ៊ីនធឺណិតដោយឥតគិតថ្លៃ**៖ លំនាំដើមប្រើ `DuckDuckGoSearchTool` របស់ smolagents ខ្លួនឯង (តាមរយៈ `ddgs`) — មិនត្រូវការ API key ទេ។ ផ្ទាំង 🔬 ស្រាវជ្រាវស៊ីជម្រៅ ក៏មានប្រអប់ជម្រើស "Use Playwright (Headless Browser) Tools" ដែលបើកឧបករណ៍ browser ជាក់ស្តែងសម្រាប់ស្វែងរក/អាន PDF/extract links ដែលមានប្រយោជន៍លើទំព័រដែលត្រូវការ JavaScript
 - **ម៉ូដែលថ្មី**៖ **Gemma 4** (E2B/12B/26B-A4B/31B) និង **Qwen3.6** (27B / 35B-A3B MoE)
 - **🧠 ចងចាំការសន្ទនា (កំពុងសាកល្បង)**៖ ប្រអប់ថ្មីនៅគ្រប់ផ្ទាំង agentic
-- **🧠 វិន្ដូបរិបទ**៖ ជ្រើសរើសពី 4K ដល់ 128K សម្រាប់ GGUF
+- **🧠 វិន្ដូបរិបទ**៖ ជ្រើសរើសពី 4K ដល់ 128K សម្រាប់ GGUF (នៅផ្ទាំង 💬 ការសន្ទនាទូទៅ — អនុវត្តជាសកល)
 - **ការរកឃើញ GPU មិនត្រូវគ្នា**៖ ព្រមានក្នុង UI ជំនួសឱ្យការគាំងស្ងាត់ៗ
 - **Data Analysis Agent**៖ ដំឡើង Python package ដោយខ្លួនឯង EDA ពេញលេញ **និងជម្រើសវិភាគតាមប្រភេទ (ការលក់, អតិថិជន, ហិរញ្ញវត្ថុ, ប្រាក់ខែ)** — ជ្រើសរើស workflow ដើម្បីបំពេញប្រអប់សំណួរដោយស្វ័យប្រវត្តិ
 - **🔧 ជ្រើសរើស Embedding ឥតបញ្ហា**៖ ChromaDB បង្កើត collection ដាច់ដោយឡែកតាម dimension
@@ -51,7 +55,7 @@
 | ប្រភេទភ្នាក់ងារ | `CodeAgent` (General/RAG/Data Analysis); `ToolCallingAgent` (Deep Research search sub-agent) |
 | UI | Gradio |
 
-> **ចំណាំ**៖ `HardwareManager` រកឃើញផ្នែករឹងរបស់អ្នកដោយស្វ័យប្រវត្តិ (NVIDIA, AMD, ឬ Apple Silicon) ហើយអាចជួយជួសជុលបរិយាកាសរបស់អ្នកតាមរយៈប៊ូតុង "Fix Environment" ក្នុងចំណុចប្រទាក់។
+> **ចំណាំ**៖ `HardwareManager` រកឃើញផ្នែករឹងរបស់អ្នកដោយស្វ័យប្រវត្តិ (NVIDIA ឬ AMD) ហើយអាចជួយជួសជុលបរិយាកាសរបស់អ្នកតាមរយៈប៊ូតុង "Fix Environment" ក្នុងចំណុចប្រទាក់។ កូដមាន logic ដែលអាចរកឃើញ Apple Silicon (MPS) ដែរ ប៉ុន្តែនេះជា **Windows tool** ដែលមិនត្រូវបានសាកល្បង ឬគាំទ្រជាផ្លូវការលើ macOS ទេ (សូមមើលផ្នែក "🍎 macOS" ខាងក្រោម)។
 
 ---
 
@@ -85,7 +89,7 @@ iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/SmolAgent/smolagent
 
 `llama-cpp-python` មិនត្រូវបានដំឡើងដោយស្វ័យប្រវត្តិទេ។ ដើម្បីប្រើម៉ូដែល GGUF (.gguf) អ្នកមានជម្រើសពីរ៖
 
-**ជម្រើស A — Backend ខាងក្រៅ (ងាយស្រួលបំផុត)៖** ទាញយក `llama-server.exe` ពី [llama.cpp releases](https://github.com/ggerganov/llama.cpp/releases) ហើយកំណត់ផ្លូវរបស់វានៅក្នុង UI → ⚙️ LLM Backend → "🖥️ llama-server.exe Path"។ មិនតម្រូវឱ្យដំឡើង Python package អ្វីទាំងអស់។
+**ជម្រើស A — Backend ខាងក្រៅ (ងាយស្រួលបំផុត)៖** ទាញយក `llama-server.exe` ពី [llama.cpp releases](https://github.com/ggerganov/llama.cpp/releases) ហើយកំណត់ផ្លូវរបស់វានៅ accordion "⚙️ ការកំណត់ម៉ូដែល" (ផ្នែក Provider/Backend) → "🖥️ llama-server.exe Path" នៅផ្នែកខាងលើកម្មវិធី។ បន្ទាប់មកនៅផ្ទាំងណាដែលចង់ប្រើ (💬/📚/📊/🔬) ជ្រើសរើស "🖥️ llama.cpp server" ក្នុងបញ្ជីទម្លាក់ Provider ផ្ទាល់របស់ផ្ទាំងនោះ។ មិនតម្រូវឱ្យដំឡើង Python package អ្វីទាំងអស់។
 
 **ជម្រើស B — In-process (llama-cpp-python)៖** ដំឡើងដោយខ្លួនឯង៖
 
@@ -109,6 +113,20 @@ pip install llama-cpp-python --no-cache-dir --force-reinstall
 ```
 
 **ថតម៉ូដែល GGUF**៖ ដាក់ឯកសារ `.gguf` ទៅក្នុងថតណាមួយ។ កំណត់ថតតាមរយៈអថេរបរិស្ថាន `LLAMA_CPP_MODEL_DIR` ឬវាយផ្លូវក្នុងប្រអប់ "📁 ថតម៉ូដែល GGUF" នៅក្នុង UI រួចចុច "🔍 ស្កេន"។
+
+</details>
+
+<details>
+<summary><strong>🍎 macOS (Mac) — មិនត្រូវបានគាំទ្រ</strong></summary>
+
+កម្មវិធីនេះ **មិនអាចដំណើរការលើ macOS បានទេ** ក្នុងស្ថានភាពបច្ចុប្បន្ន៖
+
+- `SETUP.bat`/`SETUP.ps1`, `RUN.bat`/`RUN.ps1` និង `install.bat`/`install.ps1` សុទ្ធតែជាស្គ្រីប PowerShell/Batch ដែលមិនអាចដំណើរការនៅលើ Mac ទាល់តែសោះ — គ្មានវិធីចាប់ផ្តើមកម្មវិធីតាមរបៀបធម្មតាទេ។
+- `requirements.txt` រួមមាន `bitsandbytes>=0.43.0` ដែលជាធម្មតាគ្មាន wheel ត្រឹមត្រូវសម្រាប់ Apple Silicon ឬ Intel Mac ទេ — `pip install -r requirements.txt` អាចនឹងបរាជ័យតាំងពីដើម។
+- ការណែនាំបង្កើត `llama-cpp-python` ជាមួយ GPU (សូមមើលខាងលើ) ប្រើតែ `-DGGML_CUDA=on` (NVIDIA) ប៉ុណ្ណោះ — គ្មានការណែនាំ/សាកល្បងសម្រាប់ Metal (`-DGGML_METAL=on`) លើ Mac ទេ។
+- ការបញ្ចូល PDF បែបចក្ខុវិស័យត្រូវការ Poppler ដែលការណែនាំដំឡើងក្នុង README នេះសរសេរសម្រាប់ Windows តែប៉ុណ្ណោះ។
+
+ទោះបីជា `hardware.py` មាន logic រកឃើញ `torch.backends.mps` (Apple Silicon GPU) ក៏ដោយ វាមិនមានន័យថាកម្មវិធីទាំងមូលត្រូវបានសាកល្បង ឬគាំទ្រលើ macOS ទេ — មិនមានផ្លូវដំឡើងជាផ្លូវការ មិនមានការធានា និងគ្មានផែនការគាំទ្រ Mac ជាផ្លូវការទេនាពេលនេះ។
 
 </details>
 
@@ -155,8 +173,8 @@ python app.py
 
 #### លក្ខណៈពិសេសសំខាន់ៗ
 - **ចំណុចប្រទាក់ពីរភាសា**៖ ខ្មែរ/អង់គ្លេស ប្តូរបានភ្លាមៗតាមបញ្ជីទម្លាក់ភាសា
-- **ម៉ូដែលបីប្រភេទ**៖ HuggingFace/transformers, local server (llama.cpp / whisper.cpp) ឬពីចម្ងាយតាមរយៈ Hugging Face Inference API — ជ្រើសរើសតាមផ្ទាំងក្នុង accordion តែមួយ
-- **ការកំណត់ម៉ូដែលកណ្តាល**៖ provider/backend, per-tab model assignment (៧ ផ្ទាំង), និង generation settings សុទ្ធតែក្នុង accordion តែមួយ
+- **ម៉ូដែលច្រើនប្រភេទ Backend**៖ HuggingFace/transformers (in-process), local server (llama.cpp / whisper.cpp), ពីចម្ងាយតាមរយៈ Hugging Face Inference API, ឬ (សម្រាប់ LLM) LiteLLM (OpenAI/Anthropic/Groq/…) — ជ្រើសរើសដោយឡែកតាមផ្ទាំង
+- **ការកំណត់ម៉ូដែល**៖ ការកំណត់ provider/backend រួម (HF API, LiteLLM, ផ្លូវ llama-server.exe/whisper-server.exe, ថត GGUF) ស្ថិតក្នុង accordion សកលមួយ; provider + model dropdown របស់ផ្ទាំងនីមួយៗ (៧ ផ្ទាំង) ស្ថិតនៅជ្រុងសាយប៊ែររបស់ផ្ទាំងនោះ; generation settings (context window, max tokens, reasoning) ស្ថិតនៅផ្ទាំង 💬 ការសន្ទនាទូទៅ ប៉ុន្តែអនុវត្តជាសកល
 - **ចងចាំការសន្ទនា (កំពុងសាកល្បង)**៖ ប្រអប់ "🧠 ចងចាំការសន្ទនា" នៅគ្រប់ផ្ទាំង agentic — បើកដើម្បីឱ្យសំណួរបន្តអាចយោងលើអ្វីដែលបាននិយាយពីមុន។ ការចងចាំមាននៅតែក្នុងវគ្គដំណើរការបច្ចុប្បន្នប៉ុណ្ណោះ (មិនរក្សាទុកទៅថាសទេ) ហើយនឹងត្រូវកំណត់ចេញនៅពេលប្តូរម៉ូដែល ចុច "សម្អាត" ឬចាប់ផ្តើមកម្មវិធីឡើងវិញ
 - **ការគាំទ្រឯកសារ DOCX**៖ ការបញ្ចូលឯកសារគាំទ្រ Word (.docx) រួមទាំងអត្ថបទក្នុងតារាង
 - **ការជួសជុលបរិយាកាសដោយខ្លួនឯង**៖ ប៊ូតុង "Fix Environment" ដំឡើង PyTorch ត្រឹមត្រូវសម្រាប់ GPU របស់អ្នកដោយស្វ័យប្រវត្តិ
@@ -270,23 +288,27 @@ python app.py
 
 ## 🇬🇧 English
 
-A local, multipurpose AI assistant built by **LocalAiLab** with [smolagents](https://github.com/huggingface/smolagents), featuring a Gradio UI, general chat, document RAG (Retrieval-Augmented Generation) with persistent ChromaDB storage, multi-modal capabilities (Vision/VLM), Speech-to-Text transcription, and AI-driven CSV/Excel data analysis. It automatically detects and uses your GPU (CUDA, AMD, or Mac MPS) if available, falling back to CPU otherwise. Besides the default HuggingFace/transformers models, the app can also run local **GGUF models via llama.cpp**.
+A local, multipurpose AI assistant built by **LocalAiLab** with [smolagents](https://github.com/huggingface/smolagents), featuring a Gradio UI, general chat, document RAG (Retrieval-Augmented Generation) with persistent ChromaDB storage, multi-modal capabilities (Vision/VLM), Speech-to-Text transcription, and AI-driven CSV/Excel data analysis. It automatically detects and uses your GPU (CUDA or AMD) if available, falling back to CPU otherwise. Besides the default HuggingFace/transformers models, the app can also run local **GGUF models via llama.cpp**.
+
+> ⚠️ **Platform: Windows only.** Every install/launch script (`SETUP.bat/.ps1`, `RUN.bat/.ps1`, `install.bat/.ps1`) is PowerShell/Batch and only runs on Windows. This app is **not supported or tested on macOS (Mac)** — `requirements.txt` includes `bitsandbytes`, which typically has no working wheel for Apple Silicon or Intel Mac, so `pip install -r requirements.txt` can fail right at the start. See the "🍎 macOS" section below for details.
 
 The UI is fully bilingual — switch between **Khmer** and **English** instantly using the language dropdown in the top-right corner. The **ℹ️ About** tab always shows both languages (Khmer above, English below), regardless of that dropdown.
 
 ### 🆕 What's New in This Release
 
-- **⚙️ Centralized Model Settings accordion**: all provider/backend config and per-tab model assignment moved into a single global accordion with three sections — Provider/Backend, Model Assignments (7 per-tab rows with provider dropdown + model dropdown + load/unload), and Generation Settings. Tab sidebars now show a clean read-only badge instead of model dropdowns.
+- **⚙️ Global "Model Settings" accordion**: shared provider/backend config (HF API token/model/provider, LiteLLM, `llama-server.exe` path, `whisper-server.exe` path, GGUF model folder) is collected into a single accordion near the top of the app. Each tab's own **provider dropdown + model dropdown + Load/Unload buttons** still live in that tab's own sidebar column (not moved into the central accordion). Generation settings (Context Window, Max New Tokens, the Reasoning toggle, "💥 Free All VRAM") live in the 💬 General Chat tab's sidebar, but apply app-wide since they're persisted global settings.
+- **🔗 LiteLLM provider**: besides the HF Inference API, the LLM tab can now point at any OpenAI/Anthropic/Groq/etc. endpoint LiteLLM supports, via a Model ID + API Key + API Base you configure yourself (LLM only — not available for VLM/STT/Embedding).
 - **🖥️ whisper.cpp server backend** (`whisper_cpp_backend.py`): STT can now run via a `whisper-server.exe` subprocess, with automatic model file discovery, port management, and settings persistence.
 - **🖥️ Embedding server support**: GGUF embedding models can run via llama.cpp's `/v1/embeddings` endpoint (`EmbeddingServerModel`) — no separate local HuggingFace model needed for vector generation.
 - **🌐 Hugging Face Inference API**: every model type (LLM, VLM, STT, Embedding) can now use remote models (e.g. `google/gemma-4-31B-it` via DeepInfra, Together, or Replicate) without loading anything locally — each with its own provider dropdown per tab.
 - **Provider-aware model filtering**: changing the provider dropdown per tab automatically filters the companion model dropdown to show only compatible models.
 - **Per-tab provider persistence**: each tab remembers its chosen provider and model across restarts via `user_config.json` keys (`provider_gen`, `provider_rag`, etc.).
+- **🖥️ Dual GGUF backend**: selectable per tab via that tab's own provider dropdown — **"🧩 Local HuggingFace"** runs GGUF models in-process (`llama-cpp-python`), or **"🖥️ llama.cpp server"** talks to an external `llama-server.exe` (configure its path under the "⚙️ Model Settings" accordion's Provider/Backend section).
 - **🔬 Deep Research overhaul**: the search sub-agent now uses `ToolCallingAgent` (instead of `CodeAgent`) for reliable structured tool calls, with `provide_run_summary=True` and `planning_interval=4` — matching the canonical `open_deep_research` pattern.
-- **Free web search**: Playwright + DuckDuckGo replaces the paid SerpAPI `GoogleSearchTool` — no API key needed.
+- **Free web search by default**: uses smolagents' own built-in `DuckDuckGoSearchTool` (via `ddgs`) — no paid API, no API key. Deep Research also offers an optional "Use Playwright (Headless Browser) Tools" checkbox for a real-browser search/read/PDF-extraction toolset, useful on JavaScript-heavy pages the default tools can't render.
 - **New models**: added the **Gemma 4** family (E2B/12B/26B-A4B/31B, now Apache 2.0-licensed) and the **Qwen3.6** family (27B dense / 35B-A3B MoE) — both need a newer `transformers` release (see the Text LLMs table below).
 - **🧠 Conversation Memory (Experimental)**: a new toggle on every agentic tab lets follow-up questions refer back to earlier turns (RAM-only, never persisted to disk).
-- **🧠 Configurable Context Window**: pick anywhere from 4K to 128K tokens for GGUF models directly in the UI.
+- **🧠 Configurable Context Window**: pick anywhere from 4K to 128K tokens for GGUF models directly in the UI (General Chat tab's sidebar — applies globally).
 - **GPU-incompatibility detection**: the UI now shows a clear warning if a detected GPU (e.g. an older Pascal/sm_6x card) isn't supported by the installed PyTorch build, instead of silently falling back to CPU with no explanation.
 - **Data Analysis agent** can now install missing Python packages itself (`install_package` tool), runs a fuller EDA with multiple charts, **and offers guided analysis workflows (Sales, Customer, Financial, Payroll) via an Analysis Type selector** — pick a workflow to pre-fill the question box with step-by-step instructions.
 
@@ -314,7 +336,7 @@ The UI is fully bilingual — switch between **Khmer** and **English** instantly
 | Agent type | `CodeAgent` (General/RAG/Data Analysis); `ToolCallingAgent` (Deep Research search sub-agent) |
 | UI | Gradio |
 
-> **Note**: `HardwareManager` automatically detects your hardware (NVIDIA, AMD, or Apple Silicon) and can help fix your environment via the "Fix Environment" button in the UI.
+> **Note**: `HardwareManager` automatically detects your hardware (NVIDIA or AMD) and can help fix your environment via the "Fix Environment" button in the UI. The code contains logic that can detect Apple Silicon (MPS) as well, but this is a **Windows tool** that is not tested or officially supported on macOS (see the "🍎 macOS" section below).
 
 ---
 
@@ -348,7 +370,7 @@ On a machine that already has Python, just double-click **SETUP.bat** to do the 
 
 `llama-cpp-python` is **not** installed by default. To use GGUF models (.gguf), you have two options:
 
-**Option A — External backend (easiest):** Download `llama-server.exe` from [llama.cpp releases](https://github.com/ggerganov/llama.cpp/releases) and set its path in the UI → ⚙️ LLM Backend → "🖥️ llama-server.exe Path". No Python package install needed.
+**Option A — External backend (easiest):** Download `llama-server.exe` from [llama.cpp releases](https://github.com/ggerganov/llama.cpp/releases) and set its path under the "⚙️ Model Settings" accordion (Provider/Backend section) → "🖥️ llama-server.exe Path" near the top of the app. Then on whichever tab you want to use it (💬/📚/📊/🔬), pick "🖥️ llama.cpp server" from that tab's own Provider dropdown. No Python package install needed.
 
 **Option B — In-process (llama-cpp-python):** Install it manually:
 
@@ -372,6 +394,20 @@ pip install llama-cpp-python --no-cache-dir --force-reinstall
 ```
 
 **GGUF model folder**: drop your `.gguf` files into any folder. Point the app at it by setting the `LLAMA_CPP_MODEL_DIR` environment variable before launching, or typing the folder path into the "📁 GGUF Model Folder" box in the UI and clicking "🔍 Scan".
+
+</details>
+
+<details>
+<summary><strong>🍎 macOS (Mac) — Not Supported</strong></summary>
+
+This app **does not run on macOS** in its current state:
+
+- `SETUP.bat`/`SETUP.ps1`, `RUN.bat`/`RUN.ps1`, and `install.bat`/`install.ps1` are all PowerShell/Batch scripts that simply don't run on Mac — there's no normal way to launch the app.
+- `requirements.txt` includes `bitsandbytes>=0.43.0`, which typically has no working wheel for Apple Silicon or Intel Mac — `pip install -r requirements.txt` can fail right away.
+- The GPU build instructions for `llama-cpp-python` above only cover `-DGGML_CUDA=on` (NVIDIA) — there's no documented/tested Metal build (`-DGGML_METAL=on`) for Mac.
+- Visual PDF indexing needs Poppler, and this README's install instructions for it are Windows-only.
+
+`hardware.py` does contain logic that detects `torch.backends.mps` (Apple Silicon GPU), but that doesn't mean the app as a whole is tested or supported on macOS — there's no official install path, no guarantees, and no current plan for official Mac support.
 
 </details>
 
@@ -418,8 +454,8 @@ The app is organized into eight main tabs, in this order:
 
 #### Key Features
 - **Bilingual UI**: full Khmer/English interface — switch instantly with the language dropdown
-- **Three model backends**: HuggingFace/transformers, local server (llama.cpp / whisper.cpp), or remote via Hugging Face Inference API (DeepInfra, Together, Replicate, etc.) — per-tab provider + model selection in a single accordion
-- **Centralized model settings**: all provider/backend config, per-tab model assignment (7 tabs), and generation settings live in one global accordion — tab sidebars show read-only badges
+- **Multiple model backends**: HuggingFace/transformers (in-process), local server (llama.cpp / whisper.cpp), remote via Hugging Face Inference API (DeepInfra, Together, Replicate, etc.), or (LLM only) LiteLLM (OpenAI/Anthropic/Groq/…) — chosen independently per tab
+- **Model settings**: shared provider/backend config (HF API, LiteLLM, llama-server.exe/whisper-server.exe paths, GGUF folder) lives in one global accordion; each tab's own provider + model dropdown (7 tabs) stays in that tab's sidebar; generation settings (context window, max tokens, reasoning) live in the 💬 General Chat tab but apply app-wide
 - **Conversation Memory (Experimental)**: a "🧠 Conversation Memory" toggle on every agentic tab lets follow-up questions refer back to earlier turns. Memory only lives for the current running session (not saved to disk), and resets on a model switch, "Clear", or an app restart
 - **DOCX support**: document indexing supports Word (.docx) files, including text inside tables
 - **Environment Self-Fixing**: the "Fix Environment" button installs the correct PyTorch build for your GPU automatically
