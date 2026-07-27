@@ -59,7 +59,7 @@ function Test-Command($name) {
 }
 
 function New-DesktopShortcut {
-    param([string]$Target, [string]$Arguments, [string]$WorkingDir, [string]$Name)
+    param([string]$Target, [string]$Arguments, [string]$WorkingDir, [string]$Name, [string]$IconPath)
     $desktop = [Environment]::GetFolderPath("Desktop")
     $path = Join-Path $desktop "$Name.lnk"
     $wshell = New-Object -ComObject WScript.Shell
@@ -68,8 +68,21 @@ function New-DesktopShortcut {
     if ($Arguments) { $sc.Arguments = $Arguments }
     $sc.WorkingDirectory = $WorkingDir
     $sc.Description = "$Name by LocalAiLab"
+    if ($IconPath) { $sc.IconLocation = $IconPath }
     $sc.Save()
     return $path
+}
+
+function Convert-JpgToIco {
+    param([string]$JpgPath, [string]$IcoPath)
+    Add-Type -AssemblyName System.Drawing
+    $img = [System.Drawing.Image]::FromFile($JpgPath)
+    $icon = [System.Drawing.Icon]::FromHandle($img.GetHicon())
+    $fs = [System.IO.File]::OpenWrite($IcoPath)
+    $icon.Save($fs)
+    $fs.Close()
+    $img.Dispose()
+    $icon.Dispose()
 }
 
 
@@ -255,7 +268,12 @@ Write-Step "STEP 5/5: Creating desktop shortcut"
 if (-not $NoShortcut) {
     $runBat = Join-Path $targetDir "RUN.bat"
     if (Test-Path $runBat) {
-        $scPath = New-DesktopShortcut -Target $runBat -WorkingDir $targetDir -Name "Multipurpose AI Assistant"
+        $logoJpg = Join-Path $PSScriptRoot "logo.jpg"
+        $logoIco = Join-Path $targetDir "logo.ico"
+        if (Test-Path $logoJpg) {
+            Convert-JpgToIco -JpgPath $logoJpg -IcoPath $logoIco
+        }
+        $scPath = New-DesktopShortcut -Target $runBat -WorkingDir $targetDir -Name "Multipurpose AI Assistant" -IconPath $logoIco
         Write-Ok "Desktop shortcut created: $scPath"
     } else {
         Write-Warn "RUN.bat not found at $runBat — skipping desktop shortcut."
