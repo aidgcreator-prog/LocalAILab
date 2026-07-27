@@ -62,6 +62,13 @@ old_files/
 data_analysis/
 
 # ------------------------
+# Node.js / npm
+# ------------------------
+node_modules/
+package.json
+package-lock.json
+
+# ------------------------
 # IDE / Editor
 # ------------------------
 .vscode/

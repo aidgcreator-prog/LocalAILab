@@ -73,7 +73,7 @@ pip install torch torchvision
 #### 💻 ដំឡើងតែមួយបន្ទាត់ (ម៉ាស៊ីនថ្មី)
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/SmolAgent/main/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/SmolAgent/smolagent_modular/install.ps1 | iex
 ```
 
 ពាក្យបញ្ជាតែមួយនេះ ដំឡើង Python + Git (បើគ្មាន) ទាញយក repo បង្កើត Python environment រកឃើញ GPU ដំឡើង PyTorch + dependencies ទាំងអស់ និងបង្កើត shortcut លើ Desktop។
@@ -83,22 +83,24 @@ iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/SmolAgent/main/inst
 <details>
 <summary><strong>ជម្រើស — ការគាំទ្រម៉ូដែល llama.cpp (GGUF)</strong></summary>
 
-`requirements.txt` រួមបញ្ចូល `llama-cpp-python` ជាមូលដ្ឋាន ប៉ុន្តែការដំឡើងធម្មតាតាមរយៈ `pip install -r requirements.txt` ផ្តល់ជូនតែ **wheel សម្រាប់ CPU ប៉ុណ្ណោះ**។ ដើម្បីទទួលបានការបង្កើនល្បឿនតាមរយៈ GPU ប្រើ **SETUP.bat** ជំនួសវិញ — វានឹង៖
+`llama-cpp-python` មិនត្រូវបានដំឡើងដោយស្វ័យប្រវត្តិទេ។ ដើម្បីប្រើម៉ូដែល GGUF (.gguf) អ្នកមានជម្រើសពីរ៖
 
-1. រកឃើញ GPU របស់អ្នក (NVIDIA/CUDA, AMD/ROCm ឬគ្មាន GPU)
-2. សាកល្បង prebuilt wheel CUDA ចាប់ពីត្រូវនឹង driver របស់អ្នកបំផុត
-3. **ធ្វើតេស្តផ្ទុកម៉ូដែលពិតប្រាកដ** ដើម្បីការពារបញ្ហា "Illegal Instruction" (wheel សន្មតថា CPU គាំទ្រ AVX512 ប៉ុន្តែតាមពិតមិនគាំទ្រ)
-4. ប្រសិនបើគ្មាន wheel ណាដំណើរការ សាកល្បងសាងសង់ពី source ជាមួយ `CMAKE_ARGS=-DGGML_CUDA=on` (ត្រូវការ Visual Studio Build Tools + CUDA Toolkit)
-5. ចុងក្រោយបំផុត ត្រលប់ទៅ CPU-only wheel — ម៉ូដែល GGUF នៅតែប្រើប្រាស់បាន គ្រាន់តែយឺតជាង
+**ជម្រើស A — Backend ខាងក្រៅ (ងាយស្រួលបំផុត)៖** ទាញយក `llama-server.exe` ពី [llama.cpp releases](https://github.com/ggerganov/llama.cpp/releases) ហើយកំណត់ផ្លូវរបស់វានៅក្នុង UI → ⚙️ LLM Backend → "🖥️ llama-server.exe Path"។ មិនតម្រូវឱ្យដំឡើង Python package អ្វីទាំងអស់។
 
-ចំពោះការដំឡើងដោយដៃវិញ (Windows, NVIDIA):
+**ជម្រើស B — In-process (llama-cpp-python)៖** ដំឡើងដោយខ្លួនឯង៖
+
+```powershell
+pip install llama-cpp-python
+```
+
+សម្រាប់ GPU acceleration (CUDA):
 
 ```powershell
 pip uninstall llama-cpp-python -y
 pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124 --force-reinstall --no-cache-dir
 ```
 
-ប្តូរ `cu124` ទៅជាកំណែ CUDA ដែលត្រូវនឹង driver របស់អ្នក (`nvidia-smi` បង្ហាញវានៅជ្រុងខាងស្តាំខាងលើ)។ ប្រសិនបើ wheel គាំង ("Illegal Instruction") សូមសាងសង់ពី source ជំនួសវិញ៖
+ប្តូរ `cu124` ទៅជាកំណែ CUDA ដែលត្រូវនឹង driver របស់អ្នក (`nvidia-smi` បង្ហាញវា)។ ប្រសិនបើ wheel គាំង ("Illegal Instruction") សូមសាងសង់ពី source ជំនួសវិញ៖
 
 ```powershell
 $env:CMAKE_ARGS = "-DGGML_CUDA=on"
@@ -106,9 +108,7 @@ $env:FORCE_CMAKE = "1"
 pip install llama-cpp-python --no-cache-dir --force-reinstall
 ```
 
-**Flash Attention**៖ កម្មវិធីស្នើសុំ `flash_attn=True` ដោយស្វ័យប្រវត្តិនៅពេលមាន GPU។ ម៉ូដែលមួយចំនួន (ឧ. hybrid local/global attention ដូចជា Gemma-3/4) មិនគាំទ្រ Flash Attention នៅឡើយក្នុង llama.cpp — កម្មវិធីនឹងបន្តដំណើរការដោយមិនប្រើវាដោយស្វ័យប្រវត្តិ ដោយមិនគាំង។
-
-**ថតម៉ូដែល GGUF**៖ ដាក់ឯកសារ `.gguf` ទៅក្នុងថតណាមួយ — គ្មានផ្លូវត្រូវបានកំណត់ស្រាប់ក្នុងកូដទេ។ កំណត់ថតតាមវិធីណាមួយ៖ (១) អថេរបរិស្ថាន `LLAMA_CPP_MODEL_DIR` មុនចាប់ផ្តើមកម្មវិធី ឬ (២) វាយផ្លូវថតចូលទៅក្នុងប្រអប់ "📁 ថតម៉ូដែល GGUF" នៅផ្នែកខាងលើចំណុចប្រទាក់ រួចចុច "🔍 ស្កេន" (មិនចាំបាច់ចាប់ផ្តើមឡើងវិញ)។ មិនចាំបាច់ដំណើរការ `llama-server` ដាច់ដោយឡែកទេ — ម៉ូដែលត្រូវបានផ្ទុកផ្ទាល់នៅក្នុងដំណើរការរបស់ `app.py`។
+**ថតម៉ូដែល GGUF**៖ ដាក់ឯកសារ `.gguf` ទៅក្នុងថតណាមួយ។ កំណត់ថតតាមរយៈអថេរបរិស្ថាន `LLAMA_CPP_MODEL_DIR` ឬវាយផ្លូវក្នុងប្រអប់ "📁 ថតម៉ូដែល GGUF" នៅក្នុង UI រួចចុច "🔍 ស្កេន"។
 
 </details>
 
@@ -256,7 +256,7 @@ python app.py
 ├── chat.py           # Handler សន្ទនាសម្រាប់ផ្ទាំង General/RAG/Vision
 ├── ui.py             # ការសង់ចំណុចប្រទាក់ Gradio និងការភ្ជាប់ event ទាំងអស់
 ├── index_docs.py     # ស្គ្រីប CLI សម្រាប់បញ្ចូលឯកសារ
-├── requirements.txt  # Dependencies របស់ Python (រួមទាំង python-docx, llama-cpp-python)
+├── requirements.txt   # Dependencies របស់ Python (រួមទាំង python-docx)
 ├── SETUP.bat/.ps1    # កម្មវិធីដំឡើងលើ Windows (GPU detection, venv, deps)
 ├── RUN.bat/.ps1      # កម្មវិធីដំណើរការលើ Windows ដោយចុចតែម្តង
 ├── install.bat/.ps1  # កម្មវិធីដំឡើងតាមអ៊ីនធឺណិត (Python+Git+clone+setup+shortcut)
@@ -336,7 +336,7 @@ pip install torch torchvision
 #### 💻 One-liner Windows install (fresh machine)
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/SmolAgent/main/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/SmolAgent/smolagent_modular/install.ps1 | iex
 ```
 
 This single command installs Python + Git (if missing), clones the repo, sets up the Python environment, detects your GPU, installs PyTorch + all dependencies, and creates a desktop shortcut — zero clicks required after the prompt.
@@ -346,15 +346,17 @@ On a machine that already has Python, just double-click **SETUP.bat** to do the 
 <details>
 <summary><strong>Optional — llama.cpp (GGUF) model support</strong></summary>
 
-`requirements.txt` already includes `llama-cpp-python`, but `pip install -r requirements.txt` alone only gives you a **CPU-only** build. For real GPU acceleration, use **SETUP.bat** instead — it will:
+`llama-cpp-python` is **not** installed by default. To use GGUF models (.gguf), you have two options:
 
-1. Detect your GPU (NVIDIA/CUDA, AMD/ROCm, or none)
-2. Probe several prebuilt CUDA wheel tiers, newest-compatible-with-your-driver first
-3. **Actually load a model as a smoke test** — catches the "Illegal Instruction" crash that happens when a prebuilt wheel assumes CPU features (like AVX512) your CPU doesn't have
-4. Fall back to compiling from source with `CMAKE_ARGS=-DGGML_CUDA=on` if no prebuilt wheel works (requires Visual Studio Build Tools + CUDA Toolkit)
-5. Fall back to a CPU-only build as a last resort — GGUF models still work, just slower
+**Option A — External backend (easiest):** Download `llama-server.exe` from [llama.cpp releases](https://github.com/ggerganov/llama.cpp/releases) and set its path in the UI → ⚙️ LLM Backend → "🖥️ llama-server.exe Path". No Python package install needed.
 
-To do this by hand on Windows/NVIDIA:
+**Option B — In-process (llama-cpp-python):** Install it manually:
+
+```powershell
+pip install llama-cpp-python
+```
+
+For GPU acceleration (CUDA):
 
 ```powershell
 pip uninstall llama-cpp-python -y
@@ -369,9 +371,7 @@ $env:FORCE_CMAKE = "1"
 pip install llama-cpp-python --no-cache-dir --force-reinstall
 ```
 
-**Flash Attention**: the app requests `flash_attn=True` automatically whenever a GPU is available. Some architectures (notably hybrid local/global attention models like Gemma-3/4) don't yet support Flash Attention in llama.cpp — the app transparently falls back to running without it instead of crashing.
-
-**GGUF model folder**: drop your `.gguf` files into any folder — no path is hardcoded. Point the app at it either by (1) setting the `LLAMA_CPP_MODEL_DIR` environment variable before launching, or (2) typing the folder path into the "📁 GGUF Model Folder" box in the UI and clicking "🔍 Scan" (no restart needed). No separate `llama-server` process is required — models load directly inside `app.py`.
+**GGUF model folder**: drop your `.gguf` files into any folder. Point the app at it by setting the `LLAMA_CPP_MODEL_DIR` environment variable before launching, or typing the folder path into the "📁 GGUF Model Folder" box in the UI and clicking "🔍 Scan".
 
 </details>
 
@@ -519,7 +519,7 @@ For people with beefier hardware who want noticeably stronger local models than 
 ├── chat.py            # Chat-turn handlers for General/RAG/Vision tabs
 ├── ui.py              # Gradio Blocks UI + all event wiring
 ├── index_docs.py      # CLI indexing script
-├── requirements.txt   # Python dependencies (incl. python-docx, llama-cpp-python)
+├── requirements.txt   # Python dependencies (incl. python-docx)
 ├── SETUP.bat/.ps1     # Windows one-click installer (GPU detection, venv, deps)
 ├── RUN.bat/.ps1       # Windows one-click launcher
 ├── install.bat/.ps1   # Windows one-liner installer (Python+Git+clone+setup+shortcut)

@@ -7,7 +7,7 @@
     shortcut. Run this script on a FRESH machine to go from zero to running.
 
     USAGE (one-liner — paste into PowerShell):
-        iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/SmolAgent/main/install.ps1 | iex
+        iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/SmolAgent/smolagent_modular/install.ps1 | iex
 
 .PARAMETER InstallDir
     Directory to clone the repo into  (default: current directory).
@@ -91,7 +91,7 @@ Write-Host ""
 # STEP 1: Check / Install Python
 # ══════════════════════════════════════════════════════════════════
 
-Write-Step "STEP 1/6: Python"
+Write-Step "STEP 1/5: Python"
 
 $needPython = $false
 $pyVer = $null
@@ -161,7 +161,7 @@ Write-Ok "pip is ready."
 # STEP 2: Check / Install Git
 # ══════════════════════════════════════════════════════════════════
 
-Write-Step "STEP 2/6: Git"
+Write-Step "STEP 2/5: Git"
 
 if (-not (Test-Command git)) {
     Write-Warn "Git not found in PATH. Installing Git for Windows..."
@@ -197,7 +197,7 @@ if (-not (Test-Command git)) {
 # STEP 3: Clone the repository
 # ══════════════════════════════════════════════════════════════════
 
-Write-Step "STEP 3/6: Downloading SmolAgent"
+Write-Step "STEP 3/5: Downloading SmolAgent"
 
 if (Test-Path $targetDir) {
     if (Test-Path (Join-Path $targetDir ".git")) {
@@ -209,7 +209,7 @@ if (Test-Path $targetDir) {
     }
 } else {
     Write-Host "  Cloning $REPO_URL ..."
-    git clone $REPO_URL $targetDir 2>&1 | ForEach-Object { "  $_" }
+    git clone --branch smolagent_modular $REPO_URL $targetDir 2>&1 | ForEach-Object { "  $_" }
     if ($LASTEXITCODE -ne 0) {
         Write-Err "Failed to clone repository. Check your internet connection."
         exit 1
@@ -220,38 +220,10 @@ Set-Location $targetDir
 
 
 # ══════════════════════════════════════════════════════════════════
-# STEP 4: Decide on llama-cpp-python
+# STEP 4: Run SETUP.ps1 (GPU detection, venv, PyTorch, deps, Playwright)
 # ══════════════════════════════════════════════════════════════════
 
-Write-Step "STEP 4/6: Configure optional components"
-
-if ($NonInteractive) {
-    $llamaFlag = "-SkipLlamaCpp"
-    Write-Ok "Non-interactive mode: skipping llama-cpp-python."
-} else {
-    Write-Host ""
-    Write-Host "  llama-cpp-python is needed to run local GGUF models (.gguf files)" -ForegroundColor Yellow
-    Write-Host "  through the in-process llama.cpp backend. It can take a LONG time to" -ForegroundColor Yellow
-    Write-Host "  install (especially if it needs to compile from source). You can skip" -ForegroundColor Yellow
-    Write-Host "  it now and still use the app with HuggingFace models, or re-run" -ForegroundColor Yellow
-    Write-Host "  SETUP.bat later if you change your mind." -ForegroundColor Yellow
-    Write-Host ""
-    $resp = Read-Host "  Install llama-cpp-python? (y/N) "
-    if ($resp -match '^(y|yes)') {
-        $llamaFlag = "-InstallLlamaCppForced"
-        Write-Ok "llama-cpp-python will be installed (this may take several minutes)."
-    } else {
-        $llamaFlag = "-SkipLlamaCpp"
-        Write-Ok "Skipping llama-cpp-python. Run SETUP.bat later to add it."
-    }
-}
-
-
-# ══════════════════════════════════════════════════════════════════
-# STEP 5: Run SETUP.ps1 (GPU detection, venv, PyTorch, deps, Playwright)
-# ══════════════════════════════════════════════════════════════════
-
-Write-Step "STEP 5/6: Installing Python environment and dependencies"
+Write-Step "STEP 4/5: Installing Python environment and dependencies"
 
 $setupPs1 = Join-Path $targetDir "SETUP.ps1"
 if (-not (Test-Path $setupPs1)) {
@@ -264,7 +236,7 @@ Write-Host "  This will download ~2-3 GB of packages (PyTorch, transformers, etc
 Write-Host "  and may take 10-30 minutes depending on your internet speed."
 Write-Host ""
 
-& powershell -NoProfile -ExecutionPolicy Bypass -File $setupPs1 -NonInteractive $llamaFlag
+& powershell -NoProfile -ExecutionPolicy Bypass -File $setupPs1 -NonInteractive
 
 if ($LASTEXITCODE -ne 0) {
     Write-Warn "SETUP.ps1 exited with code $LASTEXITCODE — some components may not be installed."
@@ -275,10 +247,10 @@ if ($LASTEXITCODE -ne 0) {
 
 
 # ══════════════════════════════════════════════════════════════════
-# STEP 6: Desktop shortcut + finish
+# STEP 5: Desktop shortcut + finish
 # ══════════════════════════════════════════════════════════════════
 
-Write-Step "STEP 6/6: Creating desktop shortcut"
+Write-Step "STEP 5/5: Creating desktop shortcut"
 
 if (-not $NoShortcut) {
     $runBat = Join-Path $targetDir "RUN.bat"
