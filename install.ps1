@@ -268,8 +268,7 @@ Write-Step "STEP 5/5: Creating desktop shortcut"
 if (-not $NoShortcut) {
     $runBat = Join-Path $targetDir "RUN.bat"
     if (Test-Path $runBat) {
-        $scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { $PWD.Path }
-        $logoJpg = Join-Path $scriptDir "logo.jpg"
+        $logoJpg = Join-Path $targetDir "logo.jpg"
         $logoIco = Join-Path $targetDir "logo.ico"
         if (Test-Path $logoJpg) {
             Convert-JpgToIco -JpgPath $logoJpg -IcoPath $logoIco
