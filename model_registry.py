@@ -843,6 +843,7 @@ BASE_VLM_OPTIONS = {
     "🔵 SmolVLM-500M  (~1 GB RAM | recommended)": "HuggingFaceTB/SmolVLM-500M-Instruct",
     "🟢 Qwen2.5-VL-3B (~6 GB RAM)":           "Qwen/Qwen2.5-VL-3B-Instruct",
     "🟠 Qwen2.5-VL-7B (~15 GB RAM | hardware-tier recommended, 16GB+ VRAM)": "Qwen/Qwen2.5-VL-7B-Instruct",
+    HF_API_ENTRY_LABEL: HF_INFERENCE_API_SENTINEL,
 }
 
 # VLM_OPTIONS starts as a copy of the base HuggingFace VLMs. Any local
