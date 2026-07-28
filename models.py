@@ -147,13 +147,13 @@ def _release_model(obj):
     if obj is None:
         return
 
-    # llama-server (external process) backend: LlamaServerModel has no
-    # in-process model/KV-cache to release at all — the real memory lives
-    # in the separate llama-server subprocess. "Releasing" this object
-    # means stopping that subprocess, not any of the torch/llama.cpp
-    # cleanup below (which doesn't apply — there's no `.llm`/`.model`
-    # attribute holding real weights in this Python process).
-    if isinstance(obj, llama_backend.LlamaServerModel):
+    # llama-server (external process) backend: LlamaServerModel and
+    # LlamaServerVLMModel have no in-process model/KV-cache to release —
+    # the real memory lives in the separate llama-server subprocess.
+    # "Releasing" this object means stopping that subprocess, not any of
+    # the torch/llama.cpp cleanup below (which doesn't apply — there's no
+    # `.llm`/`.model` attribute holding real weights in this Python process).
+    if isinstance(obj, (llama_backend.LlamaServerModel, llama_backend.LlamaServerVLMModel)):
         llama_backend.stop_llama_server()
         del obj
         return
@@ -697,6 +697,27 @@ def get_vlm(model_id: Optional[str] = None, mmproj_path: Optional[str] = None):
     # ── GGUF vision model (llama.cpp) ─────────────────────────────
     if str(target).lower().endswith(".gguf"):
         if not llama_backend.LLAMA_CPP_AVAILABLE:
+            if llama_backend.LLAMA_SERVER_EXE_PATH:
+                if not mmproj_path:
+                    mmproj_path = mr.GGUF_VLM_MMPROJ_MAP.get(target)
+                if not mmproj_path:
+                    raise RuntimeError(
+                        f"No mmproj (vision projector) file is registered for "
+                        f"'{target}'. Select one from the mmproj dropdown in the "
+                        f"sidebar, or click '🔍 Scan' on the GGUF model folder so "
+                        f"it can be paired with a matching mmproj .gguf file."
+                    )
+                print(f"[VLM] llama-cpp-python not available — routing GGUF vision "
+                      f"through external llama-server …")
+                base_url = llama_backend.get_or_start_llama_server(target, mmproj_path=mmproj_path)
+                _vlm_model = llama_backend.LlamaServerVLMModel(
+                    base_url=base_url,
+                    model_path=target,
+                    timeout=mr.get_saved_llm_server_timeout(),
+                )
+                _vlm_processor = None
+                _vlm_model_id = target
+                return _vlm_model, _vlm_processor
             raise RuntimeError(
                 "llama-cpp-python is not installed — GGUF vision models "
                 "unavailable. Run SETUP.bat, or install it manually."
@@ -783,8 +804,8 @@ def get_vlm(model_id: Optional[str] = None, mmproj_path: Optional[str] = None):
 def vlm_answer(question: str, images: list, context: str = "", model_id: Optional[str] = None, mmproj_path: Optional[str] = None, lang_key: str = "kh") -> str:
     try:
         model, processor = get_vlm(model_id, mmproj_path=mmproj_path)
-        # GGUF vision model (llama.cpp) — self-contained answer() method.
-        if isinstance(model, llama_backend.LlamaCppVLMModel):
+        # GGUF vision model (in-process llama-cpp-python or external llama-server) — self-contained answer() method.
+        if isinstance(model, (llama_backend.LlamaCppVLMModel, llama_backend.LlamaServerVLMModel)):
             return model.answer(question, images, context=context, max_tokens=mr.get_saved_max_new_tokens())
         # HF Inference API VLM — also self-contained answer().
         if isinstance(model, InferenceApiVLMModel):

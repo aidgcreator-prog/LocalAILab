@@ -720,18 +720,19 @@ atexit.register(stop_llama_server)
 
 def get_or_start_llama_server(model_path: str, n_ctx: int = 16384,
                                n_gpu_layers: int = -1, port: Optional[int] = None,
-                               startup_timeout: int = 180) -> str:
+                               startup_timeout: int = 180,
+                               mmproj_path: Optional[str] = None) -> str:
     """Ensure a llama-server process is running with this exact
-    (model_path, n_ctx, n_gpu_layers) config, launching/relaunching it if
-    needed, and return its base URL (e.g. 'http://127.0.0.1:8080').
+    (model_path, n_ctx, n_gpu_layers, mmproj_path) config, launching/relaunching
+    it if needed, and return its base URL (e.g. 'http://127.0.0.1:8080').
 
     Reuses the already-running process untouched if the requested config
     matches exactly and it's still alive and healthy — restarting a
     multi-GB GGUF load on every single chat turn would be far too slow.
     Any config change (different model, different n_ctx, different
-    n_gpu_layers, ...) stops the old process and starts a fresh one,
-    mirroring models.get_llm()'s own "reload on config change" behaviour
-    for the in-process backend.
+    n_gpu_layers, different mmproj_path, ...) stops the old process and
+    starts a fresh one, mirroring models.get_llm()'s own "reload on config
+    change" behaviour for the in-process backend.
     """
     global _llama_server_proc, _llama_server_config
 
@@ -753,12 +754,14 @@ def get_or_start_llama_server(model_path: str, n_ctx: int = 16384,
 
     target_port = port or LLAMA_SERVER_DEFAULT_PORT
     wanted = {"model_path": model_path, "n_ctx": n_ctx,
-              "n_gpu_layers": n_gpu_layers, "port": target_port}
+              "n_gpu_layers": n_gpu_layers, "port": target_port,
+              "mmproj_path": mmproj_path}
 
     if (_llama_server_proc is not None and _llama_server_proc.poll() is None
             and _llama_server_config.get("model_path") == wanted["model_path"]
             and _llama_server_config.get("n_ctx") == wanted["n_ctx"]
             and _llama_server_config.get("n_gpu_layers") == wanted["n_gpu_layers"]
+            and _llama_server_config.get("mmproj_path") == wanted["mmproj_path"]
             and _server_health_ok(_llama_server_config.get("port", target_port))):
         return f"http://{LLAMA_SERVER_HOST}:{_llama_server_config['port']}"
 
@@ -777,6 +780,8 @@ def get_or_start_llama_server(model_path: str, n_ctx: int = 16384,
         "--port", str(target_port),
         "-ngl", str(n_gpu_layers if n_gpu_layers is not None else -1),
     ]
+    if mmproj_path:
+        cmd.extend(["--mmproj", mmproj_path])
     if LLAMA_SERVER_EXTRA_ARGS:
         cmd.extend(shlex.split(LLAMA_SERVER_EXTRA_ARGS))
 
@@ -937,6 +942,68 @@ class LlamaServerModel:
     # smolagents Model instances are called directly in some code paths
     def __call__(self, messages: list, stop_sequences: Optional[list] = None, **kwargs):
         return self.generate(messages, stop_sequences=stop_sequences, **kwargs)
+
+
+class LlamaServerVLMModel:
+    """Vision-language model via an external llama-server process.
+    Sends images as base64 data URIs over the OpenAI-compatible
+    /v1/chat/completions endpoint, so no in-process llama-cpp-python
+    is needed — works with any llama-server build that supports the
+    multimodal chat-completions API."""
+
+    def __init__(self, base_url: str, model_path: str, timeout: int = 300):
+        self.base_url = base_url.rstrip("/")
+        self.model_path = model_path
+        self.timeout = timeout
+
+    @staticmethod
+    def _image_to_data_url(img) -> str:
+        import base64
+        from io import BytesIO
+        buf = BytesIO()
+        img.convert("RGB").save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+        return f"data:image/png;base64,{b64}"
+
+    def answer(self, question: str, images: list, context: str = "",
+               max_tokens: int = 512, temperature: float = 0.6) -> str:
+        import requests
+        user_text = question + (f"\n\nContext:\n{context}" if context else "")
+        content = [{"type": "image_url", "image_url": {"url": self._image_to_data_url(img)}}
+                   for img in images]
+        content.append({"type": "text", "text": user_text})
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant. Answer based on images and context."},
+            {"role": "user", "content": content},
+        ]
+        payload = {
+            "model": self.model_path,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        try:
+            resp = requests.post(
+                f"{self.base_url}/v1/chat/completions",
+                json=payload,
+                timeout=self.timeout,
+            )
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"].strip()
+        except requests.exceptions.HTTPError as e:
+            body = ""
+            try:
+                body = resp.text[:2000]
+            except Exception:
+                body = str(e)
+            raise RuntimeError(
+                f"llama-server vision request failed (HTTP {resp.status_code}): {body}"
+            ) from e
+        except requests.exceptions.ConnectionError as e:
+            raise RuntimeError(
+                f"Cannot connect to llama-server at {self.base_url} for vision. "
+                f"Make sure llama-server is running and supports multimodal."
+            ) from e
 
 
 class LlamaCppVLMModel:

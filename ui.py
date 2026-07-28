@@ -238,6 +238,11 @@ def build_ui():
                 scan_gguf_btn = gr.Button(L["btn_scan_gguf"], scale=2)
             gguf_scan_status = gr.Textbox(show_label=False, interactive=False, visible=False)
 
+        # ── Global action: free all models (visible on every tab) ──
+        with gr.Row():
+            free_all_btn = gr.Button("💥 Free All VRAM", variant="stop", size="sm")
+            free_all_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+
         # ── Tabs ──────────────────────────────────────────────────
         with gr.Tabs():
 
@@ -859,6 +864,7 @@ def build_ui():
             return gr.update(value="\n".join(msgs), visible=True)
 
         free_vram_btn.click(do_free_vram, [lang_state], [free_vram_out])
+        free_all_btn.click(do_free_vram, [lang_state], [free_all_status])
 
         # General Chat
         def reload_gen_fn(label):
