@@ -21,8 +21,45 @@ import models
 from hardware import DEVICE
 from i18n import LANGUAGES
 
+import os
+import sys
+
 _visual_retriever    = None
 _visual_retriever_id = None
+
+
+def _add_poppler_to_path():
+    if sys.platform != "win32":
+        return
+    poppler_dir = Path.cwd() / "poppler"
+    if poppler_dir.exists():
+        for pdfinfo_file in poppler_dir.rglob("pdfinfo.exe"):
+            bin_dir = pdfinfo_file.parent
+            bin_str = str(bin_dir)
+            if bin_str not in os.environ["PATH"]:
+                os.environ["PATH"] = bin_str + os.pathsep + os.environ["PATH"]
+                print(f"[Poppler] Found local Poppler at: {bin_str}")
+            return
+
+    possible_paths = [
+        Path(sys.prefix) / "Library" / "bin",
+        Path(sys.prefix) / "bin",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "scoop" / "apps" / "poppler" / "current" / "bin",
+        Path(os.environ.get("USERPROFILE", "")) / "scoop" / "apps" / "poppler" / "current" / "bin",
+        Path(r"C:\poppler\Library\bin"),
+        Path(r"C:\poppler\bin"),
+        Path(r"C:\Program Files\poppler\Library\bin"),
+        Path(r"C:\Program Files\poppler\bin"),
+    ]
+    for p in possible_paths:
+        if p.exists() and (p / "pdfinfo.exe").exists():
+            p_str = str(p)
+            if p_str not in os.environ["PATH"]:
+                os.environ["PATH"] = p_str + os.pathsep + os.environ["PATH"]
+                print(f"[Poppler] Auto-detected Poppler at: {p_str}")
+            break
+
+_add_poppler_to_path()
 
 
 def get_file_path(f) -> Optional[str]:
@@ -82,6 +119,7 @@ def get_collection_embedding_dim() -> Optional[int]:
 
 
 def index_texts(texts: list, metadatas: list) -> int:
+    invalidate_doc_table_cache()
     col = models.get_chroma_collection()
     all_chunks, all_metas, all_ids = [], [], []
     for text, meta in zip(texts, metadatas):
@@ -104,40 +142,32 @@ def index_texts(texts: list, metadatas: list) -> int:
     return len(all_chunks)
 
 
-def get_visual_retriever():
-    global _visual_retriever
-
-    if _visual_retriever is not None:
+def _load_byaldi_model(retriever_id: str):
+    global _visual_retriever, _visual_retriever_id
+    if _visual_retriever is not None and _visual_retriever_id == retriever_id:
         return _visual_retriever
 
-    target = mr.DEFAULT_VISUAL_RETRIEVER
-
+    target = retriever_id or mr.DEFAULT_VISUAL_RETRIEVER
     try:
-        print(f"[Vision] Loading visual retriever: {target}")
-
         _visual_retriever = RAGMultiModalModel.from_pretrained(
-            target,
-            verbose=0,
+            target, index_root=mr.VISUAL_INDEX_DIR, verbose=0,
         )
-
-        print(f"[Vision] Loaded: {target}")
-
+        _visual_retriever_id = target
     except ValueError as e:
-        # Older Byaldi versions only support ColPali / ColQwen2
-        if "only supports ColPali and ColQwen2" not in str(e):
+        if "only supports ColPali and ColQwen2" in str(e):
+            fallback = "vidore/colqwen2-v1.0"
+            print(f"[Vision] '{target}' not supported by this version of Byaldi. Falling back to: {fallback}")
+            _visual_retriever = RAGMultiModalModel.from_pretrained(
+                fallback, index_root=mr.VISUAL_INDEX_DIR, verbose=0,
+            )
+            _visual_retriever_id = fallback
+        else:
             raise
-
-        fallback = "vidore/colqwen2-v1.0"
-
-        print(f"[Vision] '{target}' is not supported by this version of Byaldi.")
-        print(f"[Vision] Falling back to: {fallback}")
-
-        _visual_retriever = RAGMultiModalModel.from_pretrained(
-            fallback,
-            verbose=0,
-        )
-
     return _visual_retriever
+
+
+def get_visual_retriever():
+    return _load_byaldi_model(_visual_retriever_id or mr.DEFAULT_VISUAL_RETRIEVER)
 
 
 def index_pdf_visual(filepath: str, retriever_id: str) -> str:
@@ -145,15 +175,19 @@ def index_pdf_visual(filepath: str, retriever_id: str) -> str:
         global _visual_retriever, _visual_retriever_id
         index_path = Path(mr.VISUAL_INDEX_DIR) / "main"
         index_path.parent.mkdir(parents=True, exist_ok=True)
-        if _visual_retriever is None or _visual_retriever_id != retriever_id:
-            _visual_retriever = RAGMultiModalModel.from_pretrained(
-                retriever_id, index_root=mr.VISUAL_INDEX_DIR, verbose=0,
-            )
-            _visual_retriever_id = retriever_id
+        
+        _load_byaldi_model(retriever_id)
+
         if index_path.exists():
-            _visual_retriever.add_to_index(input_item=filepath,
-                                           store_collection_with_index=True,
-                                           doc_id=int(time.time()))
+            try:
+                retriever = RAGMultiModalModel.from_index(str(index_path))
+                retriever.add_to_index(input_item=filepath,
+                                       store_collection_with_index=True,
+                                       doc_id=int(time.time()))
+                _visual_retriever = retriever
+            except Exception:
+                _visual_retriever.index(input_path=filepath, index_name="main",
+                                        store_collection_with_index=True, overwrite=True)
         else:
             _visual_retriever.index(input_path=filepath, index_name="main",
                                     store_collection_with_index=True, overwrite=False)
@@ -161,6 +195,9 @@ def index_pdf_visual(filepath: str, retriever_id: str) -> str:
     except ImportError:
         return "⚠️ byaldi not installed — skipping visual index."
     except Exception as e:
+        err_str = str(e)
+        if "poppler" in err_str.lower() or "page count" in err_str.lower():
+            return "⚠️ Poppler not installed/in PATH — skipped visual PDF rendering (text index succeeded)."
         return f"❌ {e}"
 
 
@@ -306,10 +343,32 @@ def index_hf_dataset(dataset_name: str, text_col: str, source_col: str = "",
         return f"❌ {e}", get_doc_table()
 
 
-def get_doc_table() -> list:
-    col = models.get_chroma_collection()
-    if col.count() == 0:
+_DOC_TABLE_CACHE = None
+_DOC_TABLE_CACHE_COUNT = -1
+
+
+def invalidate_doc_table_cache():
+    global _DOC_TABLE_CACHE, _DOC_TABLE_CACHE_COUNT
+    _DOC_TABLE_CACHE = None
+    _DOC_TABLE_CACHE_COUNT = -1
+
+
+def get_doc_table(force_refresh: bool = False) -> list:
+    global _DOC_TABLE_CACHE, _DOC_TABLE_CACHE_COUNT
+    try:
+        col = models.get_chroma_collection()
+        count = col.count()
+    except Exception:
         return []
+
+    if count == 0:
+        _DOC_TABLE_CACHE = []
+        _DOC_TABLE_CACHE_COUNT = 0
+        return []
+
+    if not force_refresh and _DOC_TABLE_CACHE is not None and _DOC_TABLE_CACHE_COUNT == count:
+        return _DOC_TABLE_CACHE
+
     result = col.get(include=["metadatas"])
     agg = defaultdict(lambda: {"type": "", "pages": set(), "chunks": 0,
                                "theme": "", "subtheme": ""})
@@ -321,39 +380,68 @@ def get_doc_table() -> list:
         agg[src]["subtheme"] = m.get("subtheme", "")
         if m.get("page"):
             agg[src]["pages"].add(m["page"])
-    return [[src, info["type"],
+
+    table = [[src, info["type"],
              str(len(info["pages"])) if info["pages"] else "—",
              info["chunks"],
              info["theme"],
              info["subtheme"]]
             for src, info in sorted(agg.items())]
 
+    _DOC_TABLE_CACHE = table
+    _DOC_TABLE_CACHE_COUNT = count
+    return table
+
 
 def delete_selected_sources(selected_rows: list, doc_table_data: list) -> tuple:
+    invalidate_doc_table_cache()
     if not selected_rows:
-        return get_doc_table(), "⚠️ No rows selected."
+        return get_doc_table(force_refresh=True), "⚠️ No rows selected."
+    
+    current_table = get_doc_table(force_refresh=True)
+    rows_to_use = doc_table_data if (doc_table_data and len(doc_table_data) > 0) else current_table
+
     col, deleted = models.get_chroma_collection(), []
     for row_idx in selected_rows:
-        if row_idx >= len(doc_table_data):
+        if row_idx >= len(rows_to_use):
             continue
-        src    = doc_table_data[row_idx][0]
+        src = rows_to_use[row_idx][0]
         result = col.get(where={"source": src}, include=["metadatas"])
         if result["ids"]:
             col.delete(ids=result["ids"])
             deleted.append(f"'{src}' ({len(result['ids'])} chunks)")
+
+    invalidate_doc_table_cache()
     msg = ("🗑️ Deleted: " + ", ".join(deleted)) if deleted else "⚠️ Nothing deleted."
-    return get_doc_table(), msg
+    return get_doc_table(force_refresh=True), msg
 
 
 def clear_index() -> tuple:
+    import shutil
     import chromadb
-    client = chromadb.PersistentClient(path=mr.CHROMA_PERSIST_DIR)
+    invalidate_doc_table_cache()
+    
+    # 1. Delete ChromaDB collections
     try:
-        client.delete_collection("rag_docs")
+        client = chromadb.PersistentClient(path=mr.CHROMA_PERSIST_DIR)
+        for col in client.list_collections():
+            try:
+                client.delete_collection(col.name)
+            except Exception:
+                pass
     except Exception:
         pass
+        
     models.reset_chroma_collection()
     models.get_chroma_collection()
+
+    # 2. Delete visual index if present
+    if Path(mr.VISUAL_INDEX_DIR).exists():
+        try:
+            shutil.rmtree(mr.VISUAL_INDEX_DIR)
+        except Exception:
+            pass
+
     return [], "🗑️ All documents cleared."
 
 

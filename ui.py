@@ -484,58 +484,55 @@ def build_ui():
                         status_data = gr.Markdown(visible=False)
 
             # ── Tab 5: Knowledge Base ─────────────────────────────
-            # No "⚙️ Settings" equivalent here — kept as a single column.
             with gr.Tab(L["tab_kb"]) as tab_kb:
-                # Index stats (text chunks / visual index) — only relevant
-                # here and on the RAG Chat tab (the two places retrieval
-                # actually happens), not on every tab. Populated lazily via
-                # demo.load() below (see that comment for why it isn't
-                # computed inline at build time), and refreshed after any
-                # upload/delete/clear action further down.
-                kb_status_bar = gr.Textbox(
-                    value="…", interactive=False,
-                    show_label=False, elem_classes=["status-bar"]
-                )
-                provider_dd_embed = gr.Dropdown(
-                    choices=list(mr.EMBED_PROVIDER_OPTIONS.keys()),
-                    value=mr.get_provider_label(mr.EMBED_PROVIDER_OPTIONS, mr.get_saved_provider("embed")),
-                    label=L.get("label_provider", "Provider"),
-                )
-                embed_dd = gr.Dropdown(
-                    choices=list(mr.EMBED_OPTIONS.keys()),
-                    value=mr.get_default_embed_label(),
-                    label="Model",
-                )
                 with gr.Row():
-                    load_embed_btn = gr.Button(L["btn_load"], size="sm", scale=1)
-                    unload_embed_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
-                load_embed_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                with gr.Accordion(L["accordion_details"], open=False) as acc_embed_detail:
-                    embed_detail_md = gr.Markdown(L["info_embed_detail"])
-                with gr.Accordion(L["accordion_add"], open=True) as acc_add:
-                    file_up    = gr.File(label=L["file_label"], file_types=[".pdf",".txt",".md",".docx"], file_count="multiple")
-                    vis_ret_dd = gr.Dropdown(choices=list(mr.VISUAL_RETRIEVER_OPTIONS.keys()), value=list(mr.VISUAL_RETRIEVER_OPTIONS.keys())[0], label=L["label_vis_ret"])
-                    with gr.Row():
-                        theme_tb    = gr.Textbox(label=L["theme_label"], placeholder=L["theme_placeholder"], scale=1)
-                        subtheme_tb = gr.Textbox(label=L["subtheme_label"], placeholder=L["subtheme_placeholder"], scale=1)
-                    with gr.Row():
-                        up_btn             = gr.Button(L["btn_index"], variant="primary", scale=3)
-                        unload_visual_btn  = gr.Button(L["btn_unload"], size="sm", scale=2)
-                    up_msg = gr.Textbox(label=L["label_res"], interactive=False, lines=4, visible=False)
+                    with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
+                        kb_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
+                        kb_status_bar = gr.Textbox(
+                            value="…", interactive=False,
+                            show_label=False, elem_classes=["status-bar"]
+                        )
+                        provider_dd_embed = gr.Dropdown(
+                            choices=list(mr.EMBED_PROVIDER_OPTIONS.keys()),
+                            value=mr.get_provider_label(mr.EMBED_PROVIDER_OPTIONS, mr.get_saved_provider("embed")),
+                            label=L.get("label_provider", "Provider"),
+                        )
+                        embed_dd = gr.Dropdown(
+                            choices=list(mr.EMBED_OPTIONS.keys()),
+                            value=mr.get_default_embed_label(),
+                            label="Model",
+                        )
+                        with gr.Row():
+                            load_embed_btn = gr.Button(L["btn_load"], size="sm", scale=1)
+                            unload_embed_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                        load_embed_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+                        with gr.Accordion(L["accordion_details"], open=False) as acc_embed_detail:
+                            embed_detail_md = gr.Markdown(L["info_embed_detail"])
+                    with gr.Column(scale=7):
+                        with gr.Accordion(L["accordion_add"], open=True) as acc_add:
+                            file_up    = gr.File(label=L["file_label"], file_types=[".pdf",".txt",".md",".docx"], file_count="multiple")
+                            vis_ret_dd = gr.Dropdown(choices=list(mr.VISUAL_RETRIEVER_OPTIONS.keys()), value=list(mr.VISUAL_RETRIEVER_OPTIONS.keys())[0], label=L["label_vis_ret"])
+                            with gr.Row():
+                                theme_tb    = gr.Textbox(label=L["theme_label"], placeholder=L["theme_placeholder"], scale=1)
+                                subtheme_tb = gr.Textbox(label=L["subtheme_label"], placeholder=L["subtheme_placeholder"], scale=1)
+                            with gr.Row():
+                                up_btn             = gr.Button(L["btn_index"], variant="primary", scale=3)
+                                unload_visual_btn  = gr.Button(L["btn_unload"], size="sm", scale=2)
+                            up_msg = gr.Textbox(label=L["label_res"], interactive=False, lines=4, visible=False)
 
-                with gr.Accordion(L["label_kb_docs"], open=False) as acc_kb_docs:
-                    doc_table = gr.Dataframe(
-                        headers=L["doc_table_headers"],
-                        datatype=["str","str","str","number","str","str"],
-                        value=kb.get_doc_table,
-                        interactive=True, wrap=True,
-                    )
-                    with gr.Row():
-                        refresh_btn    = gr.Button(L["btn_refresh"], size="sm", scale=2)
-                        delete_sel_btn = gr.Button(L["btn_delete"], variant="stop", size="sm", scale=2)
-                        clear_all_btn  = gr.Button(L["btn_clear_all"], variant="stop", size="sm", scale=2)
-                    action_msg = gr.Textbox(label="", interactive=False, lines=1, visible=False)
-                selected_rows_state = gr.State([])
+                        with gr.Accordion(L["label_kb_docs"], open=False) as acc_kb_docs:
+                            doc_table = gr.Dataframe(
+                                headers=L["doc_table_headers"],
+                                datatype=["str","str","str","number","str","str"],
+                                value=[],
+                                interactive=True, wrap=True,
+                            )
+                            with gr.Row():
+                                refresh_btn    = gr.Button(L["btn_refresh"], size="sm", scale=2)
+                                delete_sel_btn = gr.Button(L["btn_delete"], variant="stop", size="sm", scale=2)
+                                clear_all_btn  = gr.Button(L["btn_clear_all"], variant="stop", size="sm", scale=2)
+                            action_msg = gr.Textbox(label="", interactive=False, lines=1, visible=False)
+                        selected_rows_state = gr.State([])
 
             # ── Tab 7: RAG Chat (agentic — see rag_agent.py) ──────
             with gr.Tab(L["tab_rag"]) as tab_rag:
@@ -1451,14 +1448,14 @@ def build_ui():
             except Exception as e:
                 msg = f"❌ {traceback.format_exc()}"
             stats = kb.get_index_stats(lang_key)
-            return gr.update(value=msg, visible=True), kb.get_doc_table(), gr.update(open=True), stats, stats
+            return gr.update(value=msg, visible=True), kb.get_doc_table(force_refresh=True), gr.update(open=True), stats, stats
 
         def unload_visual_fn(lang_key):
             return gr.update(value=kb.unload_visual_retriever_fn(lang_key), visible=True)
 
         def do_refresh(lang_key):
             stats = kb.get_index_stats(lang_key)
-            return kb.get_doc_table(), gr.update(open=True), stats, stats
+            return kb.get_doc_table(force_refresh=True), gr.update(open=True), stats, stats
 
         def do_delete(selected, table_data, lang_key):
             rows = table_data if isinstance(table_data, list) else table_data.values.tolist()
@@ -1471,6 +1468,7 @@ def build_ui():
             stats = kb.get_index_stats(lang_key)
             return table, gr.update(value=msg, visible=True), [], gr.update(open=True), stats, stats
 
+        acc_kb_docs.expand(lambda: kb.get_doc_table(), inputs=None, outputs=doc_table)
         doc_table.select(on_select,        [selected_rows_state], [selected_rows_state])
         up_btn.click(do_upload,            [file_up, vis_ret_dd, theme_tb, subtheme_tb, lang_state], [up_msg, doc_table, acc_kb_docs, kb_status_bar, rag_status_bar])
         unload_visual_btn.click(unload_visual_fn, [lang_state], [up_msg])
