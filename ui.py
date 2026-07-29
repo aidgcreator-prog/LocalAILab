@@ -1561,6 +1561,7 @@ def build_ui():
                 gr.update(label=l["label_memory"], info=l["info_memory"]),
                 gr.update(value=l["btn_load"]),
                 gr.update(value=l["btn_unload"]),
+                gr.update(value=l["btn_unload"]),
                 # STT
                 gr.update(label=l["stt_audio_label"]),
                 gr.update(value=l["btn_transcribe"]),
@@ -1634,7 +1635,6 @@ def build_ui():
                 gr.update(label=l["accordion_details"]), gr.update(value=l["info_memory_detail"]),
                 # ── Global Model Settings accordion (new) ──────────
                 gr.update(value=f"### {l['label_provider_section']}"),
-                gr.update(value=f"### {l['label_generation_section']}"),
                 gr.update(label=l["label_provider"]),
                 gr.update(label=l["label_provider"]),
                 gr.update(label=l["label_provider"]),
