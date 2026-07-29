@@ -1,13 +1,13 @@
-﻿<#
+<#
 .SYNOPSIS
-    One-click Windows installer for SmolAgent — local AI assistant by LocalAiLab.
+    One-click Windows installer for LocalAILab — local AI assistant by LocalAiLab.
 .DESCRIPTION
     Checks/installs Python and Git, clones the repo, sets up the Python
     environment (venv + PyTorch + all dependencies), and creates a desktop
     shortcut. Run this script on a FRESH machine to go from zero to running.
 
     USAGE (one-liner — paste into PowerShell):
-        iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/SmolAgent/smolagent_modular/install.ps1 | iex
+        iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/smolagent_modular/install.ps1 | iex
 
 .PARAMETER InstallDir
     Directory to clone the repo into  (default: current directory).
@@ -27,8 +27,8 @@ param(
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-$REPO_URL  = "https://github.com/aidgcreator-prog/SmolAgent.git"
-$REPO_NAME = "SmolAgent"
+$REPO_URL  = "https://github.com/aidgcreator-prog/LocalAILab.git"
+$REPO_NAME = "LocalAILab"
 
 if ([string]::IsNullOrWhiteSpace($InstallDir)) {
     $InstallDir = (Get-Location).Path
@@ -92,7 +92,7 @@ function Convert-JpgToIco {
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Green
-Write-Host " SmolAgent — Multipurpose AI Assistant" -ForegroundColor Green
+Write-Host " LocalAILab — Multipurpose AI Assistant" -ForegroundColor Green
 Write-Host " by LocalAiLab  |  smolagents + ChromaDB + llama.cpp" -ForegroundColor Green
 Write-Host "============================================================" -ForegroundColor Green
 Write-Host ""
@@ -210,7 +210,7 @@ if (-not (Test-Command git)) {
 # STEP 3: Clone the repository
 # ══════════════════════════════════════════════════════════════════
 
-Write-Step "STEP 3/5: Downloading SmolAgent"
+Write-Step "STEP 3/5: Downloading LocalAILab"
 
 if (Test-Path $targetDir) {
     if (Test-Path (Join-Path $targetDir ".git")) {

@@ -77,7 +77,7 @@ pip install torch torchvision
 #### 💻 ដំឡើងតែមួយបន្ទាត់ (ម៉ាស៊ីនថ្មី)
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/SmolAgent/smolagent_modular/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/smolagent_modular/install.ps1 | iex
 ```
 
 ពាក្យបញ្ជាតែមួយនេះ ដំឡើង Python + Git (បើគ្មាន) ទាញយក repo បង្កើត Python environment រកឃើញ GPU ដំឡើង PyTorch + dependencies ទាំងអស់ និងបង្កើត shortcut លើ Desktop។
@@ -358,7 +358,7 @@ pip install torch torchvision
 #### 💻 One-liner Windows install (fresh machine)
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/SmolAgent/smolagent_modular/install.ps1 | iex
+iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/smolagent_modular/install.ps1 | iex
 ```
 
 This single command installs Python + Git (if missing), clones the repo, sets up the Python environment, detects your GPU, installs PyTorch + all dependencies, and creates a desktop shortcut — zero clicks required after the prompt.
