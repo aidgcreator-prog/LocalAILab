@@ -52,7 +52,7 @@ echo.
 if %EXITCODE% equ 0 (
     echo ======================================================================
     echo  SUCCESS: Installer built successfully!
-    echo  Output Location: "%SCRIPT_DIR%Output\LocalAiLab_Setup.exe"
+    echo  Output Location: "%SCRIPT_DIR%Output\LocalAiLab_Setup_v0.0.3.exe"
     echo ======================================================================
 ) else (
     echo [ERROR] Installer build failed with exit code %EXITCODE%.

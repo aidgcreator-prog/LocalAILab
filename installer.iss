@@ -2,7 +2,7 @@
 ; Inno Setup Script for LocalAiLab Assistant
 ; =====================================================================
 ; This script packages LocalAiLab Assistant into a single Windows Setup
-; wizard (LocalAiLab_Setup.exe). When executed by an end user, it extracts
+; wizard (LocalAiLab_Setup_v0.0.3.exe). When executed by an end user, it extracts
 ; the source files, runs SETUP.bat silently to create the Python venv &
 ; install PyTorch/dependencies, and creates Desktop/Start Menu shortcuts.
 ; =====================================================================
@@ -11,7 +11,7 @@
 #define MyAppVersion "0.0.3 beta"
 #define MyAppPublisher "LocalAiLab"
 #define MyAppExeName "RUN.bat"
-#define MyOutputBaseFilename "LocalAiLab_Setup"
+#define MyOutputBaseFilename "LocalAiLab_Setup_v0.0.3"
 
 [Setup]
 AppId={{8F92E341-B8D2-4C10-9E11-54A62D719F8C}
@@ -28,6 +28,8 @@ SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
 DisableProgramGroupPage=yes
+DisableDirPage=no
+UsePreviousAppDir=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -37,7 +39,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; Copy all project files into the installation directory
-Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: ".git\*,.venv\*,chroma_db\*,__pycache__\*,Output\*,*.log"
+Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: ".git\*,.venv\*,chroma_db\*,__pycache__\*,Output\*,*.log,user_config.json"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Comment: "Launch {#MyAppName}"
@@ -88,7 +90,7 @@ begin
   end;
   if g_ProcessID <> 0 then
   begin
-    Exec('cmd.exe', '/c taskkill /F /T /PID ' + IntToStr(g_ProcessID), '', SW_HIDE, ewWaitUntilTerminated, KillResult);
+    Exec(ExpandConstant('{cmd}'), '/c taskkill /F /T /PID ' + IntToStr(g_ProcessID), '', SW_HIDE, ewWaitUntilTerminated, KillResult);
     g_ProcessID := 0;
   end;
 end;
@@ -139,8 +141,8 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   AppDir: String;
-  PsCmd: String;
-  PsParams: String;
+  BatCmd: String;
+  BatParams: String;
   ExitCode: DWORD;
   ProgressFile: String;
   StatusFile: String;
@@ -170,10 +172,10 @@ begin
     g_hProcess := 0;
     g_ProcessID := 0;
 
-    PsCmd := 'powershell.exe';
-    PsParams := '-NoProfile -ExecutionPolicy Bypass -File "' + AppDir + '\SETUP.ps1" -NonInteractive';
+    BatCmd := ExpandConstant('{cmd}');
+    BatParams := '/c ""' + AppDir + '\SETUP.bat" -NonInteractive"';
 
-    if Exec(PsCmd, PsParams, AppDir, SW_HIDE, ewNoWait, g_ProcessID) then
+    if Exec(BatCmd, BatParams, AppDir, SW_HIDE, ewNoWait, g_ProcessID) then
     begin
       g_hProcess := OpenProcess(PROCESS_QUERY_INFORMATION or PROCESS_TERMINATE, False, g_ProcessID);
       Pct := 0;
@@ -224,6 +226,11 @@ begin
 
       DeleteFile(ProgressFile);
       DeleteFile(StatusFile);
+    end
+    else
+    begin
+      g_IsRunningSetup := False;
+      SuppressibleMsgBox('Failed to launch SETUP.bat automatically. Please run SETUP.bat manually inside ' + AppDir, mbError, MB_OK, IDOK);
     end;
   end;
 end;

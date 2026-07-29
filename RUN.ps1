@@ -33,7 +33,7 @@ if (-not (Test-Path $venvPython)) {
 $activateScript = Join-Path $root ".venv\Scripts\Activate.ps1"
 if (Test-Path $activateScript) {
     try {
-        & $activateScript
+        . $activateScript
     } catch {
         Write-Host "[ព្រមាន] មិនអាចធ្វើឱ្យ venv សកម្មបានទេ (Execution Policy?) ។" -ForegroundColor Yellow
         Write-Host "         កំពុងបន្តដោយប្រើ python ក្នុង .venv ដោយផ្ទាល់។"
@@ -80,7 +80,7 @@ Write-Host "ចុច Ctrl+C ដើម្បីបញ្ឈប់កម្មវ
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
-python app.py
+& $venvPython app.py
 $exitCode = $LASTEXITCODE
 
 if ($exitCode -ne 0) {

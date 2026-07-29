@@ -12,8 +12,9 @@
 
 ចំណុចប្រទាក់អាចប្តូរភាសាបានភ្លាមៗ (**ខ្មែរ** ⇄ **អង់គ្លេស**) នៅជ្រុងខាងលើស្តាំ។ ផ្ទាំង **ℹ️ អំពីកម្មវិធី** បង្ហាញព័ត៌មានទាំងពីរភាសាជានិច្ច (ខ្មែរខាងលើ អង់គ្លេសខាងក្រោម) ដោយមិនអាស្រ័យលើបញ្ជីទម្លាក់ភាសានោះទេ។
 
-### 🆕 អ្វីដែលថ្មីក្នុងកំណែនេះ
+### 🆕 អ្វីដែលថ្មីក្នុងកំណែ 0.0.3 beta
 
+- **📦 កម្មវិធីដំឡើង Setup Wizard (`LocalAiLab_Setup_v0.0.3.exe`)**៖ បង្កើតឡើងដោយ Inno Setup ដែលអនុញ្ញាតឱ្យអ្នកប្រើប្រាស់ជ្រើសរើសផ្លូវដំឡើង (ឧ. `E:\LocalAiLab`) បង្ហាញរបារកើនឡើង Progress Bar (0%–100%) ជាមួយព័ត៌មានលម្អិតបន្តផ្ទាល់ ( live status) ពេលដំឡើង `.venv` & PyTorch/dependencies មានប៊ូតុង **បោះបង់ (Cancel)** អាចចុចនិងបង្ខំបិទបាន និងបង្កើត shortcut លើ Desktop/Start Menu ដោយស្វ័យប្រវត្តិ
 - **⚙️ Accordion "ការកំណត់ម៉ូដែល" ជាសកល**៖ ការកំណត់ provider/backend រួម (HF API token/model/provider, LiteLLM, ផ្លូវ `llama-server.exe`, ផ្លូវ `whisper-server.exe`, ថតម៉ូដែល GGUF) ត្រូវបានប្រមូលផ្តុំក្នុង accordion តែមួយនៅផ្នែកខាងលើកម្មវិធី។ ចំណែក **provider + model dropdown របស់ផ្ទាំងនីមួយៗ (និងប៊ូតុង Load/Unload)** នៅតែស្ថិតនៅក្នុងជ្រុងខាងស្តាំរបស់ផ្ទាំងនោះផ្ទាល់ (មិនមែនប្រមូលទៅក្នុង accordion កណ្តាលនោះទេ)។ ការកំណត់ Generation (វិន្ដូបរិបទ, Max New Tokens, ប្តូរបិទ/បើក Reasoning, "💥 ទំនេរ VRAM ទាំងអស់") សុទ្ធតែស្ថិតនៅផ្ទាំង 💬 ការសន្ទនាទូទៅ ប៉ុន្តែមានឥទ្ធិពលទៅលើកម្មវិធីទាំងមូល ព្រោះវារក្សាទុកជា setting សកល
 - **🔗 LiteLLM provider**៖ ក្រៅពី HuggingFace API អ្នកអាចភ្ជាប់ទៅ OpenAI/Anthropic/Groq/… ណាមួយដែល LiteLLM គាំទ្រ តាមរយៈ Model ID + API Key + API Base ផ្ទាល់ខ្លួន (មានតែសម្រាប់ LLM tab ប៉ុណ្ណោះ មិនមែន VLM/STT/Embedding ទេ)
 - **🖥️ whisper.cpp server backend** (`whisper_cpp_backend.py`)៖ STT អាចដំណើរការតាមរយៈ `whisper-server.exe` ដោយមានការគ្រប់គ្រង subprocess និង model discovery ដោយស្វ័យប្រវត្តិ
@@ -74,7 +75,15 @@ pip install -r requirements.txt
 pip install torch torchvision
 ```
 
-#### 💻 ដំឡើងតែមួយបន្ទាត់ (ម៉ាស៊ីនថ្មី)
+#### 📦 ជម្រើស ១ — ដំឡើងតាមរយ: Windows Setup Wizard (ណែនាំសម្រាប់អ្នកប្រើប្រាស់)
+
+ទាញយក និងដំណើរការ **`Output\LocalAiLab_Setup_v0.0.3.exe`**៖
+- អនុញ្ញាតឱ្យអ្នកជ្រើសរើសផ្លូវដំឡើងដែលចង់បាន (ឧ. `E:\LocalAiLab`)
+- ដំណើរការបង្កើត `.venv` និងដំឡើង PyTorch + AI dependencies ទាំងអស់ដោយស្វ័យប្រវត្តិ ជាមួយការបង្ហាញ progress bar (0%–100%)
+- មានប៊ូតុង Cancel អាចចុចបោះបង់ការដំឡើងបានគ្រប់ពេល
+- បង្កើត Shortcut លើ Desktop និង Start Menu ដោយស្វ័យប្រវត្តិ
+
+#### 💻 ជម្រើស ២ — ដំឡើងតាមរយ: ស្គ្រីប បន្ទាត់តែមួយ
 
 ```powershell
 iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/smolagent_modular/install.ps1 | iex
@@ -278,6 +287,9 @@ python app.py
 ├── SETUP.bat/.ps1    # កម្មវិធីដំឡើងលើ Windows (GPU detection, venv, deps)
 ├── RUN.bat/.ps1      # កម្មវិធីដំណើរការលើ Windows ដោយចុចតែម្តង
 ├── install.bat/.ps1  # កម្មវិធីដំឡើងតាមអ៊ីនធឺណិត (Python+Git+clone+setup+shortcut)
+├── installer.iss     # ស្គ្រីប Inno Setup GUI Wizard (LocalAiLab_Setup_v0.0.3.exe)
+├── BUILD_INSTALLER.bat # ស្គ្រីបសម្រាប់ compile installer.iss ទៅជា .exe
+├── Output/           # ថតលទ្ធផល compile installer wizard (LocalAiLab_Setup_v0.0.3.exe)
 ├── README.md         # ឯកសារនេះ
 ├── chroma_db/        # បង្កើតដោយស្វ័យប្រវត្តិ; ការផ្ទុកទិន្នន័យជាប់លាប់របស់ ChromaDB
 └── visual_index/     # បង្កើតដោយស្វ័យប្រវត្តិ; ការផ្ទុក Visual Index
@@ -294,8 +306,9 @@ A local, multipurpose AI assistant built by **LocalAiLab** with [smolagents](htt
 
 The UI is fully bilingual — switch between **Khmer** and **English** instantly using the language dropdown in the top-right corner. The **ℹ️ About** tab always shows both languages (Khmer above, English below), regardless of that dropdown.
 
-### 🆕 What's New in This Release
+### 🆕 What's New in Version 0.0.3 beta
 
+- **📦 Windows GUI Setup Wizard (`LocalAiLab_Setup_v0.0.3.exe`)**: Built with Inno Setup. Allows users to choose any custom installation path (e.g. `E:\LocalAiLab`), shows a real-time progress bar (0%–100%) with live setup status during `.venv` creation & PyTorch/dependency installation, includes an active and enforceable **Cancel** button, and automatically creates Desktop & Start Menu shortcuts.
 - **⚙️ Global "Model Settings" accordion**: shared provider/backend config (HF API token/model/provider, LiteLLM, `llama-server.exe` path, `whisper-server.exe` path, GGUF model folder) is collected into a single accordion near the top of the app. Each tab's own **provider dropdown + model dropdown + Load/Unload buttons** still live in that tab's own sidebar column (not moved into the central accordion). Generation settings (Context Window, Max New Tokens, the Reasoning toggle, "💥 Free All VRAM") live in the 💬 General Chat tab's sidebar, but apply app-wide since they're persisted global settings.
 - **🔗 LiteLLM provider**: besides the HF Inference API, the LLM tab can now point at any OpenAI/Anthropic/Groq/etc. endpoint LiteLLM supports, via a Model ID + API Key + API Base you configure yourself (LLM only — not available for VLM/STT/Embedding).
 - **🖥️ whisper.cpp server backend** (`whisper_cpp_backend.py`): STT can now run via a `whisper-server.exe` subprocess, with automatic model file discovery, port management, and settings persistence.
@@ -355,7 +368,15 @@ pip install -r requirements.txt
 pip install torch torchvision
 ```
 
-#### 💻 One-liner Windows install (fresh machine)
+#### 📦 Option 1 — Windows GUI Setup Wizard (Recommended for End Users)
+
+Download and run **`Output\LocalAiLab_Setup_v0.0.3.exe`**:
+- Lets you choose your preferred destination directory (e.g. `E:\LocalAiLab`).
+- Automatically creates `.venv` and installs PyTorch + AI dependencies with a live progress bar (0%–100%).
+- Provides a clickable and enforceable Cancel button.
+- Automatically creates Desktop and Start Menu shortcuts.
+
+#### 💻 Option 2 — One-liner Windows command (fresh machine)
 
 ```powershell
 iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/smolagent_modular/install.ps1 | iex
@@ -559,6 +580,9 @@ For people with beefier hardware who want noticeably stronger local models than 
 ├── SETUP.bat/.ps1     # Windows one-click installer (GPU detection, venv, deps)
 ├── RUN.bat/.ps1       # Windows one-click launcher
 ├── install.bat/.ps1   # Windows one-liner installer (Python+Git+clone+setup+shortcut)
+├── installer.iss      # Inno Setup GUI Wizard script (LocalAiLab_Setup_v0.0.3.exe)
+├── BUILD_INSTALLER.bat # Batch script to compile installer.iss into .exe
+├── Output/            # Output folder for compiled setup wizard (LocalAiLab_Setup_v0.0.3.exe)
 ├── README.md          # This file
 ├── chroma_db/         # Auto-created; ChromaDB persistent storage
 └── visual_index/      # Auto-created; visual index storage
