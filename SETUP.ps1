@@ -383,30 +383,9 @@ Write-Host ""
 Write-Host "[6/8] កំពុងដំឡើង dependencies របស់គម្រោង (requirements.txt)..."
 Write-Host "      អាចចំណាយពេលច្រើននាទី..."
 
-Write-Host " កំពុងដំឡើង packages ស្នូល..."
-& python -m pip install `
-    "smolagents[transformers]>=1.8.0" `
-    "ddgs>=9.0.0" `
-    "chromadb>=0.5.0" `
-    "sentence-transformers>=3.0.0" `
-    "FlagEmbedding>=1.2.0" `
-    "transformers>=4.51.0" `
-    "accelerate>=0.30.0" `
-    "bitsandbytes>=0.43.0" `
-    "PyMuPDF>=1.24.0" `
-    "datasets>=2.20.0" `
-    "gradio>=4.40.0" `
-    "Pillow>=10.0.0" `
-    --quiet
+Write-Host " កំពុងដំឡើង packages ទាំងអស់ពី requirements.txt..."
+& python -m pip install -r (Join-Path $root "requirements.txt") --quiet
 $coreExit = $LASTEXITCODE
-
-Write-Host " កំពុងដំឡើង packages ចក្ខុវិស័យ (vision)..."
-& python -m pip install `
-    "qwen-vl-utils>=0.0.8" `
-    "byaldi>=0.0.6" `
-    "colpali-engine>=0.3.5" `
-    "pdf2image>=1.17.0" `
-    --quiet
 
 Write-Host ""
 Write-Host "+------------------------------------------------------------------+" -ForegroundColor Cyan
@@ -423,12 +402,8 @@ Write-Host "+------------------------------------------------------------------+
 Write-Host ""
 
 if ($coreExit -ne 0) {
-    Write-Host "[ព្រមាន] Package មួយចំនួនអាចនឹងបានបរាជ័យ។ កំពុងព្យាយាមម្តងទៀតម្តងមួយៗ..." -ForegroundColor Yellow
-    $pkgs = @("smolagents[transformers]", "ddgs>=9.0.0", "chromadb", "sentence-transformers", "transformers>=4.51.0", "accelerate", "bitsandbytes", "PyMuPDF", "datasets", "gradio")
-    foreach ($p in $pkgs) {
-        Write-Host " កំពុងដំឡើង $p..."
-        & python -m pip install $p --quiet
-    }
+    Write-Host "[ព្រមាន] ការដំឡើង dependencies បានបរាជ័យ។ សូមពិនិត្យមើលកំណត់ត្រាខាងលើ។" -ForegroundColor Yellow
+    Write-Host "        សាកល្បងដំណើរការ: pip install -r requirements.txt" -ForegroundColor Yellow
 }
 Write-Host "[OK] Dependencies ត្រូវបានដំឡើង។" -ForegroundColor Green
 
@@ -506,14 +481,58 @@ if (-not $playwrightInstalled) {
     Write-Host " នៅលើផ្ទាំងនោះ ប្រសិនបើអ្នកមិនបានដំណើរការជំហាននេះដោយជោគជ័យទេ។" -ForegroundColor Yellow
 }
 
-# ── STEP 8: Quick smoke test ─────────────────────────────────────────
+# ── STEP 8: Comprehensive smoke test ──────────────────────────────────
 Write-Host ""
-Write-Host "[8/8] កំពុងសាកល្បងប្រព័ន្ធ (smoke test)..."
-& python -c "import torch, chromadb, gradio, smolagents; cuda=torch.cuda.is_available(); dev=torch.cuda.get_device_name(0) if cuda else 'CPU only'; print('  torch:', torch.__version__, '| GPU available:', cuda, '|', dev); print('  All imports OK')"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "[ព្រមាន] ការសាកល្បងមានបញ្ហា - សូមពិនិត្យលទ្ធផលខាងលើ។" -ForegroundColor Yellow
+Write-Host "[8/8] កំពុងសាកល្បងប្រព័ន្ធ (comprehensive smoke test)..."
+Write-Host ""
+
+$importOk = $true
+$testGroups = @(
+    @{label="Core";        pkgs=@("torch", "chromadb", "gradio")}
+    @{label="LLM/Embed";   pkgs=@("transformers", "sentence_transformers")}
+    @{label="Documents";   pkgs=@("fitz", "docx", "pandas")}
+    @{label="Audio/Vision"; pkgs=@("PIL", "soundfile", "librosa")}
+    @{label="Network";     pkgs=@("ddgs", "requests")}
+)
+
+foreach ($g in $testGroups) {
+    $groupOk = $true
+    $failedPkgs = @()
+    foreach ($p in $g.pkgs) {
+        & python -c "import $p; print('OK')" 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            $groupOk = $false
+            $importOk = $false
+            $failedPkgs += $p
+        }
+    }
+    $icon = if ($groupOk) { "[OK]" } else { "[ព្រមាន]" }
+    $color = if ($groupOk) { "Green" } else { "Yellow" }
+    if ($groupOk) {
+        Write-Host " $icon $($g.label)" -ForegroundColor $color
+    } else {
+        Write-Host " $icon $($g.label) — បរាជ័យ: $($failedPkgs -join ', ')" -ForegroundColor $color
+    }
+}
+
+# Optional packages — warn only, not a failure
+Write-Host ""
+$optionalPkgs = @("playwright", "bitsandbytes", "byaldi")
+foreach ($p in $optionalPkgs) {
+    & python -c "import $p; print('OK')" 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host " [ចំណាំ] $p មិនទាន់ដំឡើងទេ (មុខងារជម្រើស)" -ForegroundColor Cyan
+    } else {
+        Write-Host " [OK] $p" -ForegroundColor Green
+    }
+}
+
+Write-Host ""
+if ($importOk) {
+    Write-Host "[OK] ការសាកល្បងបានជោគជ័យ — dependencies ទាំងអស់ដំណើរការត្រឹមត្រូវ។" -ForegroundColor Green
 } else {
-    Write-Host "[OK] ការសាកល្បងបានជោគជ័យ។" -ForegroundColor Green
+    Write-Host "[ព្រមាន] កញ្ចប់មួយចំនួនបរាជ័យ — សូមពិនិត្យលទ្ធផលខាងលើ។" -ForegroundColor Yellow
+    Write-Host "        សាកល្បងដំណើរការ: pip install -r requirements.txt" -ForegroundColor Yellow
 }
 
 Write-Host "[ចំណាំ] llama-cpp-python (GGUF, in-process): មិនត្រូវបានដំឡើងទេ។ ម៉ូដែល GGUF" -ForegroundColor Cyan

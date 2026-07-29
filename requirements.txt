@@ -27,7 +27,7 @@ sentence-transformers>=3.0.0
 FlagEmbedding>=1.2.0            # optimal backend for BAAI/bge-m3
 
 # ── LLM / inference ───────────────────────────────────────────────
-torch>=2.2.0                    # install the CUDA wheel separately via SETUP.bat
+# torch>=2.2.0                  # installed by SETUP.ps1 from GPU-specific index — see SETUP.ps1 STEP 5
 transformers>=4.51.0
 accelerate>=0.30.0
 bitsandbytes>=0.43.0            # optional 4/8-bit quantisation
@@ -96,4 +96,3 @@ playwright>=1.40.0
 gradio>=4.40.0
 
 filelock<3.17
-librosa
