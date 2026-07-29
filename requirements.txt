@@ -61,7 +61,7 @@ librosa>=0.10.0                  # audio resampling for Whisper
 # ── Visual Document Retrieval (ColSmolVLM / ColQwen2) ────────────
 byaldi>=0.0.6                   # RAGMultiModalModel wrapper for ColPali-style models
 colpali-engine>=0.3.5           # underlying ColBERT-style multi-vector retrieval
-pdf2image>=1.17.0               # render PDF pages as images for visual indexing
+pdf2image>=1.17.0               # render PDF pages as images for visual indexing (requires Poppler binaries — auto-installed by SETUP.ps1 via scoop/choco/winget)
 
 # ── Document loaders ──────────────────────────────────────────────
 PyMuPDF>=1.24.0                 # fast PDF text extraction (imported as "fitz")

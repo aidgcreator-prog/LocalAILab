@@ -388,17 +388,31 @@ Write-Host " កំពុងដំឡើង packages ទាំងអស់ពី
 $coreExit = $LASTEXITCODE
 
 Write-Host ""
-Write-Host "+------------------------------------------------------------------+" -ForegroundColor Cyan
-Write-Host "|  សំខាន់: pdf2image ត្រូវការ Poppler សម្រាប់បម្លែង PDF->រូបភាព     |" -ForegroundColor Cyan
-Write-Host "|  (ត្រូវការសម្រាប់ការបញ្ចូល PDF បែបចក្ខុវិស័យ) ។                  |" -ForegroundColor Cyan
-Write-Host "|                                                                    |" -ForegroundColor Cyan
-Write-Host "|  ដំឡើង Poppler សម្រាប់ Windows:                                    |" -ForegroundColor Cyan
-Write-Host "|  https://github.com/oschwartz10612/poppler-windows/releases      |" -ForegroundColor Cyan
-Write-Host "|                                                                    |" -ForegroundColor Cyan
-Write-Host "|  បន្ទាប់មកបន្ថែម poppler/Library/bin ទៅក្នុង PATH របស់អ្នក។       |" -ForegroundColor Cyan
-Write-Host "|  បើគ្មានវាទេ ការបញ្ចូល PDF បែបចក្ខុវិស័យនឹងត្រូវបានបិទ។           |" -ForegroundColor Cyan
-Write-Host "|  ការបញ្ចូលអត្ថបទ និងការជជែកនៅតែដំណើរការធម្មតា។                   |" -ForegroundColor Cyan
-Write-Host "+------------------------------------------------------------------+" -ForegroundColor Cyan
+$hasPoppler = (Get-Command pdfinfo -ErrorAction SilentlyContinue) -or (Get-Command pdftoppm -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $root "poppler"))
+if (-not $hasPoppler) {
+    Write-Host "[*] កំពុងពិនិត្យ/ដំឡើង Poppler (សម្រាប់ការបម្លែង PDF->រូបភាព)..." -ForegroundColor Yellow
+    $popplerZip = Join-Path $root "poppler.zip"
+    $popplerDir = Join-Path $root "poppler"
+    try {
+        Write-Host "    [+] កំពុងទាញយក Poppler binaries សម្រាប់ Windows..." -ForegroundColor Cyan
+        $popplerUrl = "https://github.com/oschwartz10612/poppler-windows/releases/download/v24.08.0-0/Release-24.08.0-0.zip"
+        Invoke-WebRequest -Uri $popplerUrl -OutFile $popplerZip -UseBasicParsing
+        Write-Host "    [+] កំពុងពន្លាត Poppler ទៅកាន់ ./poppler..." -ForegroundColor Cyan
+        Expand-Archive -Path $popplerZip -DestinationPath $popplerDir -Force
+        Remove-Item -Path $popplerZip -Force -ErrorAction SilentlyContinue
+        Write-Host "[OK] Poppler ត្រូវបានដំឡើងដោយស្វ័យប្រវត្តិទៅកាន់ ./poppler" -ForegroundColor Green
+    } catch {
+        if (Get-Command scoop -ErrorAction SilentlyContinue) {
+            try { & scoop install poppler } catch {}
+        } elseif (Get-Command choco -ErrorAction SilentlyContinue) {
+            try { & choco install poppler -y } catch {}
+        } elseif (Get-Command winget -ErrorAction SilentlyContinue) {
+            try { & winget install --id=Software-Network.Poppler -e --accept-source-agreements --accept-package-agreements } catch {}
+        }
+    }
+} else {
+    Write-Host "[OK] Poppler ត្រូវបានដំឡើងរួចរាល់ហើយ។" -ForegroundColor Green
+}
 Write-Host ""
 
 if ($coreExit -ne 0) {
