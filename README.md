@@ -14,7 +14,7 @@
 
 ### 🆕 អ្វីដែលថ្មីក្នុងកំណែ 0.0.3 beta
 
-- **📦 កម្មវិធីដំឡើង Setup Wizard (`LocalAiLab_Setup_v0.0.3.exe`)**៖ បង្កើតឡើងដោយ Inno Setup ដែលអនុញ្ញាតឱ្យអ្នកប្រើប្រាស់ជ្រើសរើសផ្លូវដំឡើង (ឧ. `E:\LocalAiLab`) បង្ហាញរបារកើនឡើង Progress Bar (0%–100%) ជាមួយព័ត៌មានលម្អិតបន្តផ្ទាល់ ( live status) ពេលដំឡើង `.venv` & PyTorch/dependencies មានប៊ូតុង **បោះបង់ (Cancel)** អាចចុចនិងបង្ខំបិទបាន និងបង្កើត shortcut លើ Desktop/Start Menu ដោយស្វ័យប្រវត្តិ
+- **📦 កម្មវិធីដំឡើង Setup Wizard (`LocalAiLab_Setup_v0.0.3.exe`)**៖ បង្កើតឡើងដោយ Inno Setup ដែលអនុញ្ញាតឱ្យអ្នកប្រើប្រាស់ជ្រើសរើសផ្លូវដំឡើង (ឧ. `D:\LocalAiLab`) ដោយមិនត្រូវការសិទ្ធិ Admin (`PrivilegesRequired=lowest`) បង្ហាញរបារកើនឡើង Progress Bar (0%–100%) ជាមួយព័ត៌មានលម្អិតបន្តផ្ទាល់ (live status) ពេលដំឡើង `.venv` & PyTorch/dependencies មានប៊ូតុង **បោះបង់ (Cancel)** អាចចុចនិងបង្ខំបិទបាន និងបង្កើត shortcut លើ Desktop/Start Menu ដោយស្វ័យប្រវត្តិ
 - **⚙️ Accordion "ការកំណត់ម៉ូដែល" ជាសកល**៖ ការកំណត់ provider/backend រួម (HF API token/model/provider, LiteLLM, ផ្លូវ `llama-server.exe`, ផ្លូវ `whisper-server.exe`, ថតម៉ូដែល GGUF) ត្រូវបានប្រមូលផ្តុំក្នុង accordion តែមួយនៅផ្នែកខាងលើកម្មវិធី។ ចំណែក **provider + model dropdown របស់ផ្ទាំងនីមួយៗ (និងប៊ូតុង Load/Unload)** នៅតែស្ថិតនៅក្នុងជ្រុងខាងស្តាំរបស់ផ្ទាំងនោះផ្ទាល់ (មិនមែនប្រមូលទៅក្នុង accordion កណ្តាលនោះទេ)។ ការកំណត់ Generation (វិន្ដូបរិបទ, Max New Tokens, ប្តូរបិទ/បើក Reasoning, "💥 ទំនេរ VRAM ទាំងអស់") សុទ្ធតែស្ថិតនៅផ្ទាំង 💬 ការសន្ទនាទូទៅ ប៉ុន្តែមានឥទ្ធិពលទៅលើកម្មវិធីទាំងមូល ព្រោះវារក្សាទុកជា setting សកល
 - **🔗 LiteLLM provider**៖ ក្រៅពី HuggingFace API អ្នកអាចភ្ជាប់ទៅ OpenAI/Anthropic/Groq/… ណាមួយដែល LiteLLM គាំទ្រ តាមរយៈ Model ID + API Key + API Base ផ្ទាល់ខ្លួន (មានតែសម្រាប់ LLM tab ប៉ុណ្ណោះ មិនមែន VLM/STT/Embedding ទេ)
 - **🖥️ whisper.cpp server backend** (`whisper_cpp_backend.py`)៖ STT អាចដំណើរការតាមរយៈ `whisper-server.exe` ដោយមានការគ្រប់គ្រង subprocess និង model discovery ដោយស្វ័យប្រវត្តិ
@@ -31,6 +31,7 @@
 - **ការរកឃើញ GPU មិនត្រូវគ្នា**៖ ព្រមានក្នុង UI ជំនួសឱ្យការគាំងស្ងាត់ៗ
 - **Data Analysis Agent**៖ ដំឡើង Python package ដោយខ្លួនឯង EDA ពេញលេញ **និងជម្រើសវិភាគតាមប្រភេទ (ការលក់, អតិថិជន, ហិរញ្ញវត្ថុ, ប្រាក់ខែ)** — ជ្រើសរើស workflow ដើម្បីបំពេញប្រអប់សំណួរដោយស្វ័យប្រវត្តិ
 - **🔧 ជ្រើសរើស Embedding ឥតបញ្ហា**៖ ChromaDB បង្កើត collection ដាច់ដោយឡែកតាម dimension
+
 
 ### 📑 មាតិកា
 - [ស្ថាបត្យកម្ម](#️-ស្ថាបត្យកម្ម)
