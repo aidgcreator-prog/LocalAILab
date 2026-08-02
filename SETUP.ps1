@@ -31,21 +31,57 @@ function Write-InstallProgress([int]$Percent, [string]$Title, [string]$Detail) {
         Write-Host "[$Percent%] $Title"
     }
     try {
-        "$Percent|$Title|$Detail" | Out-File -FilePath $ProgressFile -Encoding UTF8 -Force
+        Write-FileUtf8NoBom $ProgressFile "$Percent|$Title|$Detail"
     } catch {}
 }
 
 function Set-InstallStatus([int]$Code) {
     try {
-        "$Code" | Out-File -FilePath $StatusFile -Encoding UTF8 -Force
+        [System.IO.File]::WriteAllText($StatusFile, "$Code", (New-Object System.Text.UTF8Encoding($false)))
     } catch {}
 }
+
+function Pause-Exit {
+    # Every terminal exit point in this script (success and every failure
+    # branch) calls this instead of a bare Read-Host. When the installer
+    # GUI (installer.iss) launches this script hidden with -NonInteractive,
+    # a bare Read-Host blocks forever on a console nobody can type into --
+    # installer.iss's own polling loop only watches install_status.txt to
+    # decide the run is "done" and does NOT terminate the process on a
+    # successful exit (only on cancel/failure), so the real process tree
+    # (cmd.exe -> SETUP.bat -> this script) was leaking as a permanently
+    # hung, hidden orphan after every automated install. Skipping the
+    # pause when $NonInteractive is set closes that leak; interactive
+    # double-click runs (SETUP.bat with no args) keep the pause so the
+    # window doesn't vanish before the user can read the final status.
+    if (-not $NonInteractive) {
+        Read-Host "ចុច Enter ដើម្បីបិទ"
+    }
+}
+
+function Write-FileUtf8NoBom([string]$Path, [string]$Content) {
+    [System.IO.File]::WriteAllText($Path, $Content, (New-Object System.Text.UTF8Encoding($false)))
+}
+
+function Invoke-PipRetry([string[]]$PipArgs, [int]$MaxAttempts = 2) {
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        & $venvPython -m pip @PipArgs
+        if ($LASTEXITCODE -eq 0) { return $true }
+        if ($attempt -lt $MaxAttempts) {
+            Write-Host "  [ព្យាយាមម្តងទៀត] pip បរាជ័យ (exit $LASTEXITCODE) - កំពុងព្យាយាមម្តងទៀត ($($attempt + 1)/$MaxAttempts)..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 5
+        }
+    }
+    return $false
+}
+
+$isElevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 # ── STEP 0: Check we are in the right folder & Path Length ─────────────────────
 if (-not (Test-Path -LiteralPath (Join-Path $root "app.py"))) {
     Write-Host "[កំហុស] រកមិនឃើញ app.py ។ សូមដំណើរការស្គ្រីបនេះពីក្នុងថតឫសនៃកម្មវិធី (ថតដែលមាន app.py) ។" -ForegroundColor Red
     Set-InstallStatus 1
-        Read-Host "ចុច Enter ដើម្បីបិទ"
+        Pause-Exit
         exit 1
 }
 
@@ -99,18 +135,19 @@ if ($needPython) {
         Write-Host "[កំហុស] ការទាញយកបានបរាជ័យ។ សូមពិនិត្យការតភ្ជាប់អ៊ីនធឺណិតរបស់អ្នក ហើយសាកល្បងម្តងទៀត។" -ForegroundColor Red
         Write-Host "        ឬដំឡើង Python 3.11 ដោយផ្ទាល់ពី: https://www.python.org/downloads/"
         Set-InstallStatus 1
-        Read-Host "ចុច Enter ដើម្បីបិទ"
+        Pause-Exit
         exit 1
     }
 
     Write-InstallProgress 15 "[1/8] កំពុងដំឡើង Python 3.11.9..." "Installing Python 3.11.9 (silent)..."
-    $installArgs = @("/quiet", "InstallAllUsers=1", "PrependPath=1", "Include_pip=1", "Include_launcher=1", "Include_test=0")
+    $installAllUsers = if ($isElevated) { "1" } else { "0" }
+    $installArgs = @("/quiet", "InstallAllUsers=$installAllUsers", "PrependPath=1", "Include_pip=1", "Include_launcher=1", "Include_test=0")
     $proc = Start-Process -FilePath $installerPath -ArgumentList $installArgs -Wait -PassThru
     if ($proc.ExitCode -ne 0) {
         Write-Host "[កំហុស] ការដំឡើង Python បានបរាជ័យ (exit code $($proc.ExitCode)) ។" -ForegroundColor Red
         Write-Host "        សូមដំឡើងដោយផ្ទាល់ពី: https://www.python.org/downloads/"
         Set-InstallStatus 1
-        Read-Host "ចុច Enter ដើម្បីបិទ"
+        Pause-Exit
         exit 1
     }
 
@@ -124,7 +161,7 @@ if ($needPython) {
         Write-Host "        សូម បិទ បង្អួចនេះ បើក PowerShell ថ្មី ហើយ"
         Write-Host "        ដំណើរការ SETUP.bat ម្តងទៀត។"
         Set-InstallStatus 1
-        Read-Host "ចុច Enter ដើម្បីបិទ"
+        Pause-Exit
         exit 1
     }
     $pyVer = ((& python --version) 2>&1) -replace "Python\s+", ""
@@ -140,7 +177,7 @@ if ($LASTEXITCODE -ne 0) {
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[កំហុស] មិនអាចដំឡើង pip បានទេ។ សូមដំណើរការ:  python -m ensurepip --upgrade" -ForegroundColor Red
         Set-InstallStatus 1
-        Read-Host "ចុច Enter ដើម្បីបិទ"
+        Pause-Exit
         exit 1
     }
 }
@@ -150,19 +187,74 @@ Write-Host "[OK] pip អាចប្រើប្រាស់បាន។" -Foreg
 Write-Host ""
 Write-InstallProgress 22 "[2/8] កំពុងបង្កើត virtual environment (.venv)..." "Setting up .venv folder..."
 $venvPython = Join-Path $root ".venv\Scripts\python.exe"
+$venvDir    = Join-Path $root ".venv"
+
+# A previous run that was interrupted (killed installer, crashed setup,
+# disk full mid-copy, etc.) can leave behind a ".venv" folder where
+# python.exe exists but the venv itself is incomplete — no pip, a
+# truncated site-packages, or a missing activation script. Simply
+# checking "does python.exe exist" (the old check) treats that broken
+# venv as valid, skips recreation, and then every later step (pip
+# upgrade, requirements install, PyTorch install) silently runs against
+# a broken interpreter — producing confusing failures anywhere from
+# Step 3 onward instead of a clear "venv is broken" message right here.
+# A real smoke test (actually launching the interpreter and confirming
+# pip is importable) catches this up front instead.
+$venvOk = $false
 if (Test-Path -LiteralPath $venvPython) {
-    Write-Host "[OK] .venv មានរួចហើយ កំពុងរំលងការបង្កើត។" -ForegroundColor Green
+    Write-Host " [*] .venv រកឃើញ — កំពុងផ្ទៀងផ្ទាត់ថាវានៅដំណើរការត្រឹមត្រូវ..." -ForegroundColor Cyan
+    & $venvPython -c "import sys, pip" *> $null
+    if ($LASTEXITCODE -eq 0) {
+        $venvOk = $true
+    } else {
+        Write-Host " [ព្រមាន] .venv មានស្រាប់ ប៉ុន្តែហាក់ដូចជាខូច/មិនពេញលេញ (python ដំណើរការមិនបាន ឬ pip បាត់)។" -ForegroundColor Yellow
+    }
+}
+
+if ($venvOk) {
+    Write-Host "[OK] .venv មានរួចហើយ និងដំណើរការត្រឹមត្រូវ — កំពុងរំលងការបង្កើត។" -ForegroundColor Green
 } else {
+    if (Test-Path -LiteralPath $venvDir) {
+        Write-InstallProgress 23 "[2/8] កំពុងលុប .venv ដែលខូច..." "Removing broken/incomplete .venv before recreating..."
+        Write-Host " [*] កំពុងលុបថត .venv ចាស់ (មិនពេញលេញ) ជាមុនសិន..." -ForegroundColor Yellow
+        try {
+            Remove-Item -LiteralPath $venvDir -Recurse -Force -ErrorAction Stop
+        } catch {
+            Write-Host "[កំហុស] មិនអាចលុបថត .venv ចាស់បានទេ: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "        សូមបិទកម្មវិធីណាមួយដែលអាចកំពុងប្រើឯកសារក្នុងថតនោះ (ឧ. Explorer, terminal) ហើយសាកល្បងម្តងទៀត," -ForegroundColor Red
+            Write-Host "        ឬលុប '$venvDir' ដោយដៃ ហើយដំណើរការ SETUP.bat ម្តងទៀត។" -ForegroundColor Red
+            Set-InstallStatus 1
+            Pause-Exit
+            exit 1
+        }
+    }
+
     & python -m venv .venv
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[កំហុស] បរាជ័យក្នុងការបង្កើត virtual environment ។" -ForegroundColor Red
         Set-InstallStatus 1
-        Read-Host "ចុច Enter ដើម្បីបិទ"
+        Pause-Exit
         exit 1
     }
-    Write-Host "[OK] Virtual environment ត្រូវបានបង្កើត។" -ForegroundColor Green
+
+    # Confirm the FRESH venv is actually usable too — a venv creation
+    # that exits 0 but still produces a broken interpreter (e.g. an
+    # interrupted disk write, antivirus quarantining a DLL mid-copy) is
+    # rare but not impossible, and failing loudly here is far more useful
+    # than the same failure resurfacing three steps later during
+    # requirements install.
+    & $venvPython -c "import sys, pip" *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[កំហុស] Virtual environment ត្រូវបានបង្កើត ប៉ុន្តែហាក់ដូចជាមិនដំណើរការត្រឹមត្រូវទេ (python/pip ប្រើមិនបាន)។" -ForegroundColor Red
+        Write-Host "        សូមព្យាយាមលុប '$venvDir' ដោយដៃ ហើយដំណើរការ SETUP.bat ម្តងទៀត។" -ForegroundColor Red
+        Set-InstallStatus 1
+        Pause-Exit
+        exit 1
+    }
+
+    Write-Host "[OK] Virtual environment ត្រូវបានបង្កើត និងផ្ទៀងផ្ទាត់ថាដំណើរការត្រឹមត្រូវ។" -ForegroundColor Green
 }
-Write-InstallProgress 25 "[2/8] Virtual environment រួចរាល់" ".venv created and activated"
+Write-InstallProgress 25 "[2/8] Virtual environment រួចរាល់" ".venv created/verified and ready"
 
 $activateScript = Join-Path $root ".venv\Scripts\Activate.ps1"
 try {
@@ -309,6 +401,14 @@ if (-not $gpuDone) {
 }
 
 # ── STEP 5: Install PyTorch ─────────────────────────────────────────
+# torch is pinned to <2.12 ON PURPOSE: colpali_engine (pulled in by
+# requirements.txt via `byaldi`) requires `torch<2.12.0,>=2.2.0`. If we
+# installed the newest torch here (2.13.x+), the Step 6 requirements
+# install would then DOWNGRADE torch to 2.11.x from the default index —
+# re-downloading a second multi-GB wheel and silently replacing this
+# GPU-matched build with a plain/CPU one. Pinning the same upper bound
+# here keeps the GPU/CPU wheel selected in this step consistent with what
+# Step 6 will accept, so no second download and no GPU-torch wipe.
 Write-Host ""
 if ($cudaVersion -eq "cpu") {
     Write-InstallProgress 40 "[5/8] កំពុងដំឡើង PyTorch (CPU-only)..." "Downloading PyTorch CPU wheels..."
@@ -316,15 +416,14 @@ if ($cudaVersion -eq "cpu") {
     Write-InstallProgress 40 "[5/8] កំពុងដំឡើង PyTorch ($cudaVersion)..." "Downloading PyTorch wheels for $cudaVersion (~2-3 GB)..."
 }
 Write-Host "      អាចចំណាយពេលច្រើននាទី (torch មានទំហំប្រហែល ២-៣ GB)..."
-& $venvPython -m pip install torch torchvision torchaudio --index-url $torchIndex
-if ($LASTEXITCODE -ne 0) {
+if (-not (Invoke-PipRetry @("install", "torch<2.12", "torchvision", "torchaudio", "--index-url", $torchIndex, "--timeout", "120") 3)) {
     Write-Host "[កំហុស] ការដំឡើង PyTorch បានបរាជ័យ។" -ForegroundColor Red
     if ($gpuBrand -eq "amd_rocm") {
         Write-Host "[គន្លឹះ] wheel ROCm ប្រហែលជាមិនមានសម្រាប់កំណែ ROCm របស់អ្នកទេ។" -ForegroundColor Yellow
         Write-Host "        សាកល្បង: https://pytorch.org/get-started/locally/ ដើម្បីរក wheel ត្រឹមត្រូវ។"
     }
     Set-InstallStatus 1
-        Read-Host "ចុច Enter ដើម្បីបិទ"
+        Pause-Exit
         exit 1
 }
 Write-Host "[OK] PyTorch ត្រូវបានដំឡើង ($cudaVersion) ។" -ForegroundColor Green
@@ -380,8 +479,7 @@ if ($cudaVersion -ne "cpu") {
         Write-InstallProgress 65 "[5b/8] កំពុងត្រលប់ទៅ CPU PyTorch វិញ..." "GPU CC incompatible. Installing CPU-only PyTorch wheel..."
         Write-Host "[ព្រមាន] GPU wheel ដំឡើងបានជោគជ័យ ប៉ុន្តែ GPU នេះ (Compute Capability: $computeCap) មិនត្រូវបានគាំទ្រដោយ PyTorch build នេះទេ (ប្រហែលជាចាស់ពេក ឬថ្មីពេក)។ កំពុងត្រលប់ទៅ CPU-only wheel វិញ ដោយស្វ័យប្រវត្តិ..." -ForegroundColor Yellow
         & $venvPython -m pip uninstall torch torchvision torchaudio -y 2>$null
-        & $venvPython -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-        if ($LASTEXITCODE -eq 0) {
+        if (Invoke-PipRetry @("install", "torch<2.12", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cpu", "--timeout", "120") 3) {
             $cudaVersion = "cpu"
             $torchIndex  = "https://download.pytorch.org/whl/cpu"
             Write-Host "[OK] កម្មវិធីនឹងដំណើរការនៅលើ CPU ជំនួសវិញ (GPU នេះមិនត្រូវបានគាំទ្រដោយ PyTorch កំណែថ្មីនេះទេ)។" -ForegroundColor Yellow
@@ -389,7 +487,7 @@ if ($cudaVersion -ne "cpu") {
         } else {
             Write-Host "[កំហុស] ការត្រលប់ទៅ CPU wheel ក៏បានបរាជ័យដែរ។ សូមដំណើរការ SETUP.bat ម្តងទៀត ឬដំឡើងដោយដៃ។" -ForegroundColor Red
             Set-InstallStatus 1
-            Read-Host "ចុច Enter ដើម្បីបិទ"
+            Pause-Exit
             exit 1
         }
     }
@@ -428,8 +526,7 @@ Write-InstallProgress 70 "[6/8] កំពុងដំឡើង dependencies រ�
 Write-Host "      អាចចំណាយពេលច្រើននាទី..."
 
 Write-Host " កំពុងដំឡើង packages ទាំងអស់ពី requirements.txt..."
-& $venvPython -m pip install -r (Join-Path $root "requirements.txt")
-$coreExit = $LASTEXITCODE
+$coreOk = Invoke-PipRetry @("install", "--prefer-binary", "--timeout", "120", "-r", (Join-Path $root "requirements.txt")) 3
 
 Write-Host ""
 $hasPoppler = (Get-Command pdfinfo -ErrorAction SilentlyContinue) -or (Get-Command pdftoppm -ErrorAction SilentlyContinue) -or (Test-Path -LiteralPath (Join-Path $root "poppler"))
@@ -460,9 +557,14 @@ if (-not $hasPoppler) {
 }
 Write-Host ""
 
-if ($coreExit -ne 0) {
-    Write-Host "[ព្រមាន] ការដំឡើង dependencies បានបរាជ័យ។ សូមពិនិត្យមើលកំណត់ត្រាខាងលើ។" -ForegroundColor Yellow
-    Write-Host "        សាកល្បងដំណើរការ: pip install -r requirements.txt" -ForegroundColor Yellow
+if (-not $coreOk) {
+    Write-Host ""
+    Write-Host "[កំហុស] ការដំឡើង dependencies បានបរាជ័យ។" -ForegroundColor Red
+    Write-Host "        សាកល្បងដំណើរការដោយដៃ: pip install -r requirements.txt" -ForegroundColor Red
+    Write-Host "        (ការបរាជ័យដោយសារបណ្តាញ អាចជោគជ័យពេលរត់ម្តងទៀត)" -ForegroundColor Yellow
+    Set-InstallStatus 1
+    Pause-Exit
+    exit 1
 }
 Write-Host "[OK] Dependencies ត្រូវបានដំឡើង។" -ForegroundColor Green
 Write-InstallProgress 82 "[6/8] Dependencies ត្រូវបានដំឡើង" "Core dependencies ready"
@@ -638,5 +740,4 @@ Write-Host " កម្មវិធីនឹងបើកនៅ:  http://localhost
 Write-Host ""
 Set-InstallStatus 0
 Write-InstallProgress 100 "ការដំឡើងបានបញ្ចប់!" "Setup complete! LocalAiLab Assistant is ready."
-Read-Host "ចុច Enter ដើម្បីបិទ"
-
+Pause-Exit

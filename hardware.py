@@ -191,7 +191,7 @@ class HardwareManager:
         yield f"🔗 Using PyTorch index: {index}", "cuda", f"🔗 Using PyTorch index: {index}"
 
         try:
-            cmd = [sys.executable, "-m", "pip", "install", "torch", "torchvision", "torchaudio", "--index-url", index]
+            cmd = [sys.executable, "-m", "pip", "install", "torch<2.12", "torchvision", "torchaudio", "--index-url", index]
             yield f"Running: {' '.join(cmd)}", "cuda", f"Running: {' '.join(cmd)}"
 
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)

@@ -1,4 +1,4 @@
-﻿﻿<#
+﻿<#
 .SYNOPSIS
     One-click Windows installer for SmolAgent — local AI assistant by LocalAiLab.
 .DESCRIPTION
