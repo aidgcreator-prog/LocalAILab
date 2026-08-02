@@ -6,8 +6,8 @@ output/
 *.exe
 *.msi
 *.iss.bak
-BUILD_INSTALLER.bat
-installer.iss
+#BUILD_INSTALLER.bat
+#installer.iss
 
 # ----------------------------------------------------------------------
 # Python Virtual Environments
