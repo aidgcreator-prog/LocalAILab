@@ -1,4 +1,4 @@
-﻿﻿param(
+param(
     [switch]$NonInteractive
 )
 
@@ -41,13 +41,21 @@ function Set-InstallStatus([int]$Code) {
     } catch {}
 }
 
-# ── STEP 0: Check we are in the right folder ─────────────────────
-if (-not (Test-Path (Join-Path $root "app.py"))) {
+# ── STEP 0: Check we are in the right folder & Path Length ─────────────────────
+if (-not (Test-Path -LiteralPath (Join-Path $root "app.py"))) {
     Write-Host "[កំហុស] រកមិនឃើញ app.py ។ សូមដំណើរការស្គ្រីបនេះពីក្នុងថតឫសនៃកម្មវិធី (ថតដែលមាន app.py) ។" -ForegroundColor Red
-    Set-InstallStatus 0
-Write-InstallProgress 100 "ការដំឡើងបានបញ្ចប់!" "Setup complete! LocalAiLab Assistant is ready."
-Read-Host "ចុច Enter ដើម្បីបិទ"
-    exit 1
+    Set-InstallStatus 1
+        Read-Host "ចុច Enter ដើម្បីបិទ"
+        exit 1
+}
+
+# Warn about Windows MAX_PATH limit if the path is too long
+if ($root.Length -gt 50) {
+    Write-Host ""
+    Write-Host "[ព្រមាន] ផ្លូវដំឡើងនេះវែងពេក ($($root.Length) តួអក្សរ) អាចបណ្តាលឱ្យការដំឡើងបរាជ័យ (ជាពិសេស PyTorch)" -ForegroundColor Yellow
+    Write-Host "         ដោយសារដែនកំណត់ប្រវែងផ្លូវអតិបរមារបស់ Windows (MAX_PATH) ។" -ForegroundColor Yellow
+    Write-Host "         ប្រសិនបើការដំឡើងបរាជ័យ សូមដំឡើងកម្មវិធីនៅផ្លូវខ្លីជាងនេះ (ឧទាហរណ៍ C:\LocalAiLab) ។" -ForegroundColor Yellow
+    Write-Host ""
 }
 
 # ── STEP 1: Check / Install Python (requires 3.9+) ───────────────
@@ -90,9 +98,8 @@ if ($needPython) {
         Write-Host ""
         Write-Host "[កំហុស] ការទាញយកបានបរាជ័យ។ សូមពិនិត្យការតភ្ជាប់អ៊ីនធឺណិតរបស់អ្នក ហើយសាកល្បងម្តងទៀត។" -ForegroundColor Red
         Write-Host "        ឬដំឡើង Python 3.11 ដោយផ្ទាល់ពី: https://www.python.org/downloads/"
-        Set-InstallStatus 0
-Write-InstallProgress 100 "ការដំឡើងបានបញ្ចប់!" "Setup complete! LocalAiLab Assistant is ready."
-Read-Host "ចុច Enter ដើម្បីបិទ"
+        Set-InstallStatus 1
+        Read-Host "ចុច Enter ដើម្បីបិទ"
         exit 1
     }
 
@@ -102,9 +109,8 @@ Read-Host "ចុច Enter ដើម្បីបិទ"
     if ($proc.ExitCode -ne 0) {
         Write-Host "[កំហុស] ការដំឡើង Python បានបរាជ័យ (exit code $($proc.ExitCode)) ។" -ForegroundColor Red
         Write-Host "        សូមដំឡើងដោយផ្ទាល់ពី: https://www.python.org/downloads/"
-        Set-InstallStatus 0
-Write-InstallProgress 100 "ការដំឡើងបានបញ្ចប់!" "Setup complete! LocalAiLab Assistant is ready."
-Read-Host "ចុច Enter ដើម្បីបិទ"
+        Set-InstallStatus 1
+        Read-Host "ចុច Enter ដើម្បីបិទ"
         exit 1
     }
 
@@ -117,9 +123,8 @@ Read-Host "ចុច Enter ដើម្បីបិទ"
         Write-Host ""
         Write-Host "        សូម បិទ បង្អួចនេះ បើក PowerShell ថ្មី ហើយ"
         Write-Host "        ដំណើរការ SETUP.bat ម្តងទៀត។"
-        Set-InstallStatus 0
-Write-InstallProgress 100 "ការដំឡើងបានបញ្ចប់!" "Setup complete! LocalAiLab Assistant is ready."
-Read-Host "ចុច Enter ដើម្បីបិទ"
+        Set-InstallStatus 1
+        Read-Host "ចុច Enter ដើម្បីបិទ"
         exit 1
     }
     $pyVer = ((& python --version) 2>&1) -replace "Python\s+", ""
@@ -134,9 +139,8 @@ if ($LASTEXITCODE -ne 0) {
     & python -m ensurepip --upgrade
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[កំហុស] មិនអាចដំឡើង pip បានទេ។ សូមដំណើរការ:  python -m ensurepip --upgrade" -ForegroundColor Red
-        Set-InstallStatus 0
-Write-InstallProgress 100 "ការដំឡើងបានបញ្ចប់!" "Setup complete! LocalAiLab Assistant is ready."
-Read-Host "ចុច Enter ដើម្បីបិទ"
+        Set-InstallStatus 1
+        Read-Host "ចុច Enter ដើម្បីបិទ"
         exit 1
     }
 }
@@ -146,15 +150,14 @@ Write-Host "[OK] pip អាចប្រើប្រាស់បាន។" -Foreg
 Write-Host ""
 Write-InstallProgress 22 "[2/8] កំពុងបង្កើត virtual environment (.venv)..." "Setting up .venv folder..."
 $venvPython = Join-Path $root ".venv\Scripts\python.exe"
-if (Test-Path $venvPython) {
+if (Test-Path -LiteralPath $venvPython) {
     Write-Host "[OK] .venv មានរួចហើយ កំពុងរំលងការបង្កើត។" -ForegroundColor Green
 } else {
     & python -m venv .venv
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[កំហុស] បរាជ័យក្នុងការបង្កើត virtual environment ។" -ForegroundColor Red
-        Set-InstallStatus 0
-Write-InstallProgress 100 "ការដំឡើងបានបញ្ចប់!" "Setup complete! LocalAiLab Assistant is ready."
-Read-Host "ចុច Enter ដើម្បីបិទ"
+        Set-InstallStatus 1
+        Read-Host "ចុច Enter ដើម្បីបិទ"
         exit 1
     }
     Write-Host "[OK] Virtual environment ត្រូវបានបង្កើត។" -ForegroundColor Green
@@ -172,7 +175,7 @@ try {
 # ── STEP 3: Upgrade pip ────────────────────────────────────────────
 Write-Host ""
 Write-InstallProgress 27 "[3/8] កំពុងធ្វើបច្ចុប្បន្នភាព pip..." "Upgrading pip package manager..."
-& python -m pip install --upgrade pip --quiet
+& $venvPython -m pip install --upgrade pip
 Write-Host "[OK] pip ទាន់សម័យហើយ។" -ForegroundColor Green
 Write-InstallProgress 30 "[3/8] pip ទាន់សម័យហើយ" "pip upgraded successfully"
 
@@ -313,17 +316,16 @@ if ($cudaVersion -eq "cpu") {
     Write-InstallProgress 40 "[5/8] កំពុងដំឡើង PyTorch ($cudaVersion)..." "Downloading PyTorch wheels for $cudaVersion (~2-3 GB)..."
 }
 Write-Host "      អាចចំណាយពេលច្រើននាទី (torch មានទំហំប្រហែល ២-៣ GB)..."
-& python -m pip install torch torchvision torchaudio --index-url $torchIndex --quiet
+& $venvPython -m pip install torch torchvision torchaudio --index-url $torchIndex
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[កំហុស] ការដំឡើង PyTorch បានបរាជ័យ។" -ForegroundColor Red
     if ($gpuBrand -eq "amd_rocm") {
         Write-Host "[គន្លឹះ] wheel ROCm ប្រហែលជាមិនមានសម្រាប់កំណែ ROCm របស់អ្នកទេ។" -ForegroundColor Yellow
         Write-Host "        សាកល្បង: https://pytorch.org/get-started/locally/ ដើម្បីរក wheel ត្រឹមត្រូវ។"
     }
-    Set-InstallStatus 0
-Write-InstallProgress 100 "ការដំឡើងបានបញ្ចប់!" "Setup complete! LocalAiLab Assistant is ready."
-Read-Host "ចុច Enter ដើម្បីបិទ"
-    exit 1
+    Set-InstallStatus 1
+        Read-Host "ចុច Enter ដើម្បីបិទ"
+        exit 1
 }
 Write-Host "[OK] PyTorch ត្រូវបានដំឡើង ($cudaVersion) ។" -ForegroundColor Green
 Write-InstallProgress 60 "[5/8] PyTorch ត្រូវបានដំឡើង" "PyTorch ($cudaVersion) installed successfully"
@@ -351,7 +353,7 @@ Write-InstallProgress 60 "[5/8] PyTorch ត្រូវបានដំឡើង"
 function Test-TorchCudaReal([int]$TimeoutSec = 90) {
     $code = "import torch; x = torch.randn(64, 64, device='cuda'); y = x @ x; torch.cuda.synchronize(); print('OK')"
     $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName               = "python"
+    $psi.FileName               = $venvPython
     $psi.Arguments              = "-c `"$code`""
     $psi.UseShellExecute        = $false
     $psi.RedirectStandardOutput = $true
@@ -377,8 +379,8 @@ if ($cudaVersion -ne "cpu") {
     } else {
         Write-InstallProgress 65 "[5b/8] កំពុងត្រលប់ទៅ CPU PyTorch វិញ..." "GPU CC incompatible. Installing CPU-only PyTorch wheel..."
         Write-Host "[ព្រមាន] GPU wheel ដំឡើងបានជោគជ័យ ប៉ុន្តែ GPU នេះ (Compute Capability: $computeCap) មិនត្រូវបានគាំទ្រដោយ PyTorch build នេះទេ (ប្រហែលជាចាស់ពេក ឬថ្មីពេក)។ កំពុងត្រលប់ទៅ CPU-only wheel វិញ ដោយស្វ័យប្រវត្តិ..." -ForegroundColor Yellow
-        & python -m pip uninstall torch torchvision torchaudio -y --quiet 2>$null
-        & python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu --quiet
+        & $venvPython -m pip uninstall torch torchvision torchaudio -y 2>$null
+        & $venvPython -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         if ($LASTEXITCODE -eq 0) {
             $cudaVersion = "cpu"
             $torchIndex  = "https://download.pytorch.org/whl/cpu"
@@ -386,6 +388,9 @@ if ($cudaVersion -ne "cpu") {
             Write-Host "     ចំណាំ៖ កម្មវិធីខ្លួនឯងក៏នឹងបង្ហាញការព្រមានស្រដៀងគ្នានេះនៅក្នុង UI ជានិច្ចផងដែរ។" -ForegroundColor Yellow
         } else {
             Write-Host "[កំហុស] ការត្រលប់ទៅ CPU wheel ក៏បានបរាជ័យដែរ។ សូមដំណើរការ SETUP.bat ម្តងទៀត ឬដំឡើងដោយដៃ។" -ForegroundColor Red
+            Set-InstallStatus 1
+            Read-Host "ចុច Enter ដើម្បីបិទ"
+            exit 1
         }
     }
 }
@@ -423,11 +428,11 @@ Write-InstallProgress 70 "[6/8] កំពុងដំឡើង dependencies រ�
 Write-Host "      អាចចំណាយពេលច្រើននាទី..."
 
 Write-Host " កំពុងដំឡើង packages ទាំងអស់ពី requirements.txt..."
-& python -m pip install -r (Join-Path $root "requirements.txt") --quiet
+& $venvPython -m pip install -r (Join-Path $root "requirements.txt")
 $coreExit = $LASTEXITCODE
 
 Write-Host ""
-$hasPoppler = (Get-Command pdfinfo -ErrorAction SilentlyContinue) -or (Get-Command pdftoppm -ErrorAction SilentlyContinue) -or (Test-Path (Join-Path $root "poppler"))
+$hasPoppler = (Get-Command pdfinfo -ErrorAction SilentlyContinue) -or (Get-Command pdftoppm -ErrorAction SilentlyContinue) -or (Test-Path -LiteralPath (Join-Path $root "poppler"))
 if (-not $hasPoppler) {
     Write-InstallProgress 78 "[6/8] កំពុងពិនិត្យ/ដំឡើង Poppler..." "Downloading PDF rendering engine..."
     Write-Host "[*] កំពុងពិនិត្យ/ដំឡើង Poppler (សម្រាប់ការបម្លែង PDF->រូបភាព)..." -ForegroundColor Yellow
@@ -485,18 +490,18 @@ Write-InstallProgress 84 "[7/8] កំពុងដំឡើង Playwright packag
 
 $playwrightInstalled = $false
 
-& python -m pip install "playwright>=1.40.0" --quiet
+& $venvPython -m pip install "playwright>=1.40.0" --quiet
 if ($LASTEXITCODE -eq 0) {
     Write-InstallProgress 87 "[7/8] កំពុងទាញយក Chromium browser..." "Downloading Chromium engine for Deep Research (~150-300 MB)..."
     Write-Host " កំពុងទាញយក Chromium browser binary (playwright install chromium)..."
     Write-Host "      អាចចំណាយពេលច្រើននាទី (ទាញយកប្រហែល ១៥០-៣០០ MB)..."
-    & python -m playwright install chromium --with-deps *> $null
+    & $venvPython -m playwright install chromium --with-deps *> $null
     if ($LASTEXITCODE -ne 0) {
         # --with-deps needs elevated/root privileges on some systems to
         # install OS-level libraries; retry without it — the browser
         # binary itself still installs fine without --with-deps on most
         # Windows machines, which already ship the needed system libs.
-        & python -m playwright install chromium
+        & $venvPython -m playwright install chromium
     }
 
     if ($LASTEXITCODE -eq 0) {
@@ -504,7 +509,7 @@ if ($LASTEXITCODE -eq 0) {
         Write-Host " កំពុងផ្ទៀងផ្ទាត់ដោយបើក Chromium ពិតប្រាកដ (headless smoke test)..."
         $pwCode = "from playwright.sync_api import sync_playwright`nwith sync_playwright() as p:`n    b = p.chromium.launch(headless=True)`n    b.close()`nprint('OK')"
         $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName               = "python"
+        $psi.FileName               = $venvPython
         $psi.Arguments              = "-c `"$pwCode`""
         $psi.UseShellExecute        = $false
         $psi.RedirectStandardOutput = $true
@@ -556,7 +561,7 @@ foreach ($g in $testGroups) {
     $groupOk = $true
     $failedPkgs = @()
     foreach ($p in $g.pkgs) {
-        & python -c "import $p; print('OK')" 2>&1 | Out-Null
+        & $venvPython -c "import $p; print('OK')" 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) {
             $groupOk = $false
             $importOk = $false
@@ -576,7 +581,7 @@ foreach ($g in $testGroups) {
 Write-Host ""
 $optionalPkgs = @("playwright", "bitsandbytes", "byaldi")
 foreach ($p in $optionalPkgs) {
-    & python -c "import $p; print('OK')" 2>&1 | Out-Null
+    & $venvPython -c "import $p; print('OK')" 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
         Write-Host " [ចំណាំ] $p មិនទាន់ដំឡើងទេ (មុខងារជម្រើស)" -ForegroundColor Cyan
     } else {

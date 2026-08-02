@@ -6,6 +6,8 @@ output/
 *.exe
 *.msi
 *.iss.bak
+BUILD_INSTALLER.bat
+installer.iss
 
 # ----------------------------------------------------------------------
 # Python Virtual Environments
@@ -37,6 +39,7 @@ chroma_db/
 visual_index/
 agent_memory_store/
 user_config.json
+install_progress.txt
 graphify-out/
 old_files/
 data_analysis/
