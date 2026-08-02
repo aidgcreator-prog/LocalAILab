@@ -41,6 +41,7 @@ agent_memory_store/
 user_config.json
 install_progress.txt
 graphify-out/
+.planning/
 old_files/
 data_analysis/
 user/
