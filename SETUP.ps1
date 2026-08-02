@@ -75,6 +75,57 @@ function Invoke-PipRetry([string[]]$PipArgs, [int]$MaxAttempts = 2) {
     return $false
 }
 
+# Run a subprocess and capture its stdout/stderr WITHOUT deadlocking.
+# Redirecting the child's streams to pipes while never reading them is a
+# classic hang: once a pipe's buffer (~4 KB) fills, the child blocks
+# forever writing to it and the parent then times out and gives up. This
+# helper drains both streams asynchronously so the child never blocks,
+# regardless of how much it writes.
+function Invoke-CapturedProcess([string]$FileName, [string]$Arguments, [int]$TimeoutSec = 60) {
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName               = $FileName
+    $psi.Arguments              = $Arguments
+    $psi.UseShellExecute        = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError  = $true
+    $psi.CreateNoWindow         = $true
+
+    $outLines = New-Object System.Collections.Generic.List[string]
+    $errLines = New-Object System.Collections.Generic.List[string]
+
+    try {
+        $proc = [System.Diagnostics.Process]::Start($psi)
+    } catch {
+        return @{ TimedOut = $false; ExitCode = $null; Output = ""; Error = "Failed to start process: $_" }
+    }
+
+    $outEvt = $null
+    $errEvt = $null
+    try {
+        $outEvt = Register-ObjectEvent -InputObject $proc -EventName OutputDataReceived -Action { if ($EventArgs.Data) { $Event.MessageData.Add($EventArgs.Data) } } -MessageData $outLines
+        $errEvt = Register-ObjectEvent -InputObject $proc -EventName ErrorDataReceived  -Action { if ($EventArgs.Data) { $Event.MessageData.Add($EventArgs.Data) } } -MessageData $errLines
+        $proc.BeginOutputReadLine()
+        $proc.BeginErrorReadLine()
+    } catch {}
+
+    $finished = $proc.WaitForExit($TimeoutSec * 1000)
+    if ($finished) {
+        Start-Sleep -Milliseconds 200
+    } else {
+        try { $proc.Kill() } catch {}
+    }
+
+    if ($outEvt) { try { Unregister-Event -SourceIdentifier $outEvt.Name } catch {} }
+    if ($errEvt) { try { Unregister-Event -SourceIdentifier $errEvt.Name } catch {} }
+
+    return @{
+        TimedOut = (-not $finished)
+        ExitCode = if ($finished) { $proc.ExitCode } else { $null }
+        Output   = ($outLines -join "`n")
+        Error    = ($errLines -join "`n")
+    }
+}
+
 $isElevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 # ── STEP 0: Check we are in the right folder & Path Length ─────────────────────
@@ -416,6 +467,20 @@ if ($cudaVersion -eq "cpu") {
     Write-InstallProgress 40 "[5/8] កំពុងដំឡើង PyTorch ($cudaVersion)..." "Downloading PyTorch wheels for $cudaVersion (~2-3 GB)..."
 }
 Write-Host "      អាចចំណាយពេលច្រើននាទី (torch មានទំហំប្រហែល ២-៣ GB)..."
+
+# If a GPU tier was selected but the venv already holds a CPU/plain torch
+# build (e.g. from an earlier failed run that fell back to CPU), pip would
+# consider `torch<2.12` "already satisfied" and never upgrade to the GPU
+# wheel — silently keeping the machine on CPU forever. Force a clean
+# reinstall in that case so re-running SETUP.bat actually repairs it.
+if ($cudaVersion -ne "cpu") {
+    $curTorch = (& $venvPython -c "import torch; print(torch.__version__)" 2>$null)
+    if ($curTorch -and $curTorch -notmatch "\+cu" -and $curTorch -notmatch "\+rocm") {
+        Write-Host "[ចំណាំ] បានរកឃើញ PyTorch $curTorch (CPU build) - កំពុងដកចេញ ហើយដំឡើង build សម្រាប់ GPU ឡើងវិញ..." -ForegroundColor Yellow
+        & $venvPython -m pip uninstall torch torchvision torchaudio -y 2>$null
+    }
+}
+
 if (-not (Invoke-PipRetry @("install", "torch<2.12", "torchvision", "torchaudio", "--index-url", $torchIndex, "--timeout", "120") 3)) {
     Write-Host "[កំហុស] ការដំឡើង PyTorch បានបរាជ័យ។" -ForegroundColor Red
     if ($gpuBrand -eq "amd_rocm") {
@@ -451,23 +516,27 @@ Write-InstallProgress 60 "[5/8] PyTorch ត្រូវបានដំឡើង"
 # non-technical end user to stumble into later at runtime.
 function Test-TorchCudaReal([int]$TimeoutSec = 90) {
     $code = "import torch; x = torch.randn(64, 64, device='cuda'); y = x @ x; torch.cuda.synchronize(); print('OK')"
-    $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName               = $venvPython
-    $psi.Arguments              = "-c `"$code`""
-    $psi.UseShellExecute        = $false
-    $psi.RedirectStandardOutput = $true
-    $psi.RedirectStandardError  = $true
+    $last = $null
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $last = Invoke-CapturedProcess -FileName $venvPython -Arguments "-c `"$code`"" -TimeoutSec $TimeoutSec
+        if (-not $last.TimedOut -and $last.ExitCode -eq 0) { return $true }
+        if ($attempt -lt 3) {
+            Write-Host "  [ព្យាយាមម្តងទៀត] GPU kernel test បរាជ័យ ($attempt/3) - កំពុងព្យាយាមម្តងទៀត..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 5
+        }
+    }
     try {
-        $proc = [System.Diagnostics.Process]::Start($psi)
-    } catch {
-        return $false
-    }
-    $finished = $proc.WaitForExit($TimeoutSec * 1000)
-    if (-not $finished) {
-        try { $proc.Kill() } catch {}
-        return $false
-    }
-    return ($proc.ExitCode -eq 0)
+        $log = @(
+            "Torch GPU kernel smoke test FAILED after 3 attempts.",
+            ("TimedOut: {0} | ExitCode: {1}" -f $last.TimedOut, $last.ExitCode),
+            "--- STDOUT ---",
+            $last.Output,
+            "--- STDERR ---",
+            $last.Error
+        ) -join "`r`n"
+        [System.IO.File]::WriteAllText((Join-Path $root "install_torch_smoke.log"), $log)
+    } catch {}
+    return $false
 }
 
 if ($cudaVersion -ne "cpu") {
@@ -610,19 +679,9 @@ if ($LASTEXITCODE -eq 0) {
         Write-InstallProgress 90 "[7/8] កំពុងផ្ទៀងផ្ទាត់ Chromium..." "Testing headless browser launch..."
         Write-Host " កំពុងផ្ទៀងផ្ទាត់ដោយបើក Chromium ពិតប្រាកដ (headless smoke test)..."
         $pwCode = "from playwright.sync_api import sync_playwright`nwith sync_playwright() as p:`n    b = p.chromium.launch(headless=True)`n    b.close()`nprint('OK')"
-        $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName               = $venvPython
-        $psi.Arguments              = "-c `"$pwCode`""
-        $psi.UseShellExecute        = $false
-        $psi.RedirectStandardOutput = $true
-        $psi.RedirectStandardError  = $true
         $pwOk = $false
-        try {
-            $proc = [System.Diagnostics.Process]::Start($psi)
-            $finished = $proc.WaitForExit(60000)
-            if ($finished -and $proc.ExitCode -eq 0) { $pwOk = $true }
-            elseif (-not $finished) { try { $proc.Kill() } catch {} }
-        } catch {}
+        $pwRes = Invoke-CapturedProcess -FileName $venvPython -Arguments "-c `"$pwCode`"" -TimeoutSec 60
+        if (-not $pwRes.TimedOut -and $pwRes.ExitCode -eq 0) { $pwOk = $true }
 
         if ($pwOk) {
             Write-Host "[OK] Playwright + Chromium ត្រូវបានដំឡើង និងផ្ទៀងផ្ទាត់ដោយជោគជ័យ។" -ForegroundColor Green
