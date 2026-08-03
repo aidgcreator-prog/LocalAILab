@@ -51,8 +51,7 @@ Artifex Software ក្រោម៖
 
 | ម៉ូដែល | ប្រើសម្រាប់ | អាជ្ញាប័ណ្ណ |
 |---|---|---|
-| `Qwen/Qwen3-0.6B`, `Qwen3-1.7B`, `Qwen3-4B` | Text LLM | Apache License 2.0 |
-| `google/gemma-4-E2B-it` | Text LLM | Apache License 2.0 (ចាប់ពី Gemma 4 តម្រូវការចាកចេញពី Gemma Terms of Use ចាស់ ទៅជាអាជ្ញាប័ណ្ណ Apache 2.0 ដែលទទួលស្គាល់ដោយ OSI — ប្រកាសដោយ Google ខែមេសា ២០២៦) |
+| `google/gemma-4-E2B-it`, `gemma-4-E4B-it`, `gemma-4-12B-it`, `gemma-4-26B-A4B-it`, `gemma-4-31B-it`, `gemma-4-e4b-it-qat-mobile-transformers` | Text LLM | Apache License 2.0 (ចាប់ពី Gemma 4 តម្រូវការចាកចេញពី Gemma Terms of Use ចាស់ ទៅជាអាជ្ញាប័ណ្ណ Apache 2.0 ដែលទទួលស្គាល់ដោយ OSI — ប្រកាសដោយ Google ខែមេសា ២០២៦) |
 | `HuggingFaceTB/SmolVLM-256M-Instruct`, `SmolVLM-500M-Instruct` | Vision LLM | Apache License 2.0 |
 | `Qwen/Qwen2.5-VL-3B-Instruct` | Vision LLM | Apache License 2.0 |
 | `openai/whisper-tiny` / `base` / `small` / `large-v3` | Speech-to-text | MIT License |
@@ -146,8 +145,7 @@ using the model means agreeing to those terms directly with the model owner.
 
 | Model | Used for | License |
 |---|---|---|
-| `Qwen/Qwen3-0.6B`, `Qwen3-1.7B`, `Qwen3-4B` | Text LLM | Apache License 2.0 |
-| `google/gemma-4-E2B-it` | Text LLM | Apache License 2.0 (as of Gemma 4, Google moved off the old Gemma Terms of Use to the OSI-approved Apache 2.0 license — [announced April 2026](https://opensource.googleblog.com/2026/03/gemma-4-expanding-the-gemmaverse-with-apache-20.html)) |
+| `google/gemma-4-E2B-it`, `gemma-4-E4B-it`, `gemma-4-12B-it`, `gemma-4-26B-A4B-it`, `gemma-4-31B-it`, `gemma-4-e4b-it-qat-mobile-transformers` | Text LLM | Apache License 2.0 (as of Gemma 4, Google moved off the old Gemma Terms of Use to the OSI-approved Apache 2.0 license — [announced April 2026](https://opensource.googleblog.com/2026/03/gemma-4-expanding-the-gemmaverse-with-apache-20.html)) |
 | `HuggingFaceTB/SmolVLM-256M-Instruct`, `SmolVLM-500M-Instruct` | Vision LLM | Apache License 2.0 |
 | `Qwen/Qwen2.5-VL-3B-Instruct` | Vision LLM | Apache License 2.0 |
 | `openai/whisper-tiny` / `base` / `small` / `large-v3` | Speech-to-text | MIT License |

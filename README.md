@@ -46,7 +46,7 @@
 
 | សមាសធាតុ | លំនាំដើម |
 |---|---|
-| LLM | `Qwen/Qwen3-0.6B` (HuggingFace) **ឬ** `.gguf` តាមរយៈ llama.cpp **ឬ** ពីចម្ងាយតាមរយៈ Inference API |
+| LLM | `google/gemma-4-E2B-it` (HuggingFace) **ឬ** `.gguf` តាមរយៈ llama.cpp **ឬ** ពីចម្ងាយតាមរយៈ Inference API |
 | Vision LLM | `HuggingFaceTB/SmolVLM-500M-Instruct` (HuggingFace) **ឬ** GGUF តាមរយៈ llama.cpp **ឬ** ពីចម្ងាយតាមរយៈ Inference API |
 | Speech-to-Text | `openai/whisper-small` (HuggingFace) **ឬ** whisper.cpp server **ឬ** ពីចម្ងាយតាមរយៈ Inference API |
 | Embedding | `BAAI/bge-m3` (HuggingFace) **ឬ** GGUF តាមរយៈ llama.cpp server **ឬ** ពីចម្ងាយតាមរយៈ Inference API |
@@ -202,12 +202,15 @@ python app.py
 
 | VRAM/RAM | ម៉ូដែលដែលណែនាំ |
 |---|---|
-| ~1.2 GB | `Qwen/Qwen3-0.6B` (លឿនបំផុត — លំនាំដើម) |
-| ~3 GB | `Qwen/Qwen3-1.7B` |
-| ~6 GB | `Qwen/Qwen2.5-Coder-3B-Instruct` (small coding/agent model) |
-| ~7 GB | `Qwen/Qwen3-4B` |
-| ~4 GB | `google/gemma-4-E2B-it` |
+| CPU តែប៉ុណ្ណោះ / <8 GB | `google/gemma-4-E2B-it` (4-bit — លំនាំដើម, 1.5–3 GB) |
+| 8–12 GB VRAM | `google/gemma-4-E4B-it` (4-bit, 3–5 GB) |
+| 16 GB VRAM | `google/gemma-4-26B-A4B-it` (MoE ~3.8B active, 4-bit, 8–14 GB) |
+| 24 GB VRAM | `google/gemma-4-26B-A4B-it` (MoE ~3.8B active, 8-bit, 14–28 GB) — ចំណុចល្អបំផុត |
+| 24 GB+ VRAM (គុណភាពខ្ពស់បំផុត) | `google/gemma-4-31B-it` (Dense, 4-bit, 18–20 GB) |
+| គែម (edge) | `google/gemma-4-e4b-it-qat-mobile-transformers` (Mobile QAT, ~3 GB) |
 | ប្រែប្រួល | ម៉ូដែល `.gguf` ណាមួយនៅក្នុងថតដែលអ្នកកំណត់ (តាមរយៈ llama.cpp) |
+
+> កម្រិត quantization (4-bit/8-bit) ខាងលើត្រូវបានជ្រើសរើសដោយស្វ័យប្រវត្តិសម្រាប់ផ្នែករឹងរបស់អ្នក ហើយអាចប្តូរបានតាមរយៈ "📦 Model Quantization" ក្នុង Model Settings (bitsandbytes — GPU តែប៉ុណ្ណោះ)។
 
 </details>
 
@@ -339,7 +342,7 @@ The UI is fully bilingual — switch between **Khmer** and **English** instantly
 
 | Component | Default |
 |---|---|
-| LLM | `Qwen/Qwen3-0.6B` (HuggingFace) **or** `.gguf` via llama.cpp **or** remote via Inference API |
+| LLM | `google/gemma-4-E2B-it` (HuggingFace) **or** `.gguf` via llama.cpp **or** remote via Inference API |
 | Vision LLM | `HuggingFaceTB/SmolVLM-500M-Instruct` (HuggingFace) **or** GGUF via llama.cpp **or** remote via Inference API |
 | Speech-to-Text | `openai/whisper-small` (HuggingFace) **or** whisper.cpp server **or** remote via Inference API |
 | Embedding | `BAAI/bge-m3` (HuggingFace) **or** GGUF via llama.cpp server **or** remote via Inference API |
@@ -495,12 +498,15 @@ You can change models at runtime via the UI's model selection dropdowns.
 
 | VRAM/RAM | Recommended model |
 |---|---|
-| ~1.2 GB | `Qwen/Qwen3-0.6B` (fastest — default) |
-| ~3 GB | `Qwen/Qwen3-1.7B` |
-| ~6 GB | `Qwen/Qwen2.5-Coder-3B-Instruct` (small coding/agent model) |
-| ~7 GB | `Qwen/Qwen3-4B` |
-| ~4 GB | `google/gemma-4-E2B-it` |
+| CPU-only / <8 GB | `google/gemma-4-E2B-it` (4-bit — default, 1.5–3 GB) |
+| 8–12 GB VRAM | `google/gemma-4-E4B-it` (4-bit, 3–5 GB) |
+| 16 GB VRAM | `google/gemma-4-26B-A4B-it` (MoE ~3.8B active, 4-bit, 8–14 GB) |
+| 24 GB VRAM | `google/gemma-4-26B-A4B-it` (MoE ~3.8B active, 8-bit, 14–28 GB) — the sweet spot |
+| 24 GB+ VRAM (max quality) | `google/gemma-4-31B-it` (Dense, 4-bit, 18–20 GB) |
+| Edge | `google/gemma-4-e4b-it-qat-mobile-transformers` (Mobile QAT, ~3 GB) |
 | varies | Any `.gguf` model in your configured folder (via llama.cpp) |
+
+> The quantization level (4-bit/8-bit) above is auto-picked for your hardware and can be changed via the "📦 Model Quantization" dropdown in Model Settings (bitsandbytes — GPU only).
 
 </details>
 

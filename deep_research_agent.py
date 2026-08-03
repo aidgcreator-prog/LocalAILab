@@ -30,7 +30,7 @@ Same reliability caveat as every other agentic tab in this app: this
 needs a genuinely capable model to work well — small/local models can
 struggle even more here than in General Chat's agentic mode, since a
 manager also has to correctly invoke a SUB-AGENT (not just a tool) and
-periodically re-plan. Expect this to work best on Qwen3-4B and above,
+periodically re-plan. Expect this to work best on Gemma-4-E4B and above,
 same guidance as the other agentic tabs.
 """
 

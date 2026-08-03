@@ -28,7 +28,7 @@ FlagEmbedding>=1.2.0            # optimal backend for BAAI/bge-m3
 
 # ── LLM / inference ───────────────────────────────────────────────
 # torch>=2.2.0                  # installed by SETUP.ps1 from GPU-specific index — see SETUP.ps1 STEP 5
-transformers>=4.51.0
+transformers>=5.10.1            # Gemma 4 needs >=5.10.1 (Gemma4ForConditionalGeneration)
 accelerate>=0.30.0
 bitsandbytes>=0.43.0            # optional 4/8-bit quantisation
 

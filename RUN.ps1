@@ -60,14 +60,21 @@ if ($nvidiaOk) {
     Write-Host " (រកឃើញ GPU NVIDIA)"
 } else {
     $isAmd = $false
+    $isIntel = $false
     try {
         $vc = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue
-        if ($vc -and ($vc.Name -join ";") -match "Radeon|AMD") { $isAmd = $true }
+        if ($vc) {
+            $vcName = $vc.Name -join ";"
+            if ($vcName -match "Radeon|AMD") { $isAmd = $true }
+            elseif ($vcName -match "Intel") { $isIntel = $true }
+        }
     } catch {}
     if ($isAmd) {
-        Write-Host " (រកឃើញ GPU AMD - ប្រហែលជាត្រូវការ ROCm)"
+        Write-Host " (រកឃើញ GPU AMD - ដំឡើង PyTorch ROCm ដោយ SETUP.bat)"
+    } elseif ($isIntel) {
+        Write-Host " (រកឃើញ GPU Intel - ដំឡើង PyTorch XPU ដោយ SETUP.bat)"
     } else {
-        Write-Host " (មិនរកឃើញ GPU NVIDIA/AMD ទេ - កំពុងដំណើរការលើ CPU)"
+        Write-Host " (មិនរកឃើញ GPU NVIDIA/AMD/Intel ទេ - កំពុងដំណើរការលើ CPU)"
     }
 }
 

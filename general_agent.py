@@ -34,11 +34,11 @@ as a *tool* on top of that would just be a redundant, confusing entry in
 the agent's toolbox.
 
 Same caveat as rag_agent.py / data_analysis.py: tool-calling reliability
-depends heavily on the underlying model. Qwen3-0.6B (this app's default)
+depends heavily on the underlying model. Gemma-4-E2B (this app's default)
 may never call a tool at all, or call it malformed, and just hallucinate
 an answer from its own knowledge instead. If the agent seems to ignore
-the web tools, switch to a larger model (Qwen3-4B+, Qwen2.5-Coder-3B, or
-any capable GGUF model) in the LLM dropdown first.
+the web tools, switch to a larger model (Gemma-4-E4B+, or any capable
+GGUF model) in the LLM dropdown first.
 """
 
 import inspect

@@ -9,12 +9,11 @@ can call it more than once to refine its search — before writing a final
 answer, following the same CodeAgent + Tool pattern as data_analysis.py.
 
 IMPORTANT CAVEAT: tool-calling reliability depends heavily on the
-underlying model. `Qwen/Qwen3-0.6B` (the app's default LLM) was originally
-kept OUT of the CodeAgent/ToolCallingAgent path for exactly this reason —
-it's small enough that it may never call the retriever tool at all, or call
+underlying model. `google/gemma-4-E2B-it` (the app's default LLM) is small
+enough that it may never call the retriever tool at all, or call
 it in a malformed way, and just hallucinate an answer instead. If agentic
 RAG Chat seems to ignore the knowledge base, switch to a larger model
-(e.g. Qwen3-4B or above) in the LLM dropdown before assuming something is
+(e.g. Gemma-4-E4B or above) in the LLM dropdown before assuming something is
 broken.
 """
 

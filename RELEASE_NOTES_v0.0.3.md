@@ -33,9 +33,16 @@
 - **DuckDuckGo & Playwright Browser Tools**៖ ស្វែងរកព័ត៌មានតាម Web ដោយឥតគិតថ្លៃ និងអាចបើក Headless Browser ដើម្បីអាន/ទាញយកទិន្នន័យពី Web/PDF ដែលត្រូវការ JavaScript។
 
 #### 🤖 4. ការគាំទ្រម៉ូដែលថ្មី & Feature ផ្សេងៗ
-- **ម៉ូដែលថ្មី**៖ គាំទ្រ Gemma 4 និង Qwen3.6។
+- **Gemma 4 ជាម៉ូដែលមូលដ្ឋាន**៖ បញ្ជីម៉ូដែលមូលដ្ឋានឥឡូវជា **Gemma 4 តែមួយគ្រួសារ** — E2B, E4B, E4B Mobile QAT, 12B, 26B-A4B (MoE), និង 31B — ជាមួយការគាំទ្រ quantization 4-bit/8-bit និង Vision Chat (សូមមើលផ្នែកទី 5 ខាងក្រោម)។
 - **Data Analysis Agent**៖ វិភាគ CSV/Excel ដោយស្វ័យប្រវត្តិ ជាមួយជម្រើស workflow តាមប្រភេទ (ការលក់, អតិថិជន, ហិរញ្ញវត្ថុ, ប្រាក់ខែ)។
 - **ចងចាំការសន្ទនា (Conversation Memory)**៖ ប្រអប់ចងចាំបរិបទឆ្លង tab និងកំណត់ Context Window ពី 4K ដល់ 128K។
+
+#### 🎯 5. Gemma 4 — ជាម៉ូដែលមូលដ្ឋានតែមួយគត់
+- **Gemma 4 ទាំងស្រុង**៖ ម៉ូដែលមូលដ្ឋានឥឡូវជា Gemma 4 តែមួយគ្រួសារប៉ុណ្ណោះ (Qwen ដែលជាម៉ូដែលមូលដ្ឋានចាស់ត្រូវបានដកចេញ) ជាមួយទំហំ RAM ដែលបានកែត្រឹមត្រូវ៖ E2B (~10 GB), E4B (~16 GB), E4B Mobile QAT (~3 GB), 12B (~24 GB), 26B-A4B MoE (~53 GB, active ~4B), 31B (~65 GB)។
+- **ជ្រើសរើសម៉ូដែលតាមផ្នែករឹងដោយស្វ័យប្រវត្តិ**៖ កម្មវិធីជ្រើសរើសម៉ូដែល *និង* កម្រិត quantization ដែលសមស្របបំផុតតាម GPU/RAM ដែលរកឃើញ (CPU → E2B 4-bit, 8–12 GB → E4B 4-bit, 16 GB → 26B-A4B 4-bit, 24 GB → 26B-A4B 8-bit, 48 GB+ → 31B 4-bit)។
+- **📦 Model Quantization**៖ បញ្ជីទម្លាក់ថ្មីសម្រាប់ bitsandbytes 4-bit/8-bit (CUDA GPU តែប៉ុណ្ណោះ) ជួយសន្សំ RAM យ៉ាងច្រើនសម្រាប់ម៉ូដែលក្នុងស្រុក។
+- **Gemma 4 Vision Chat**៖ ម៉ូដែល Gemma 4 ទាំងអស់ជាម៉ូដែលចក្ខុវិស័យ ដូច្នេះអាចប្រើក្នុងផ្ទាំង "🎨 Vision Chat" បានភ្លាមៗ ដោយមិនចាំបាច់ម៉ូដែល VLM ដាច់ដោយឡែក។
+- **តម្រូវការ**៖ `transformers>=5.10.1` សម្រាប់ Gemma 4 (SETUP/កម្មវិធីដំឡើងនឹងដំឡើងឱ្យស្វ័យប្រវត្តិ)។
 
 ---
 
@@ -78,9 +85,16 @@ We are excited to announce **LocalAiLab Assistant v0.0.3 beta**! This major upda
 - **DuckDuckGo & Headless Browser Tools**: Free web search using `DuckDuckGoSearchTool` alongside optional Playwright browser automation for scraping JS-heavy sites and PDFs.
 
 #### 🤖 4. New Models & Capabilities
-- **New Architecture Support**: Added support for Gemma 4 and Qwen3.6 models.
+- **Gemma 4 base models**: The base LLM list is now the **Gemma 4 family only** — E2B, E4B, E4B Mobile QAT, 12B, 26B-A4B (MoE), and 31B — with 4-bit/8-bit quantization and Vision Chat support (see section 5 below).
 - **Data Analysis Workflows**: Automated CSV/Excel analysis with specialized workflow templates (Sales, Customer, Finance, Payroll).
 - **Expanded Context & Memory**: Global context window selection (4K to 128K) and experimental cross-tab conversation memory.
+
+#### 🎯 5. Gemma 4 — The Base Model Family
+- **Gemma 4 only**: The base LLM list is now exclusively the Gemma 4 family (the former Qwen base models were removed), with corrected RAM footprints: E2B (~10 GB), E4B (~16 GB), E4B Mobile QAT (~3 GB), 12B (~24 GB), 26B-A4B MoE (~53 GB, ~4B active), 31B (~65 GB).
+- **Automatic hardware-tier selection**: The app now picks the right model *and* quantization level for your detected hardware (CPU → E2B 4-bit, 8–12 GB → E4B 4-bit, 16 GB → 26B-A4B 4-bit, 24 GB → 26B-A4B 8-bit, 48 GB+ → 31B 4-bit).
+- **📦 Model Quantization**: New dropdown for bitsandbytes 4-bit/8-bit loading (CUDA GPU only) — big RAM savings on local models.
+- **Gemma 4 Vision Chat**: Every Gemma 4 model is natively multimodal, so they now work out of the box in the "🎨 Vision Chat" tab — no separate VLM needed.
+- **Requirement**: `transformers>=5.10.1` for Gemma 4 (installed automatically by SETUP/the Setup Wizard).
 
 ---
 

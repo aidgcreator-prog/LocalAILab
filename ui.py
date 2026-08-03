@@ -161,7 +161,7 @@ def build_ui():
                 )
                 hf_model_id_tb = gr.Textbox(
                     value=mr.get_saved_hf_model_id(),
-                    placeholder="e.g. Qwen/Qwen3.6-35B-A3B",
+                    placeholder="e.g. google/gemma-4-26B-A4B-it",
                     label="🤗 HF Model ID", scale=4,
                 )
                 hf_provider_tb = gr.Textbox(
@@ -285,8 +285,15 @@ def build_ui():
                             value=mr.get_saved_reasoning_enabled(),
                             info="Off = '/no_think' prepended (Qwen3-family only)",
                         )
+                        quant_dd = gr.Dropdown(
+                            choices=list(mr.QUANTIZATION_OPTIONS.keys()),
+                            value=mr.get_effective_quantization_label(),
+                            label="📦 Model Quantization",
+                            info="bitsandbytes, Hugging Face models only (CUDA GPU). Recommended value follows the hardware tier — see README.",
+                        )
                         ctx_window_status = gr.Textbox(show_label=False, interactive=False, visible=False)
                         max_tokens_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+                        quant_status = gr.Textbox(show_label=False, interactive=False, visible=False)
                         with gr.Accordion(L["accordion_details"], open=False) as acc_ctx_detail:
                             ctx_window_detail_md = gr.Markdown(L["info_context_window_detail"])
                         free_vram_btn = gr.Button(L["btn_free_vram"], variant="stop", size="sm")
@@ -738,8 +745,16 @@ def build_ui():
                    "other models simply ignore it as harmless extra text).")
             return gr.update(value=msg, visible=True)
 
+        def do_change_quantization(label):
+            mode = mr.QUANTIZATION_OPTIONS.get(label, "none")
+            mr.set_quantization(mode)
+            msg = (f"✅ Quantization set to {mode} — applies the next time a "
+                   "Hugging Face model loads (CUDA GPU only; ignored on CPU).")
+            return gr.update(value=msg, visible=True)
+
         max_tokens_dd.change(do_change_max_new_tokens, [max_tokens_dd], [max_tokens_status])
         reasoning_chk.change(do_change_reasoning, [reasoning_chk], [max_tokens_status])
+        quant_dd.change(do_change_quantization, [quant_dd], [quant_status])
 
         # ── llama-server (external process) backend controls ────────
         def _reset_every_agent_cache():

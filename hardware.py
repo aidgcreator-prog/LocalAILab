@@ -24,6 +24,9 @@ class HardwareManager:
             if torch.cuda.is_available():
                 props = torch.cuda.get_device_properties(0)
                 return props.total_memory / (1024 ** 3)
+            if hasattr(torch, "xpu") and torch.xpu.is_available():
+                props = torch.xpu.get_device_properties(0)
+                return props.total_memory / (1024 ** 3)
         except Exception:
             pass
         return None
@@ -116,8 +119,27 @@ class HardwareManager:
 
     @staticmethod
     def get_required_torch_index(cuda_version: str) -> str:
+        """Return the PyTorch wheel index best matching an NVIDIA driver's
+        reported CUDA version. Mirrors the SETUP.ps1 STEP 4 mapping: a wheel
+        is only offered if its bundled CUDA runtime is <= the driver's
+        supported CUDA version (a driver reporting 12.6 cannot run cu128
+        wheels; a 12.0 driver cannot run cu121+). For drivers newer than
+        any known tier the newest known tier is used, since a new driver
+        does not imply a new GPU — SETUP.ps1 re-verifies compatibility with
+        a real-kernel smoke test after install.
+
+        Also accepts the SETUP.ps1 brand tokens for non-NVIDIA backends
+        ("rocm7.2.1" and "xpu"), mapping them to the correct index so the
+        Fix Environment helper never suggests a bogus CUDA tier on an
+        AMD/Intel machine.
+        """
         if not cuda_version:
             return "https://download.pytorch.org/whl/cpu"
+
+        if cuda_version == "xpu":
+            return "https://download.pytorch.org/whl/xpu"
+        if cuda_version.startswith("rocm"):
+            return "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1"
 
         try:
             v_parts = cuda_version.split('.')
@@ -127,14 +149,20 @@ class HardwareManager:
             if major == "11":
                 return "https://download.pytorch.org/whl/cu118"
             elif major == "12":
-                if minor in ("1", "2", "3"):
+                if minor == "0":
+                    return "https://download.pytorch.org/whl/cu118"
+                elif minor in ("1", "2", "3"):
                     return "https://download.pytorch.org/whl/cu121"
-                elif minor in ("4", "5", "6"):
+                elif minor in ("4", "5"):
                     return "https://download.pytorch.org/whl/cu124"
-                elif minor in ("7", "8", "9"):
+                elif minor in ("6", "7"):
+                    return "https://download.pytorch.org/whl/cu126"
+                elif minor in ("8", "9"):
                     return "https://download.pytorch.org/whl/cu128"
                 else:
                     return "https://download.pytorch.org/whl/cu128"
+            elif major >= "13":
+                return "https://download.pytorch.org/whl/cu128"
             return "https://download.pytorch.org/whl/cpu"
         except Exception:
             return "https://download.pytorch.org/whl/cpu"
@@ -159,6 +187,8 @@ class HardwareManager:
             status["torch_cuda_available"] = torch.cuda.is_available()
             if status["torch_cuda_available"]:
                 status["current_device"] = "cuda"
+            elif hasattr(torch, "xpu") and torch.xpu.is_available():
+                status["current_device"] = "xpu"
             elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 status["current_device"] = "mps"
             else:
@@ -172,7 +202,12 @@ class HardwareManager:
                                         capture_output=True, text=True, check=False)
                 if "Radeon" in result.stdout or "AMD" in result.stdout:
                     status["gpu_brand"] = "amd"
-                    status["recommended_index"] = "https://download.pytorch.org/whl/rocm6.2"
+                    status["cuda_version"] = "rocm7.2.1"
+                    status["recommended_index"] = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1"
+                elif "Intel" in result.stdout:
+                    status["gpu_brand"] = "intel"
+                    status["cuda_version"] = "xpu"
+                    status["recommended_index"] = "https://download.pytorch.org/whl/xpu"
             except Exception:
                 pass
 
@@ -184,14 +219,51 @@ class HardwareManager:
         if status["torch_cuda_available"]:
             yield "✅ Environment is already correctly configured for GPU!", "cuda", ""
             return
+        if hasattr(torch, "xpu") and torch.xpu.is_available():
+            yield "✅ Environment is already correctly configured for GPU!", "xpu", ""
+            return
 
+        brand = status["gpu_brand"]
         index = status["recommended_index"]
         yield "🚀 Starting environment fix...", "cuda", "🚀 Starting environment fix..."
-        yield f"🔍 Detected GPU: {status['gpu_brand'].upper()}", "cuda", f"🔍 Detected GPU: {status['gpu_brand'].upper()}"
+        yield f"🔍 Detected GPU: {brand.upper()}", "cuda", f"🔍 Detected GPU: {brand.upper()}"
         yield f"🔗 Using PyTorch index: {index}", "cuda", f"🔗 Using PyTorch index: {index}"
 
         try:
-            cmd = [sys.executable, "-m", "pip", "install", "torch<2.12", "torchvision", "torchaudio", "--index-url", index]
+            if brand == "amd":
+                # AMD ROCm: SDK wheels must be installed before the torch
+                # wheels, and everything comes from repo.radeon.com (the
+                # CUDA-tier install below would resolve nothing there).
+                roc_base = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1"
+                sdk_wheels = [
+                    f"{roc_base}/rocm_sdk_core-7.2.1-py3-none-win_amd64.whl",
+                    f"{roc_base}/rocm_sdk_devel-7.2.1-py3-none-win_amd64.whl",
+                    f"{roc_base}/rocm_sdk_libraries_custom-7.2.1-py3-none-win_amd64.whl",
+                    f"{roc_base}/rocm-7.2.1.tar.gz",
+                ]
+                torch_wheels = [
+                    f"{roc_base}/torch-2.9.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl",
+                    f"{roc_base}/torchaudio-2.9.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl",
+                    f"{roc_base}/torchvision-0.24.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl",
+                ]
+                yield "Running: pip install ROCm SDK wheels", "cuda", "Running: pip install ROCm SDK wheels"
+                sdk_cmd = [sys.executable, "-m", "pip", "install", "--no-cache-dir"] + sdk_wheels
+                process = subprocess.Popen(sdk_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+                for line in process.stdout:
+                    yield "🛠️ Installing...", "cuda", line.strip()
+                process.wait()
+                if process.returncode != 0:
+                    yield f"❌ ROCm SDK install failed with exit code {process.returncode}", "cpu", f"❌ ROCm SDK install failed with exit code {process.returncode}"
+                    return
+                cmd = [sys.executable, "-m", "pip", "install", "--no-cache-dir"] + torch_wheels
+            elif brand == "intel":
+                # Intel XPU: pin exact versions (index outage bug #185608
+                # can silently downgrade to an old torch otherwise).
+                cmd = [sys.executable, "-m", "pip", "install",
+                       "torch==2.11.0", "torchvision==0.26.0", "torchaudio==2.11.0",
+                       "--index-url", index]
+            else:
+                cmd = [sys.executable, "-m", "pip", "install", "torch<2.12", "torchvision", "torchaudio", "--index-url", index]
             yield f"Running: {' '.join(cmd)}", "cuda", f"Running: {' '.join(cmd)}"
 
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
@@ -289,11 +361,32 @@ def _detect_gpu_kernel_incompatibility() -> Optional[dict]:
         return None
 
 
+def _xpu_kernel_works() -> bool:
+    """Real-kernel check for Intel XPU (torch.xpu). Like the CUDA path,
+    is_available() can report True while this torch build/driver can't
+    actually run kernels (or has no usable device); DEVICE must only
+    resolve to "xpu" after a real kernel launches successfully.
+    """
+    if not (hasattr(torch, "xpu") and torch.xpu.is_available()):
+        return False
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            x = torch.randn(8, device="xpu")
+            _ = x @ x
+            torch.xpu.synchronize()
+        return True
+    except Exception:
+        return False
+
+
 # ── Resolved once at import time ────────────────────────────────────
 _GPU_INCOMPATIBILITY_INFO = _detect_gpu_kernel_incompatibility()
 
 if torch.cuda.is_available() and _GPU_INCOMPATIBILITY_INFO is None:
     DEVICE = "cuda"
+elif _xpu_kernel_works():
+    DEVICE = "xpu"
 elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
     DEVICE = "mps"
 else:

@@ -328,6 +328,7 @@ Write-InstallProgress 32 "[4/8] កំពុងរកឃើញ GPU..." "Detectin
 $gpuBrand = "none"
 $cudaVersion = "cpu"
 $torchIndex = "https://download.pytorch.org/whl/cpu"
+$cudaCandidates = @()
 
 $nvidiaSmi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
 $gpuDone = $false
@@ -378,80 +379,97 @@ if ($nvidiaSmi) {
         # alone (as this script previously did) is exactly what let an
         # old Pascal-class GPU silently get a "cu128 is probably fine"
         # verdict that then crashed on first real use.
+        # Build an ordered list of candidate PyTorch wheel tiers. The
+        # FIRST entry is the best match for this driver; the rest are
+        # automatic fallbacks walked by STEP 5/5b below. Each tier also
+        # carries a DIFFERENT torch version (e.g. cu118 tops out at torch
+        # 2.7.1, which still ships kernels for older GPUs that torch 2.11
+        # dropped), so stepping down the list is a real second chance, not
+        # just a retry. CPU is only used if EVERY tier fails. NVIDIA
+        # drivers are backward-compatible with older CUDA toolkits, so a
+        # driver reporting a NEWER CUDA version than any known tier just
+        # starts at the newest tier with Windows wheels.
+        $cudaCandidates = @()
         if ($rawCuda) {
             $cmajor = [int]($rawCuda.Split(".")[0])
             $cfull = $rawCuda
             if ($cmajor -eq 11) {
-                $cudaVersion = "cu118"
+                $cudaCandidates = @("cu118")
             } elseif ($cmajor -eq 12) {
-                if ($cfull -match "^12\.(1|2|3)") {
-                    $cudaVersion = "cu121"
-                } elseif ($cfull -match "^12\.(4|5|6)") {
-                    $cudaVersion = "cu124"
+                if ($cfull -match "^12\.(8|9)") {
+                    $cudaCandidates = @("cu128", "cu126", "cu124", "cu118")
+                } elseif ($cfull -match "^12\.(6|7)") {
+                    $cudaCandidates = @("cu126", "cu124", "cu118")
+                } elseif ($cfull -match "^12\.(4|5)") {
+                    $cudaCandidates = @("cu124", "cu121", "cu118")
+                } elseif ($cfull -match "^12\.(1|2|3)") {
+                    $cudaCandidates = @("cu121", "cu118")
                 } else {
-                    $cudaVersion = "cu128"
+                    $cudaCandidates = @("cu118")
                 }
             } elseif ($cmajor -ge 13) {
-                Write-Host "[ចំណាំ] Driver CUDA version ($rawCuda) ថ្មីជាង wheel tier ដែលស្គាល់ - កំពុងប្រើ cu128 (tier ថ្មីបំផុត)។ driver ថ្មីមិនមានន័យថា GPU ត្រូវបានគាំទ្រដោយ PyTorch ថ្មីៗនោះទេ - ការសាកល្បងផ្ទុកគំរូខាងក្រោមនឹងផ្ទៀងផ្ទាត់រឿងនេះឱ្យប្រាកដ។" -ForegroundColor Cyan
-                $cudaVersion = "cu128"
+                Write-Host "[ចំណាំ] Driver CUDA version ($rawCuda) ថ្មីជាង wheel tier ដែលស្គាល់ - កំពុងចាប់ផ្តើមពី tier ដែលមាន wheel។ driver ថ្មីមិនមានន័យថា GPU ត្រូវបានគាំទ្រដោយ PyTorch ថ្មីៗនោះទេ - ការសាកល្បងផ្ទុកគំរូខាងក្រោមនឹងផ្ទៀងផ្ទាត់រឿងនេះឱ្យប្រាកដ។" -ForegroundColor Cyan
+                $cudaCandidates = @("cu128", "cu130", "cu126", "cu118")
             } else {
-                $cudaVersion = "cu128"
+                $cudaCandidates = @("cu118")
             }
         } else {
-            $cudaVersion = "cu128"
+            # nvidia-smi worked but the "CUDA Version" line didn't parse —
+            # assume a modern driver and start at the proven RTX-tier.
+            $cudaCandidates = @("cu128", "cu130", "cu126", "cu118")
         }
+        $cudaVersion = $cudaCandidates[0]
         $torchIndex = "https://download.pytorch.org/whl/$cudaVersion"
-        Write-Host "[OK] នឹងដំឡើង PyTorch សម្រាប់ CUDA $cudaVersion (នឹងផ្ទៀងផ្ទាត់ដោយផ្ទុកគំរូ kernel ពិតប្រាកដនៅជំហានបន្ទាប់)" -ForegroundColor Green
+        Write-Host "[OK] នឹងដំឡើង PyTorch សម្រាប់ CUDA $cudaVersion (tier fallbacks: $($cudaCandidates -join ', '))" -ForegroundColor Green
         $gpuDone = $true
     }
 }
 
 if (-not $gpuDone) {
-    $rocmSmi = Get-Command rocm-smi -ErrorAction SilentlyContinue
-    $rocminfo = Get-Command rocminfo -ErrorAction SilentlyContinue
-    if ($rocmSmi -or $rocminfo) {
+    $vc = $null
+    try {
+        $vc = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue
+    } catch {}
+    $vcNames = if ($vc) { $vc.Name -join ";" } else { "" }
+
+    if ($vcNames -match "Radeon|AMD") {
+        # AMD GPU present. On Windows, AMD publishes torch wheels ONLY on
+        # its own repo (repo.radeon.com) — download.pytorch.org has no
+        # Windows ROCm wheels. They require Python 3.12 and the pip
+        # ROCm SDK; SETUP step 5 handles that (auto-installing Python
+        # 3.12 + recreating .venv if needed). No separate ROCm toolkit
+        # install is needed anymore — the SDK ships as pip wheels now.
         $gpuBrand = "amd_rocm"
-        Write-Host "[OK] រកឃើញ GPU AMD ជាមួយ ROCm ។" -ForegroundColor Green
-        $cudaVersion = "rocm6.2"
-        $torchIndex = "https://download.pytorch.org/whl/rocm6.2"
-        Write-Host "[OK] នឹងដំឡើង PyTorch សម្រាប់ ROCm (wheel: $cudaVersion)" -ForegroundColor Green
-        Write-Host "[ចំណាំ] ប្រសិនបើការដំឡើងបរាជ័យ សូមពិនិត្យ https://pytorch.org សម្រាប់ wheel ROCm ចុងក្រោយ។"
+        Write-Host "[OK] រកឃើញ GPU AMD (Radeon / Ryzen AI) ។" -ForegroundColor Green
+        $cudaVersion = "rocm7.2.1"
+        $torchIndex = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1"
+        $cudaCandidates = @("rocm7.2.1")
+        Write-Host "[OK] នឹងដំឡើង PyTorch សម្រាប់ ROCm (wheel: $cudaVersion) ពី repo.radeon.com" -ForegroundColor Green
+        Write-Host "[ចំណាំ] តម្រូវឲ្យមាន AMD Adrenalin driver 26.2.2+ និង Python 3.12 (ដំឡើងស្វ័យប្រវត្តិបើចាំបាច់)។ ទាញយកសរុប ~2.2 GB ។" -ForegroundColor Yellow
+        $gpuDone = $true
+    } elseif ($vcNames -match "Intel") {
+        # Intel GPU present (Arc / Iris Xe / UHD). Intel XPU wheels ship
+        # on download.pytorch.org. Only reached when no NVIDIA (nvidia-smi
+        # failed above) and no AMD GPU — i.e. an Intel-only machine.
+        $gpuBrand = "intel_xpu"
+        Write-Host "[OK] រកឃើញ GPU Intel (Arc / Iris Xe / UHD) ។" -ForegroundColor Green
+        $cudaVersion = "xpu"
+        $torchIndex = "https://download.pytorch.org/whl/xpu"
+        $cudaCandidates = @("xpu")
+        Write-Host "[OK] នឹងដំឡើង PyTorch សម្រាប់ Intel XPU (wheel: $cudaVersion)" -ForegroundColor Green
+        Write-Host "[ចំណាំ] តម្រូវឲ្យមាន Intel GPU driver ចុងក្រោយ។" -ForegroundColor Yellow
         $gpuDone = $true
     } else {
-        $isAmd = $false
-        try {
-            $vc = Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue
-            if ($vc -and ($vc.Name -join ";") -match "Radeon|AMD") { $isAmd = $true }
-        } catch {}
-        if ($isAmd) {
-            $gpuBrand = "amd_no_rocm"
-            Write-Host ""
-            Write-Host "+-----------------------------------------------------------------+" -ForegroundColor Yellow
-            Write-Host "|  រកឃើញ GPU AMD ប៉ុន្តែមិនទាន់ដំឡើង ROCm toolkit ទេ។              |" -ForegroundColor Yellow
-            Write-Host "|                                                                   |" -ForegroundColor Yellow
-            Write-Host "|  ដើម្បីប្រើ GPU អ្នកត្រូវការ AMD ROCm សម្រាប់ Windows ។             |" -ForegroundColor Yellow
-            Write-Host "|  ទាញយក: https://rocm.docs.amd.com/en/latest/                    |" -ForegroundColor Yellow
-            Write-Host "|                                                                   |" -ForegroundColor Yellow
-            Write-Host "|  GPU AMD ដែលគាំទ្រ (ROCm លើ Windows):                             |" -ForegroundColor Yellow
-            Write-Host "|    RX 6000 series, RX 7000 series, Instinct MI series            |" -ForegroundColor Yellow
-            Write-Host "|                                                                   |" -ForegroundColor Yellow
-            Write-Host "|  កំពុងប្រើ CPU PyTorch ជាបណ្តោះអាសន្ន។                            |" -ForegroundColor Yellow
-            Write-Host "|  ដំណើរការ SETUP.bat ម្តងទៀត បន្ទាប់ពីដំឡើង ROCm ។                 |" -ForegroundColor Yellow
-            Write-Host "+-----------------------------------------------------------------+" -ForegroundColor Yellow
-            Write-Host ""
-            $cudaVersion = "cpu"
-            $torchIndex = "https://download.pytorch.org/whl/cpu"
-        } else {
-            Write-Host "[ព្រមាន] រកមិនឃើញ GPU ទេ (គ្មាន nvidia-smi, rocm-smi ឬ GPU AMD ក្នុងបញ្ជីឧបករណ៍) ។" -ForegroundColor Yellow
-            Write-Host "        កំពុងដំឡើង PyTorch សម្រាប់ CPU ។"
-            $gpuBrand = "cpu"
-            $cudaVersion = "cpu"
-            $torchIndex = "https://download.pytorch.org/whl/cpu"
-        }
+        Write-Host "[ព្រមាន] រកមិនឃើញ GPU ទេ (គ្មាន nvidia-smi ឬ GPU NVIDIA/AMD/Intel ក្នុងបញ្ជីឧបករណ៍) ។" -ForegroundColor Yellow
+        Write-Host "        កំពុងដំឡើង PyTorch សម្រាប់ CPU ។"
+        $gpuBrand = "cpu"
+        $cudaVersion = "cpu"
+        $torchIndex = "https://download.pytorch.org/whl/cpu"
+        $cudaCandidates = @()
     }
 }
 
-# ── STEP 5: Install PyTorch ─────────────────────────────────────────
+# ── STEP 5 + 5b: Install PyTorch with automatic tier fallback ───────
 # torch is pinned to <2.12 ON PURPOSE: colpali_engine (pulled in by
 # requirements.txt via `byaldi`) requires `torch<2.12.0,>=2.2.0`. If we
 # installed the newest torch here (2.13.x+), the Step 6 requirements
@@ -460,62 +478,27 @@ if (-not $gpuDone) {
 # GPU-matched build with a plain/CPU one. Pinning the same upper bound
 # here keeps the GPU/CPU wheel selected in this step consistent with what
 # Step 6 will accept, so no second download and no GPU-torch wipe.
-Write-Host ""
-if ($cudaVersion -eq "cpu") {
-    Write-InstallProgress 40 "[5/8] កំពុងដំឡើង PyTorch (CPU-only)..." "Downloading PyTorch CPU wheels..."
-} else {
-    Write-InstallProgress 40 "[5/8] កំពុងដំឡើង PyTorch ($cudaVersion)..." "Downloading PyTorch wheels for $cudaVersion (~2-3 GB)..."
-}
-Write-Host "      អាចចំណាយពេលច្រើននាទី (torch មានទំហំប្រហែល ២-៣ GB)..."
-
-# If a GPU tier was selected but the venv already holds a CPU/plain torch
-# build (e.g. from an earlier failed run that fell back to CPU), pip would
-# consider `torch<2.12` "already satisfied" and never upgrade to the GPU
-# wheel — silently keeping the machine on CPU forever. Force a clean
-# reinstall in that case so re-running SETUP.bat actually repairs it.
-if ($cudaVersion -ne "cpu") {
-    $curTorch = (& $venvPython -c "import torch; print(torch.__version__)" 2>$null)
-    if ($curTorch -and $curTorch -notmatch "\+cu" -and $curTorch -notmatch "\+rocm") {
-        Write-Host "[ចំណាំ] បានរកឃើញ PyTorch $curTorch (CPU build) - កំពុងដកចេញ ហើយដំឡើង build សម្រាប់ GPU ឡើងវិញ..." -ForegroundColor Yellow
-        & $venvPython -m pip uninstall torch torchvision torchaudio -y 2>$null
-    }
-}
-
-if (-not (Invoke-PipRetry @("install", "torch<2.12", "torchvision", "torchaudio", "--index-url", $torchIndex, "--timeout", "120") 3)) {
-    Write-Host "[កំហុស] ការដំឡើង PyTorch បានបរាជ័យ។" -ForegroundColor Red
-    if ($gpuBrand -eq "amd_rocm") {
-        Write-Host "[គន្លឹះ] wheel ROCm ប្រហែលជាមិនមានសម្រាប់កំណែ ROCm របស់អ្នកទេ។" -ForegroundColor Yellow
-        Write-Host "        សាកល្បង: https://pytorch.org/get-started/locally/ ដើម្បីរក wheel ត្រឹមត្រូវ។"
-    }
-    Set-InstallStatus 1
-        Pause-Exit
-        exit 1
-}
-Write-Host "[OK] PyTorch ត្រូវបានដំឡើង ($cudaVersion) ។" -ForegroundColor Green
-Write-InstallProgress 60 "[5/8] PyTorch ត្រូវបានដំឡើង" "PyTorch ($cudaVersion) installed successfully"
-
-# ── STEP 5b: Verify the GPU wheel ACTUALLY works on THIS machine ─────
-# `pip install` succeeding, and even `torch.cuda.is_available()`
-# returning True, do NOT guarantee this specific PyTorch build ships
-# compiled kernels for this specific GPU's compute capability. PyTorch
-# wheels only include kernels for a fixed list of architectures, and
-# older cards (e.g. Pascal/sm_6x such as the GeForce MX series, or
-# Maxwell/sm_5x) have been dropped from recent stable releases. When
-# that happens, the model still LOADS onto the device with no error —
-# it only crashes the first time a real kernel launches (e.g. deep
-# inside a model's tie_weights() step), with a confusing
-# "CUDA error: no kernel image is available for execution on the
-# device". A driver reporting a new CUDA version (e.g. CUDA 13.x) does
-# NOT mean the GPU itself is new/supported — this is exactly the gap
-# that let an old GPU silently receive a "should be fine" verdict.
 #
-# So: actually launch a real kernel here (mirrors the same
-# Test-LlamaCppRealModelLoad pattern already used for llama-cpp-python
-# below) and, if it fails, automatically fall back to the CPU-only
-# wheel instead of leaving a broken GPU install in place for a
-# non-technical end user to stumble into later at runtime.
-function Test-TorchCudaReal([int]$TimeoutSec = 90) {
-    $code = "import torch; x = torch.randn(64, 64, device='cuda'); y = x @ x; torch.cuda.synchronize(); print('OK')"
+# `pip install` succeeding — and even torch.cuda.is_available() returning
+# True — do NOT guarantee this PyTorch build ships compiled kernels for
+# THIS GPU's compute capability. PyTorch wheels only include kernels for
+# a fixed list of architectures, and older cards (Pascal/sm_6x such as
+# the GeForce MX series, Maxwell/sm_5x) have been dropped from recent
+# stable releases; the model then LOADS onto the device with no error and
+# only crashes when a real kernel launches (tie_weights(), ...) with a
+# confusing "CUDA error: no kernel image is available". So we launch a
+# REAL kernel (mirroring the Test-LlamaCppRealModelLoad pattern) and, on
+# failure, move to the next candidate tier (each tier also carries a
+# DIFFERENT torch version — e.g. cu118 tops out at torch 2.7.1, which
+# still ships kernels for GPUs that torch 2.11 dropped) before ever
+# giving up on GPU. CPU is used only after EVERY tier fails, so no
+# user is ever left with a hard-failed install for a reachable GPU.
+# The same real-kernel test runs for AMD ROCm (which exposes the CUDA API
+# surface, so device 'cuda') and for Intel XPU (torch.xpu), so every
+# backend shares the "only trust a real kernel launch" guarantee.
+function Test-TorchKernelReal([string]$Device = "cuda", [int]$TimeoutSec = 90) {
+    $sync = if ($Device -eq "xpu") { "torch.xpu.synchronize()" } else { "torch.cuda.synchronize()" }
+    $code = "import torch; x = torch.randn(64, 64, device='$Device'); y = x @ x; $sync; print('OK')"
     $last = $null
     for ($attempt = 1; $attempt -le 3; $attempt++) {
         $last = Invoke-CapturedProcess -FileName $venvPython -Arguments "-c `"$code`"" -TimeoutSec $TimeoutSec
@@ -527,7 +510,7 @@ function Test-TorchCudaReal([int]$TimeoutSec = 90) {
     }
     try {
         $log = @(
-            "Torch GPU kernel smoke test FAILED after 3 attempts.",
+            "Torch $Device kernel smoke test FAILED after 3 attempts.",
             ("TimedOut: {0} | ExitCode: {1}" -f $last.TimedOut, $last.ExitCode),
             "--- STDOUT ---",
             $last.Output,
@@ -539,28 +522,201 @@ function Test-TorchCudaReal([int]$TimeoutSec = 90) {
     return $false
 }
 
-if ($cudaVersion -ne "cpu") {
-    Write-Host ""
-    Write-InstallProgress 62 "[5b/8] កំពុងផ្ទៀងផ្ទាត់ GPU kernel..." "Executing GPU smoke test kernel..."
-    if (Test-TorchCudaReal) {
-        Write-Host "[OK] GPU kernel test ជោគជ័យ — PyTorch នឹងប្រើ GPU របស់អ្នកបាន។" -ForegroundColor Green
-    } else {
-        Write-InstallProgress 65 "[5b/8] កំពុងត្រលប់ទៅ CPU PyTorch វិញ..." "GPU CC incompatible. Installing CPU-only PyTorch wheel..."
-        Write-Host "[ព្រមាន] GPU wheel ដំឡើងបានជោគជ័យ ប៉ុន្តែ GPU នេះ (Compute Capability: $computeCap) មិនត្រូវបានគាំទ្រដោយ PyTorch build នេះទេ (ប្រហែលជាចាស់ពេក ឬថ្មីពេក)។ កំពុងត្រលប់ទៅ CPU-only wheel វិញ ដោយស្វ័យប្រវត្តិ..." -ForegroundColor Yellow
+function Test-VenvPythonVersion([string]$VerRegex) {
+    $ver = (& $venvPython --version 2>&1 | Select-Object -First 1)
+    return ($ver -match $VerRegex)
+}
+
+# AMD's Windows ROCm wheels (repo.radeon.com) are Python 3.12 ONLY. If
+# the current venv isn't 3.12, silently install Python 3.12.x and recreate
+# the venv with it, then re-upgrade pip. Returns $true if the venv is 3.12
+# afterwards, $false otherwise (the caller falls back to CPU).
+function Ensure-VenvPython312 {
+    if (Test-VenvPythonVersion "3\.12") { return $true }
+    Write-Host " [*] AMD ROCm តម្រូវឲ្យប្រើ Python 3.12 - កំពុងទាញយក/ដំឡើង Python 3.12..." -ForegroundColor Cyan
+    $installerPath = Join-Path $env:TEMP "python_installer.exe"
+    try {
+        Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe" -OutFile $installerPath -UseBasicParsing
+    } catch {
+        Write-Host "[ព្រមាន] ការទាញយក Python 3.12 បានបរាជ័យ។" -ForegroundColor Yellow
+        return $false
+    }
+    $installAllUsers = if ($isElevated) { "1" } else { "0" }
+    $proc = Start-Process -FilePath $installerPath -ArgumentList @("/quiet", "InstallAllUsers=$installAllUsers", "PrependPath=1", "Include_pip=1", "Include_launcher=1", "Include_test=0") -Wait -PassThru
+    if ($proc.ExitCode -ne 0) {
+        Write-Host "[ព្រមាន] ការដំឡើង Python 3.12 បានបរាជ័យ (exit $($proc.ExitCode))។" -ForegroundColor Yellow
+        return $false
+    }
+    Refresh-Path
+    $py312exe = $null
+    $p = Get-Command python -ErrorAction SilentlyContinue
+    if ($p) {
+        $pv = (& python --version 2>&1 | Select-Object -First 1)
+        if ($pv -match "3\.12") { $py312exe = (& python -c "import sys; print(sys.executable)").Trim() }
+    }
+    if (-not $py312exe) {
+        $pyL = Get-Command py -ErrorAction SilentlyContinue
+        if ($pyL) {
+            $py312v = (& py -3.12 --version 2>&1 | Select-Object -First 1)
+            if ($py312v -match "3\.12") { $py312exe = (& py -3.12 -c "import sys; print(sys.executable)").Trim() }
+        }
+    }
+    if (-not $py312exe) {
+        Write-Host "[ព្រមាន] មិនអាចកំណត់ទីតាំង Python 3.12 បានទេ។" -ForegroundColor Yellow
+        return $false
+    }
+    if (Test-Path -LiteralPath $venvDir) {
+        try { Remove-Item -LiteralPath $venvDir -Recurse -Force -ErrorAction Stop } catch {
+            Write-Host "[ព្រមាន] មិនអាចលុប .venv ចាស់ដើម្បីបង្កើតឡើងវិញជាមួយ Python 3.12 បានទេ។" -ForegroundColor Yellow
+            return $false
+        }
+    }
+    & $py312exe -m venv .venv
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[ព្រមាន] ការបង្កើត .venv ជាមួយ Python 3.12 បានបរាជ័យ។" -ForegroundColor Yellow
+        return $false
+    }
+    Write-Host "[OK] .venv ត្រូវបានបង្កើតឡើងវិញជាមួយ Python 3.12 ដោយជោគជ័យ។" -ForegroundColor Green
+    & $venvPython -m pip install --upgrade pip
+    return $true
+}
+
+Write-Host ""
+$torchOk = $false
+$torchTried = @()
+$cpuIndex = "https://download.pytorch.org/whl/cpu"
+
+if ($gpuBrand -ne "cpu") {
+    # If the venv already holds a CPU/plain torch build (e.g. from an
+    # earlier run that fell back to CPU), pip would consider the pinned
+    # torch "already satisfied" and never upgrade to a GPU wheel —
+    # silently keeping the machine on CPU forever. Force a clean
+    # reinstall so re-running SETUP.bat actually repairs it.
+    $curTorch = (& $venvPython -c "import torch; print(torch.__version__)" 2>$null)
+    if ($curTorch -and $curTorch -notmatch "\+(cu|rocm|xpu)") {
+        Write-Host "[ចំណាំ] បានរកឃើញ PyTorch $curTorch (CPU build) - កំពុងដកចេញ ហើយដំឡើង build សម្រាប់ GPU ឡើងវិញ..." -ForegroundColor Yellow
         & $venvPython -m pip uninstall torch torchvision torchaudio -y 2>$null
-        if (Invoke-PipRetry @("install", "torch<2.12", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cpu", "--timeout", "120") 3) {
-            $cudaVersion = "cpu"
-            $torchIndex  = "https://download.pytorch.org/whl/cpu"
-            Write-Host "[OK] កម្មវិធីនឹងដំណើរការនៅលើ CPU ជំនួសវិញ (GPU នេះមិនត្រូវបានគាំទ្រដោយ PyTorch កំណែថ្មីនេះទេ)។" -ForegroundColor Yellow
-            Write-Host "     ចំណាំ៖ កម្មវិធីខ្លួនឯងក៏នឹងបង្ហាញការព្រមានស្រដៀងគ្នានេះនៅក្នុង UI ជានិច្ចផងដែរ។" -ForegroundColor Yellow
+    }
+}
+
+if ($gpuBrand -eq "amd_rocm") {
+    # ── AMD ROCm (Windows): pip-installed ROCm SDK + AMD torch wheels ──
+    # AMD publishes Windows torch wheels ONLY on repo.radeon.com (the
+    # download.pytorch.org ROCm tiers have no Windows wheels). Per AMD's
+    # docs the ROCm SDK wheels must be installed first; torch/torchvision/
+    # torchaudio then install from direct URLs. Requires Python 3.12 and
+    # an AMD Adrenalin 26.2.2+ driver. Total download ~2.2 GB.
+    $rocBase = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1"
+    if (Ensure-VenvPython312) {
+        Write-Host ""
+        Write-InstallProgress 40 "[5/8] កំពុងដំឡើង ROCm SDK + PyTorch (AMD)..." "Downloading AMD ROCm SDK (~1.4 GB) + torch wheels (~2.2 GB total)..."
+        Write-Host "      អាចចំណាយពេលច្រើននាទី (download ធំ)..."
+        $torchTried += "rocm7.2.1"
+        $sdkOk = Invoke-PipRetry @("install", "--no-cache-dir", "$rocBase/rocm_sdk_core-7.2.1-py3-none-win_amd64.whl", "$rocBase/rocm_sdk_devel-7.2.1-py3-none-win_amd64.whl", "$rocBase/rocm_sdk_libraries_custom-7.2.1-py3-none-win_amd64.whl", "$rocBase/rocm-7.2.1.tar.gz") 3
+        if ($sdkOk) {
+            if (Invoke-PipRetry @("install", "--no-cache-dir", "$rocBase/torch-2.9.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl", "$rocBase/torchaudio-2.9.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl", "$rocBase/torchvision-0.24.1%2Brocm7.2.1-cp312-cp312-win_amd64.whl") 3) {
+                Write-Host ""
+                Write-InstallProgress 62 "[5b/8] កំពុងផ្ទៀងផ្ទាត់ GPU kernel (rocm7.2.1)..." "Executing GPU smoke test kernel..."
+                # ROCm torch exposes the CUDA API surface, so device 'cuda' is correct here.
+                if (Test-TorchKernelReal -Device cuda) {
+                    $torchOk = $true
+                    $cudaVersion = "rocm7.2.1"
+                    $torchIndex = $rocBase
+                    Write-Host "[OK] GPU kernel test ជោគជ័យ (rocm7.2.1) — PyTorch នឹងប្រើ AMD GPU របស់អ្នកបាន។" -ForegroundColor Green
+                } else {
+                    Write-Host "[ព្រមាន] wheel rocm7.2.1 ដំឡើងបាន ប៉ុន្តែ GPU kernel test បរាជ័យ។ តម្រូវឲ្យមាន AMD Adrenalin driver 26.2.2+ ។" -ForegroundColor Yellow
+                }
+            } else {
+                Write-Host "[ព្រមាន] ការដំឡើង AMD torch wheels បានបរាជ័យ។" -ForegroundColor Yellow
+            }
         } else {
-            Write-Host "[កំហុស] ការត្រលប់ទៅ CPU wheel ក៏បានបរាជ័យដែរ។ សូមដំណើរការ SETUP.bat ម្តងទៀត ឬដំឡើងដោយដៃ។" -ForegroundColor Red
-            Set-InstallStatus 1
-            Pause-Exit
-            exit 1
+            Write-Host "[ព្រមាន] ការដំឡើង ROCm SDK wheels បានបរាជ័យ។" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "[ព្រមាន] AMD ROCm លើ Windows តម្រូវឲ្យប្រើ Python 3.12 - មិនអាចដំឡើង GPU build បានទេ កំពុងប្រើ CPU ជំនួសវិញ។" -ForegroundColor Yellow
+    }
+} elseif ($gpuBrand -eq "intel_xpu") {
+    # ── Intel XPU ──────────────────────────────────────────────────
+    Write-Host ""
+    # XPU wheels need Python >= 3.10; if the venv is older, upgrade to 3.12.
+    if (-not (Test-VenvPythonVersion "3\.1\d")) {
+        Write-Host "[ចំណាំ] Intel XPU ត្រូវការ Python 3.10+ - កំពុងដំឡើង Python 3.12..." -ForegroundColor Yellow
+        $null = Ensure-VenvPython312
+    }
+    Write-InstallProgress 40 "[5/8] កំពុងដំឡើង PyTorch (Intel XPU)..." "Downloading PyTorch XPU wheels (~2-3 GB)..."
+    Write-Host "      អាចចំណាយពេលច្រើននាទី (torch មានទំហំប្រហែល ២-៣ GB)..."
+    $torchTried += "xpu"
+    # Pin exact versions: the XPU release index had a known outage
+    # (pytorch/pytorch#185608) where intel-cmplr-lib-rt==2025.3.2 went
+    # missing and pip silently fell back to an old torch 2.9.1 build.
+    if (Invoke-PipRetry @("install", "torch==2.11.0", "torchvision==0.26.0", "torchaudio==2.11.0", "--index-url", "https://download.pytorch.org/whl/xpu", "--timeout", "120") 3) {
+        Write-Host ""
+        Write-InstallProgress 62 "[5b/8] កំពុងផ្ទៀងផ្ទាត់ GPU kernel (xpu)..." "Executing GPU smoke test kernel..."
+        if (Test-TorchKernelReal -Device xpu) {
+            $torchOk = $true
+            $cudaVersion = "xpu"
+            $torchIndex = "https://download.pytorch.org/whl/xpu"
+            Write-Host "[OK] GPU kernel test ជោគជ័យ (xpu) — PyTorch នឹងប្រើ Intel GPU របស់អ្នកបាន។" -ForegroundColor Green
+        } else {
+            Write-Host "[ព្រមាន] wheel xpu ដំឡើងបាន ប៉ុន្តែ GPU kernel test បរាជ័យ។ តម្រូវឲ្យមាន Intel GPU driver ចុងក្រោយ។" -ForegroundColor Yellow
+            & $venvPython -m pip uninstall torch torchvision torchaudio -y 2>$null
+        }
+    } else {
+        Write-Host "[ព្រមាន] wheel xpu មិនអាចដំឡើងបានទេ។" -ForegroundColor Yellow
+    }
+} elseif ($cudaVersion -ne "cpu") {
+    # ── NVIDIA: ordered tier list with automatic fallback ─────────
+    foreach ($tier in $cudaCandidates) {
+        $tierIndex = "https://download.pytorch.org/whl/$tier"
+        $torchTried += $tier
+        Write-Host ""
+        Write-InstallProgress 40 "[5/8] កំពុងដំឡើង PyTorch ($tier)..." "Downloading PyTorch wheels for $tier (~2-3 GB)..."
+        Write-Host "      អាចចំណាយពេលច្រើននាទី (torch មានទំហំប្រហែល ២-៣ GB)..."
+
+        if (Invoke-PipRetry @("install", "torch<2.12", "torchvision", "torchaudio", "--index-url", $tierIndex, "--timeout", "120") 3) {
+            # Step 5b: real-kernel smoke test on this tier
+            Write-Host ""
+            Write-InstallProgress 62 "[5b/8] កំពុងផ្ទៀងផ្ទាត់ GPU kernel ($tier)..." "Executing GPU smoke test kernel..."
+            if (Test-TorchKernelReal -Device cuda) {
+                $torchOk = $true
+                $cudaVersion = $tier
+                $torchIndex = $tierIndex
+                Write-Host "[OK] GPU kernel test ជោគជ័យ ($tier) — PyTorch នឹងប្រើ GPU របស់អ្នកបាន។" -ForegroundColor Green
+                break
+            }
+            Write-Host "[ព្រមាន] wheel $tier ដំឡើងបាន ប៉ុន្តែ GPU kernel test បរាជ័យ (Compute Capability: $computeCap)។ កំពុងព្យាយាម tier បន្ទាប់..." -ForegroundColor Yellow
+            & $venvPython -m pip uninstall torch torchvision torchaudio -y 2>$null
+        } else {
+            Write-Host "[ព្រមាន] tier $tier មិនអាចដំឡើងបានទេ។ កំពុងព្យាយាម tier បន្ទាប់..." -ForegroundColor Yellow
         }
     }
 }
+
+# ── STEP 5c: CPU fallback (no GPU detected, or every GPU tier failed) ──
+if (-not $torchOk) {
+    Write-Host ""
+    Write-InstallProgress 40 "[5/8] កំពុងដំឡើង PyTorch (CPU-only)..." "Downloading PyTorch CPU wheels..."
+    if (Invoke-PipRetry @("install", "torch<2.12", "torchvision", "torchaudio", "--index-url", $cpuIndex, "--timeout", "120") 3) {
+        $torchOk = $true
+        $cudaVersion = "cpu"
+        $torchIndex = $cpuIndex
+        if ($gpuBrand -ne "cpu") {
+            Write-Host "[ព្រមាន] មិនអាចប្រើ GPU បានទេ (tier បានសាកល្បង: $($torchTried -join ', ')) - កំពុងប្រើ CPU PyTorch ជំនួសវិញ។" -ForegroundColor Yellow
+        } else {
+            Write-Host "[OK] PyTorch (CPU-only) ត្រូវបានដំឡើង។" -ForegroundColor Green
+        }
+    }
+}
+
+if (-not $torchOk) {
+    Write-Host "[កំហុស] ការដំឡើង PyTorch បានបរាជ័យទាំង GPU និង CPU wheel។ សូមពិនិត្យការតភ្ជាប់អ៊ីនធឺណិត ហើយដំណើរការ SETUP.bat ម្តងទៀត។" -ForegroundColor Red
+    Set-InstallStatus 1
+    Pause-Exit
+    exit 1
+}
+
+Write-Host "[OK] PyTorch ត្រូវបានដំឡើង ($cudaVersion) ។" -ForegroundColor Green
+Write-InstallProgress 60 "[5/8] PyTorch ត្រូវបានដំឡើង" "PyTorch ($cudaVersion) installed successfully"
 
 # ── STEP 6: Notice about llama-cpp-python (GGUF backend) ──────────
 Write-Host ""

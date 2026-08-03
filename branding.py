@@ -55,7 +55,7 @@ def about_content_kh(device: str, version: str) -> str:
 
 | សមាសធាតុ | លម្អិត |
 |---|---|
-| LLM | ម៉ូដែល HuggingFace (Qwen3, Gemma-4) **ឬ** ម៉ូដែល GGUF មូលដ្ឋានតាមរយៈ llama.cpp |
+| LLM | ម៉ូដែល HuggingFace (Gemma-4) **ឬ** ម៉ូដែល GGUF មូលដ្ឋានតាមរយៈ llama.cpp |
 | Vision LLM | SmolVLM / Qwen2.5-VL |
 | Speech-to-Text | Whisper (រួមទាំងម៉ូដែលដែលបានកែសម្រួលសម្រាប់ភាសាខ្មែរ) |
 | Embedding | BAAI/bge-m3 |
@@ -103,7 +103,7 @@ HuggingFace (transformers) models or local GGUF models via llama.cpp. Built by L
 
 | Component | Detail |
 |---|---|
-| LLM | HuggingFace models (Qwen3, Gemma-4) **or** local GGUF models via llama.cpp |
+| LLM | HuggingFace models (Gemma-4) **or** local GGUF models via llama.cpp |
 | Vision LLM | SmolVLM / Qwen2.5-VL |
 | Speech-to-Text | Whisper (including Khmer-tuned variants) |
 | Embedding | BAAI/bge-m3 |

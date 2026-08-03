@@ -327,6 +327,90 @@ def set_max_new_tokens(n: int) -> None:
 
 
 # ──────────────────────────────────────────────────────────────────
+# Quantization (bitsandbytes) — user-configurable from the UI (🗜️
+# Quantization dropdown in General Chat's Generation Settings).
+#
+# Lets any HuggingFace model load in 4-bit/8-bit via bitsandbytes,
+# trading a little quality for roughly a quarter (4-bit) or half
+# (8-bit) of the full-precision memory footprint. This is how the
+# Gemma 4 hardware-tier table in README.md fits models like
+# Gemma-4-26B-A4B-it on a 24GB card, or Gemma-4-E2B-it on a modest
+# CPU machine — see get_recommended_quantization() below for the
+# per-tier default.
+#
+# NOTE: bitsandbytes 4-bit/8-bit works most reliably on CUDA GPUs.
+# On CPU/MPS models.get_llm() attempts it but falls back to the
+# unquantized load (with a warning) rather than crashing. Models
+# whose id contains "qat" (e.g. the Mobile QAT checkpoint) ship
+# pre-quantized and are never re-quantized by this control.
+# ──────────────────────────────────────────────────────────────────
+QUANTIZATION_OPTIONS = {
+    "None (full precision — default)": "none",
+    "8-bit (bitsandbytes — ~half the memory)": "8bit",
+    "4-bit NF4 (bitsandbytes — ~quarter the memory)": "4bit",
+}
+DEFAULT_QUANTIZATION_LABEL = "None (full precision — default)"
+DEFAULT_QUANTIZATION = QUANTIZATION_OPTIONS[DEFAULT_QUANTIZATION_LABEL]
+
+
+def get_recommended_quantization() -> str:
+    """The quantization mode README.md's hardware-tier table recommends
+    for THIS machine, matching the "Recommended Model / Quantization"
+    ladder:
+       CPU only / <8GB   -> E2B 4-bit      1.5-3 GB
+       8-12GB GPU        -> E4B 4-bit      3-5 GB
+       16GB GPU          -> 26B-A4B 4-bit  8-14 GB
+       24GB GPU          -> 26B-A4B 8-bit  14-28 GB  (the sweet spot)
+       24GB+ (max qual)  -> 31B 4-bit      18-20 GB  (absolute best)
+    The top (48GB+) tier is treated as the "24GB GPU (max quality)" pick —
+    the max VRAM the recommendation ladder targets is 24GB, which is the
+    realistic ceiling. A saved user override via set_quantization() always
+    wins (see get_effective_quantization())."""
+    tier = HardwareManager.detect_hardware_tier()
+    return {
+        HardwareManager.TIER_48GB_VRAM: "4bit",
+        HardwareManager.TIER_24GB_VRAM: "8bit",
+        HardwareManager.TIER_16GB_VRAM: "4bit",
+        HardwareManager.TIER_8GB_VRAM:  "4bit",
+        HardwareManager.TIER_CPU_ONLY:  "4bit",
+        HardwareManager.TIER_UNKNOWN:   "4bit",
+    }.get(tier, "none")
+
+
+def get_saved_quantization() -> str:
+    """The explicitly-persisted quantization mode, or 'none' if the user
+    never touched the control (used by the UI to show the current state)."""
+    saved = str(user_config.USER_CONFIG.get("quantization_mode", "none"))
+    return saved if saved in QUANTIZATION_OPTIONS.values() else "none"
+
+
+def get_effective_quantization() -> str:
+    """The quantization mode actually used when loading models: a saved
+    user override wins, otherwise the hardware-tier recommendation."""
+    saved = get_saved_quantization()
+    if saved != "none":
+        return saved
+    return get_recommended_quantization()
+
+
+def get_effective_quantization_label() -> str:
+    """Reverse-lookup the dropdown label matching the effective
+    quantization mode, for initializing the UI dropdown's value."""
+    effective = get_effective_quantization()
+    for label, value in QUANTIZATION_OPTIONS.items():
+        if value == effective:
+            return label
+    return DEFAULT_QUANTIZATION_LABEL
+
+
+def set_quantization(mode: str) -> None:
+    """Persist the chosen quantization mode so it survives an app
+    restart — mirrors set_context_window()'s persistence pattern."""
+    mode = mode if mode in QUANTIZATION_OPTIONS.values() else "none"
+    user_config.save_user_config({"quantization_mode": mode})
+
+
+# ──────────────────────────────────────────────────────────────────
 # Reasoning ("thinking") on/off toggle — user-configurable from the UI.
 #
 # Qwen3/Qwen3.5/Qwen3.6's own chat template looks for the literal
@@ -634,12 +718,14 @@ ORNITH_IDS = {
 }
 # Gemma 4 (all sizes) needs transformers >= 5.10.1 — see
 # models._MIN_TRANSFORMERS_VERSION["gemma4"] for the guard that checks
-# this before load. Includes google/gemma-4-E2B-it, the app's own
-# pre-existing default LLM entry — it was previously unguarded (silently
-# unloadable on a stock transformers>=4.51.0 install per requirements.txt)
-# until this set + guard were added.
+# this before load. Every entry in BASE_MODEL_OPTIONS is a Gemma 4 model
+# (the app's base LLM family), so this guard applies to the whole default
+# lineup — google/gemma-4-E2B-it (the app's default LLM), E4B, the Mobile
+# QAT edge checkpoint, and the 12B/26B-A4B/31B ladder.
 GEMMA4_IDS = {
     "google/gemma-4-E2B-it",
+    "google/gemma-4-E4B-it",
+    "google/gemma-4-e4b-it-qat-mobile-transformers",
     "google/gemma-4-12B-it",
     "google/gemma-4-26B-A4B-it",
     "google/gemma-4-31B-it",
@@ -663,7 +749,7 @@ def set_hf_token(token: str) -> None:
 
 def get_saved_hf_model_id() -> str:
     saved = str(user_config.USER_CONFIG.get("hf_model_id", "")).strip()
-    return saved if saved else "Qwen/Qwen3.6-35B-A3B"
+    return saved if saved else "google/gemma-4-26B-A4B-it"
 
 
 def set_hf_model_id(model_id: str) -> None:
@@ -709,41 +795,30 @@ def set_litellm_api_base(base: str) -> None:
 # LLM (HuggingFace + GGUF) options
 # ──────────────────────────────────────────────────────────────────
 BASE_MODEL_OPTIONS = {
-    "🟢 Qwen3-0.6B   (~1.2 GB RAM | fastest)": "Qwen/Qwen3-0.6B",
-    "🟡 Qwen3-1.7B   (~3 GB RAM)":             "Qwen/Qwen3-1.7B",
-    "🟠 Qwen2.5-Coder-3B (~6 GB RAM | small coding/agent model)": "Qwen/Qwen2.5-Coder-3B-Instruct",
-    "🟡 Qwen3-4B     (~7 GB RAM)":             "Qwen/Qwen3-4B",
-    "🔵 Gemma-4-E2B  (~4 GB RAM | needs transformers>=5.10.1)": "google/gemma-4-E2B-it",
-    # Registered from README.md's "Model combos by hardware tier" table —
-    # these are the HF/transformers-loadable equivalents of that table's
-    # GGUF recommendations (same checkpoints, full BF16 precision instead
-    # of a quantized .gguf file — so actual RAM/VRAM use is higher than
-    # the README's GGUF-quantized figures for the same model name).
-    # Qwen3 dense sizes — same "qwen3" architecture as the existing
-    # Qwen3-0.6B/1.7B/4B above, already covered by this app's pinned
-    # transformers>=4.51.0 (see requirements.txt) — no new version guard
-    # needed, unlike Qwen3.6/Gemma 4 below. No Qwen3.6 checkpoint exists
-    # at these sizes yet, so these stay on plain Qwen3.
-    "🟠 Qwen3-8B     (~16 GB RAM | 8GB-VRAM tier)":  "Qwen/Qwen3-8B",
-    "🔴 Qwen3-14B    (~30 GB RAM | 16GB-VRAM tier)": "Qwen/Qwen3-14B",
-    # Qwen3.6 (April 2026, newest Qwen generation) — replaces the older
-    # Qwen3-32B at the top of the dense lineup, and adds the 35B-A3B MoE
-    # variant (only ~3B active params/token, so it stays fast even on
-    # CPU-only rigs — see README's hardware-tier table). Needs
-    # transformers>=5.2.0 — see models._MIN_TRANSFORMERS_VERSION["qwen36"].
-    "🔴 Qwen3.6-27B   (~55 GB RAM | 24GB+/48GB+-VRAM tier | needs transformers>=5.2.0)": "Qwen/Qwen3.6-27B",
-    "🔴 Qwen3.6-35B-A3B (~70 GB RAM, MoE ~3B active | fast even on CPU | needs transformers>=5.2.0)": "Qwen/Qwen3.6-35B-A3B",
-    # Gemma 4 — needs transformers>=5.10.1 (see models._MIN_TRANSFORMERS_
-    # VERSION["gemma4"] and model_registry.GEMMA4_IDS above); loading with
-    # an older transformers raises a clear upgrade error instead of a
-    # cryptic AutoModel crash. Natively multimodal/encoder-free — loads
-    # here via the plain text-LLM path (smolagents' TransformersModel),
-    # which works for inference/generation, though the vision/audio
-    # towers ride along unused; use the 🎨 Vision LLM dropdown instead if
-    # you specifically want Gemma 4's image understanding.
-    "🟣 Gemma-4-12B-it    (~25 GB RAM | 16GB-VRAM tier | needs transformers>=5.10.1)": "google/gemma-4-12B-it",
-    "🟣 Gemma-4-26B-A4B-it (~52 GB RAM, MoE ~4B active | 24GB-VRAM tier | needs transformers>=5.10.1)": "google/gemma-4-26B-A4B-it",
-    "🟣 Gemma-4-31B-it    (~63 GB RAM | 48GB+-VRAM tier | needs transformers>=5.10.1)": "google/gemma-4-31B-it",
+    # Gemma 4 — the app's base LLM family. Needs transformers>=5.10.1 (see
+    # models._MIN_TRANSFORMERS_VERSION["gemma4"] and GEMMA4_IDS above);
+    # loading with an older transformers raises a clear upgrade error
+    # instead of a cryptic AutoModel crash. Natively multimodal/encoder-
+    # free — loads here via the plain text-LLM path (smolagents'
+    # TransformersModel, which resolves Gemma 4 through
+    # AutoModelForImageTextToText), which works for inference/generation,
+    # though the vision/audio towers ride along unused; use the 🎨 Vision
+    # LLM dropdown instead if you specifically want Gemma 4's image
+    # understanding.
+    # Sizes below follow the README's "Recommended Model / Quantization"
+    # ladder and show the footprint at the RECOMMENDED quantization level
+    # (bitsandbytes), not the full BF16/FP16 checkpoint size (params × 2):
+    #    CPU only / <8GB   -> E2B 4-bit      1.5-3 GB
+    #    8-12GB GPU        -> E4B 4-bit      3-5 GB
+    #    16GB GPU          -> 26B-A4B 4-bit  8-14 GB
+    #    24GB GPU          -> 26B-A4B 8-bit  14-28 GB
+    #    24GB+ (max qual)  -> 31B 4-bit      18-20 GB
+    "🔵 Gemma-4-E2B    (~2-3 GB @4-bit | CPU/<8GB tier | needs transformers>=5.10.1)": "google/gemma-4-E2B-it",
+    "🟢 Gemma-4-E4B    (~3-5 GB @4-bit | 8-12GB-VRAM tier | needs transformers>=5.10.1)": "google/gemma-4-E4B-it",
+    "🧠 Gemma-4-E4B Mobile QAT (~3 GB | CPU/edge tier | needs transformers>=5.10.1)": "google/gemma-4-e4b-it-qat-mobile-transformers",
+    "🟠 Gemma-4-12B-it    (~24 GB full precision | manual pick | needs transformers>=5.10.1)": "google/gemma-4-12B-it",
+    "🔴 Gemma-4-26B-A4B-it (MoE ~3.8B active | ~8-14 GB @4-bit | 16-24GB-VRAM tier | needs transformers>=5.10.1)": "google/gemma-4-26B-A4B-it",
+    "🔴 Gemma-4-31B-it    (Dense | ~18-20 GB @4-bit | 24GB-VRAM max quality | needs transformers>=5.10.1)": "google/gemma-4-31B-it",
     # Hugging Face Inference API — remote, no local weights needed. Picked via
     # the same model dropdown; models.get_llm() detects the sentinel and builds
     # smolagents.InferenceClientModel instead of loading locally. Requires a
@@ -766,19 +841,77 @@ BASE_MODEL_OPTIONS = {
 MODEL_OPTIONS = dict(BASE_MODEL_OPTIONS)
 MODEL_OPTIONS.update(llama_backend.discover_gguf_models())
 
-DEFAULT_LLM_LABEL = "🟢 Qwen3-0.6B   (~1.2 GB RAM | fastest)"
+# ──────────────────────────────────────────────────────────────────
+# LLM default selection — dynamic per detected hardware tier, following
+# README.md's Gemma 4 "Recommended Model / Quantization" ladder:
+#   CPU-only / <8GB      -> Gemma-4-E2B (4-bit or Mobile QAT)  1.5-3 GB
+#   8-12GB GPU           -> Gemma-4-E4B (4-bit)                3-5 GB
+#   16GB GPU             -> Gemma-4-26B-A4B (MoE, 4-bit)       8-14 GB
+#   24GB GPU             -> Gemma-4-26B-A4B (MoE, 8-bit)       14-28 GB
+#   24GB+ (max quality)  -> Gemma-4-31B (Dense, 4-bit)         18-20 GB
+# The max VRAM the ladder targets is 24GB (realistic ceiling) — the
+# 48GB+ hardware tier is treated as the "24GB max quality" pick.
+# The ladder's quantization column is mirrored by
+# get_recommended_quantization(). A saved user override
+# (default_llm_label in user_config.json, set via set_default_llm())
+# always wins, same persisted-choice pattern as DEFAULT_VLM_LABEL.
+# ──────────────────────────────────────────────────────────────────
+_LLM_LABEL_BY_TIER = {
+    HardwareManager.TIER_CPU_ONLY:  "google/gemma-4-E2B-it",
+    HardwareManager.TIER_8GB_VRAM:  "google/gemma-4-E4B-it",
+    HardwareManager.TIER_16GB_VRAM: "google/gemma-4-26B-A4B-it",
+    HardwareManager.TIER_24GB_VRAM: "google/gemma-4-26B-A4B-it",
+    HardwareManager.TIER_48GB_VRAM: "google/gemma-4-31B-it",
+    HardwareManager.TIER_UNKNOWN:   "google/gemma-4-E2B-it",
+}
 
-# NOTE: unlike DEFAULT_EMBED_MODEL / DEFAULT_VLM_LABEL above, the default
-# LLM deliberately does NOT auto-upgrade to a hardware-tier-recommended
-# larger model. The embedding model is an invisible backend component and
-# the VLM is only loaded on-demand for image questions, so picking a
-# bigger one by default is low-surprise. The main chat LLM is different:
-# silently defaulting a capable machine to a 25-70GB model would mean a
-# much longer first load with no explicit action from the user, and (for
-# the newly-registered Gemma 4 / Qwen3.6 sizes) a version-guard error on
-# any install that hasn't upgraded transformers yet — bad first impression
-# either way. The larger recommended models above are fully selectable in
-# the dropdown; users on capable hardware can opt in deliberately.
+# Absolute fallback — the smallest Gemma 4, guaranteed present in every
+# install regardless of the detected tier.
+_LLM_FALLBACK_MODEL_ID = "google/gemma-4-E2B-it"
+_LLM_FALLBACK_LABEL = ("🔵 Gemma-4-E2B    (~2-3 GB @4-bit | CPU/<8GB tier | "
+                       "needs transformers>=5.10.1)")
+
+
+def _label_for_model_id(model_id: str, options: dict) -> Optional[str]:
+    """Reverse-lookup a dropdown label for a model id, or None."""
+    for label, val in options.items():
+        if val == model_id:
+            return label
+    return None
+
+
+def get_recommended_llm_label() -> str:
+    """The LLM label README.md's hardware-tier table recommends for THIS
+    machine. Falls back to the smallest Gemma 4 (E2B) if the tier can't
+    be determined or its model id isn't in the dropdown."""
+    tier = HardwareManager.detect_hardware_tier()
+    model_id = _LLM_LABEL_BY_TIER.get(tier, _LLM_FALLBACK_MODEL_ID)
+    return _label_for_model_id(model_id, MODEL_OPTIONS) or _LLM_FALLBACK_LABEL
+
+
+def get_default_llm_label() -> str:
+    """The LLM label actually selected by default in the UI, unless the
+    user has a saved override in user_config.json — mirrors
+    get_default_vlm_label()'s persisted-choice-wins pattern."""
+    saved = user_config.USER_CONFIG.get("default_llm_label")
+    if saved and saved in MODEL_OPTIONS:
+        return saved
+    return get_recommended_llm_label()
+
+
+def set_default_llm(label: str) -> None:
+    """Persist an explicit default-LLM choice — same pattern as
+    set_default_vlm()."""
+    user_config.save_user_config({"default_llm_label": label})
+
+# DEFAULT_LLM_LABEL — the label selected by default in the model dropdowns.
+# Resolved dynamically via get_default_llm_label() so a saved user override
+# (default_llm_label in user_config.json) wins, else the hardware-tier
+# recommendation (see _LLM_LABEL_BY_TIER / get_recommended_llm_label()
+# below). Unlike the old static default, this lets a capable machine
+# default to a Gemma 4 size that actually fits it instead of always the
+# smallest.
+DEFAULT_LLM_LABEL = get_default_llm_label()
 DEFAULT_LLM_MODEL = MODEL_OPTIONS[DEFAULT_LLM_LABEL]
 
 
@@ -841,8 +974,14 @@ def rescan_gguf_models(folder_path: Optional[str], lang_key: str = "kh"):
 BASE_VLM_OPTIONS = {
     "🔵 SmolVLM-256M  (~0.5 GB RAM | tiny)":  "HuggingFaceTB/SmolVLM-256M-Instruct",
     "🔵 SmolVLM-500M  (~1 GB RAM | recommended)": "HuggingFaceTB/SmolVLM-500M-Instruct",
-    "🟢 Qwen2.5-VL-3B (~6 GB RAM)":           "Qwen/Qwen2.5-VL-3B-Instruct",
-    "🟠 Qwen2.5-VL-7B (~15 GB RAM | hardware-tier recommended, 16GB+ VRAM)": "Qwen/Qwen2.5-VL-7B-Instruct",
+    "🟢 Qwen2.5-VL-3B (~2-3 GB @4-bit | 8GB-VRAM tier)": "Qwen/Qwen2.5-VL-3B-Instruct",
+    "🟠 Qwen2.5-VL-7B (~6-8 GB @4-bit | hardware-tier recommended, 16GB+ VRAM)": "Qwen/Qwen2.5-VL-7B-Instruct",
+    # Gemma 4 supplement — every Gemma 4 base model is multimodal, so each
+    # one doubles as a Vision Chat model (loaded via the "gemma4" VLM arch).
+    # Sizes match the LLM dropdown (@4-bit) since the checkpoints are shared.
+    "🧠 Gemma-4-E4B Mobile QAT (~3 GB RAM | edge)": "google/gemma-4-e4b-it-qat-mobile-transformers",
+    "🔵 Gemma-4-E2B   (~2-3 GB @4-bit | CPU/<8GB tier)": "google/gemma-4-E2B-it",
+    "🟢 Gemma-4-E4B   (~3-5 GB @4-bit | 8-12GB-VRAM tier)": "google/gemma-4-E4B-it",
     HF_API_ENTRY_LABEL: HF_INFERENCE_API_SENTINEL,
 }
 
@@ -865,9 +1004,9 @@ VLM_OPTIONS = dict(BASE_VLM_OPTIONS)
 # hardware. A saved user override (see set_default_vlm()) always wins,
 # same persisted-choice pattern as DEFAULT_EMBED_MODEL above.
 _VLM_LABEL_BY_TIER = {
-    HardwareManager.TIER_48GB_VRAM: "🟠 Qwen2.5-VL-7B (~15 GB RAM | hardware-tier recommended, 16GB+ VRAM)",
-    HardwareManager.TIER_24GB_VRAM: "🟠 Qwen2.5-VL-7B (~15 GB RAM | hardware-tier recommended, 16GB+ VRAM)",
-    HardwareManager.TIER_16GB_VRAM: "🟠 Qwen2.5-VL-7B (~15 GB RAM | hardware-tier recommended, 16GB+ VRAM)",
+    HardwareManager.TIER_48GB_VRAM: "🟠 Qwen2.5-VL-7B (~6-8 GB @4-bit | hardware-tier recommended, 16GB+ VRAM)",
+    HardwareManager.TIER_24GB_VRAM: "🟠 Qwen2.5-VL-7B (~6-8 GB @4-bit | hardware-tier recommended, 16GB+ VRAM)",
+    HardwareManager.TIER_16GB_VRAM: "🟠 Qwen2.5-VL-7B (~6-8 GB @4-bit | hardware-tier recommended, 16GB+ VRAM)",
     HardwareManager.TIER_8GB_VRAM:  "🔵 SmolVLM-500M  (~1 GB RAM | recommended)",
     HardwareManager.TIER_CPU_ONLY:  "🔵 SmolVLM-500M  (~1 GB RAM | recommended)",
     HardwareManager.TIER_UNKNOWN:   "🔵 SmolVLM-500M  (~1 GB RAM | recommended)",

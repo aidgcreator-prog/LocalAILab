@@ -330,7 +330,7 @@ def chat_general(user_message: str, history: list, model_label: str,
     - use_agentic=True: a CodeAgent with web-search/webpage tools decides
       for itself whether to look things up — see chat_general_agentic().
       Same reliability caveat as agentic RAG Chat: works best with
-      capable models (roughly Qwen3-4B and above); small models may never
+      capable models (roughly Gemma-4-E4B and above); small models may never
       call a tool at all.
 
     `use_memory` controls the "🧠 Conversation Memory" checkbox: whether
@@ -360,7 +360,7 @@ def chat_rag_direct(user_message: str, history: list, model_label: str, use_memo
     no tool-calling, no code-generation steps to parse.
 
     This exists because tool-calling reliability depends heavily on the
-    underlying model (see rag_agent.py's caveat about Qwen3-0.6B): small
+    underlying model (see rag_agent.py's caveat about Gemma-4-E2B): small
     or older models often never call the retriever tool, call it
     malformed, or burn every retry step failing to parse, and end up
     hallucinating or timing out instead of answering. Retrieval here is
@@ -476,7 +476,7 @@ def chat_rag(user_message: str, history: list, model_label: str, use_agentic: bo
 
     - use_agentic=False: see chat_rag_direct() — always retrieves context
       first, then asks the LLM directly in one call. No tool-calling
-      required, so small/older/weaker models (e.g. Qwen3-0.6B) can use RAG
+      required, so small/older/weaker models (e.g. Gemma-4-E2B) can use RAG
       reliably too, at the cost of never refining or skipping the search.
 
     `use_memory` controls the "🧠 Conversation Memory" checkbox — see
@@ -615,7 +615,7 @@ def chat_deep_research(user_message: str, history: list, model_label: str, use_m
     noticeably longer per turn than General/RAG Chat.
 
     Same reliability caveat as every agentic tab in this app: needs a
-    genuinely capable model (roughly Qwen3-4B and above) — the manager
+    genuinely capable model (roughly Gemma-4-E4B and above) — the manager
     also has to correctly invoke a SUB-AGENT (not just a tool) and
     periodically re-plan, which is a harder ask than General Chat's
     single-agent tool use.
@@ -650,7 +650,7 @@ def chat_deep_research(user_message: str, history: list, model_label: str, use_m
         # See chat_general_direct()'s matching comment — a no-op unless
         # the "🧠 Enable Model Reasoning" toggle is off. This is the tab
         # most likely to benefit: a heavy thinking-tuned manager model
-        # (e.g. Qwen3.6-35B-A3B) burning its whole MAX_NEW_TOKENS budget
+        # (e.g. Gemma-4-26B-A4B) burning its whole MAX_NEW_TOKENS budget
         # on internal reasoning is exactly what produces the "Executing
         # parsed code:" steps with an EMPTY body / Out: None seen in
         # practice on this tab.

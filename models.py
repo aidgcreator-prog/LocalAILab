@@ -8,7 +8,7 @@ and lock, following the lazy-load/lock pattern used throughout the app.
 import gc
 import threading
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 
@@ -187,6 +187,9 @@ def _release_model(obj):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             torch.cuda.ipc_collect()
+        elif hasattr(torch, "xpu") and torch.xpu.is_available():
+            torch.xpu.empty_cache()
+            torch.xpu.synchronize()
         elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             torch.mps.empty_cache()
     except Exception:
@@ -365,6 +368,53 @@ def reset_chroma_collection():
     collection object after deleting it from disk."""
     global _chroma_col
     _chroma_col = None
+
+
+def _bnb_quant_config(model_id: str = "", label: str = "model") -> Optional[Any]:
+    """Build a bitsandbytes BitsAndBytesConfig (4/8-bit) from the UI's
+    "Model Quantization" dropdown, or None when quantization is off.
+
+    Shared by the LLM loader (smolagents TransformersModel via model_kwargs)
+    and the VLM loader (direct transformers from_pretrained). bitsandbytes
+    supports CUDA (fast) and CPU (verified against bnb 0.50: load_in_4bit on
+    device_map="cpu" yields is_loaded_in_4bit=True — slower, but this is
+    exactly what the README's "CPU only / <8GB -> E2B 4-bit (1.5-3 GB)" row
+    assumes); other devices (e.g. MPS) have no bnb support, so the choice is
+    ignored there with a warning. Already-pre-quantized checkpoints (the
+    Mobile QAT Gemma-4 family) are also skipped — re-quantizing an INT8 QAT
+    model with bnb is wrong and breaks loading.
+    """
+    quant_mode = mr.get_effective_quantization()
+    if quant_mode not in ("4bit", "8bit"):
+        return None
+    if "qat" in model_id.lower():
+        print(
+            f"[{label}] '{model_id}' is a pre-quantized Mobile QAT checkpoint — "
+            f"leaving it as-is instead of applying {quant_mode}."
+        )
+        return None
+    try:
+        from transformers import BitsAndBytesConfig
+    except ImportError:
+        print(
+            f"[{label}] Warning: 'model quantization' is set to {quant_mode}, "
+            "but bitsandbytes is not installed — loading unquantized instead."
+        )
+        return None
+    if DEVICE not in ("cuda", "cpu"):
+        print(
+            f"[{label}] Warning: 'model quantization' is set to {quant_mode}, "
+            f"but bitsandbytes only supports CUDA/CPU (device is {DEVICE}) — "
+            "loading unquantized instead."
+        )
+        return None
+    return BitsAndBytesConfig(
+        load_in_4bit=(quant_mode == "4bit"),
+        load_in_8bit=(quant_mode == "8bit"),
+        bnb_4bit_compute_dtype=TORCH_DTYPE,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True,
+    )
 
 
 def get_llm(model_id: Optional[str] = None, n_ctx: Optional[int] = None):
@@ -605,6 +655,21 @@ def get_llm(model_id: Optional[str] = None, n_ctx: Optional[int] = None):
                     "neither 'torch_dtype' nor 'dtype' as a constructor parameter — "
                     "loading without an explicit dtype (will use the model's default)."
                 )
+            # Quantization — bitsandbytes 4/8-bit, wired from the UI's
+            # "Model Quantization" dropdown (mr.get_effective_quantization()).
+            # The config is injected through TransformersModel's model_kwargs
+            # passthrough so it lands in AutoModel.from_pretrained(...) at load
+            # time. _bnb_quant_config() handles CUDA+CPU support, the MPS/
+            # unknown-device warning, missing-bitsandbytes fallback, and
+            # skipping already-pre-quantized Mobile QAT checkpoints.
+            cfg = _bnb_quant_config(target, label="RAG")
+            if cfg is not None:
+                base_kwargs["model_kwargs"] = {"quantization_config": cfg}
+                print(
+                    f"[RAG] Loading LLM '{target}' with "
+                    f"{mr.get_effective_quantization()} bitsandbytes "
+                    f"quantization on {DEVICE.upper()} …"
+                )
             _llm = TransformersModel(**base_kwargs)
             # n_ctx doesn't apply to the HF backend — clear it so a later
             # switch back to a GGUF model doesn't skip a reload it needs
@@ -745,6 +810,16 @@ def get_vlm(model_id: Optional[str] = None, mmproj_path: Optional[str] = None):
     print(f"[VLM] Loading '{target}' on {DEVICE.upper()} …")
     from transformers import AutoProcessor
 
+    # Quantization — same bitsandbytes 4/8-bit control as the LLM tab.
+    # _bnb_quant_config() applies the UI dropdown, skips pre-quantized
+    # Mobile QAT checkpoints, and warns-and-falls-back on MPS/missing-bnb.
+    _vlm_cfg = _bnb_quant_config(target, label="VLM")
+    if _vlm_cfg is not None:
+        print(
+            f"[VLM] Loading '{target}' with {mr.get_effective_quantization()} "
+            f"bitsandbytes quantization on {DEVICE.upper()} …"
+        )
+
     if target in mr.QWEN_VL_IDS:
         from transformers import Qwen2_5_VLForConditionalGeneration
 
@@ -755,11 +830,15 @@ def get_vlm(model_id: Optional[str] = None, mmproj_path: Optional[str] = None):
             max_pixels=1280 * 28 * 28,
         )
 
-        _vlm_model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-            target,
+        _vlm_kwargs = dict(
             torch_dtype=TORCH_DTYPE,
             device_map=DEVICE,
             trust_remote_code=True,
+        )
+        if _vlm_cfg is not None:
+            _vlm_kwargs["quantization_config"] = _vlm_cfg
+        _vlm_model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+            target, **_vlm_kwargs
         )
 
         _vlm_model._arch = "qwen_vl"
@@ -784,14 +863,50 @@ def get_vlm(model_id: Optional[str] = None, mmproj_path: Optional[str] = None):
             trust_remote_code=True,
         )
 
-        _vlm_model = ModelClass.from_pretrained(
-            target,
+        _vlm_kwargs = dict(
             torch_dtype=TORCH_DTYPE,
             device_map=DEVICE,
             trust_remote_code=True,
         )
+        if _vlm_cfg is not None:
+            _vlm_kwargs["quantization_config"] = _vlm_cfg
+        _vlm_model = ModelClass.from_pretrained(target, **_vlm_kwargs)
 
         _vlm_model._arch = "smolvlm"
+
+    elif target in mr.GEMMA4_IDS:
+        # Gemma 4 (incl. Mobile QAT) is a multimodal family, loaded the
+        # same way smolagents' own TransformersModel picks it up — the
+        # AutoModelForImageTextToText mapping resolves to
+        # Gemma4ForConditionalGeneration (verified in the Phase 0 smoke
+        # test). AutoModelForMultimodalLM is tried first per the official
+        # integration guide; both classes resolve to the same model.
+        try:
+            from transformers import AutoModelForMultimodalLM
+            ModelClass = AutoModelForMultimodalLM
+            print("[VLM] Using AutoModelForMultimodalLM")
+        except ImportError:
+            from transformers import AutoModelForImageTextToText
+            ModelClass = AutoModelForImageTextToText
+            print("[VLM] Using AutoModelForImageTextToText")
+
+        _vlm_processor = AutoProcessor.from_pretrained(
+            target,
+            trust_remote_code=True,
+        )
+
+        load_kwargs = dict(trust_remote_code=True)
+        if DEVICE == "cpu":
+            load_kwargs["low_cpu_mem_usage"] = True
+        else:
+            load_kwargs["torch_dtype"] = "auto"
+            load_kwargs["device_map"] = "auto"
+        if _vlm_cfg is not None:
+            load_kwargs["quantization_config"] = _vlm_cfg
+
+        _vlm_model = ModelClass.from_pretrained(target, **load_kwargs)
+
+        _vlm_model._arch = "gemma4"
 
     else:
         raise ValueError(f"Unknown VLM: {target}")
@@ -825,6 +940,22 @@ def vlm_answer(question: str, images: list, context: str = "", model_id: Optiona
             img_in, _ = process_vision_info(messages)
             inputs = processor(text=[text_in], images=img_in,
                                padding=True, return_tensors="pt").to(DEVICE)
+        elif arch == "gemma4":
+            # Gemma 4 — the processor's apply_chat_template returns the full
+            # tokenized input dict (input_ids + attention_mask + pixel_values)
+            # in one call, per the official integration guide's inference
+            # pattern. Uses return_dict=True so no separate processor(...)
+            # invocation is needed for the image side.
+            content = [{"type": "image", "image": img} for img in images]
+            content.append({"type": "text", "text": user_text})
+            messages = [{"role": "user", "content": content}]
+            inputs = processor.apply_chat_template(
+                messages,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+                add_generation_prompt=True,
+            ).to(DEVICE)
         else:
             content = [{"type": "image"} for _ in images]
             content.append({"type": "text", "text": user_text})
@@ -885,6 +1016,8 @@ def get_stt_pipeline(model_id: Optional[str] = None):
 
         if DEVICE == "cuda":
             device_arg = 0
+        elif DEVICE == "xpu":
+            device_arg = "xpu"
         elif DEVICE == "mps":
             device_arg = "mps"
         else:
