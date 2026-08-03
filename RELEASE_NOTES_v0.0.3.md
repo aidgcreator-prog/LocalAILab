@@ -8,7 +8,7 @@
 
 # 🚀 កំណែប្រែ LocalAiLab Assistant v0.0.3 beta
 
-យើងខ្ញុំសូមណែនាំ **LocalAiLab Assistant v0.0.3 beta** ដែលជាការធ្វើបច្ចុប្បន្នភាពដ៏ធំមួយ រួមមានកម្មវិធីដំឡើងស្វ័យប្រវត្តិ (Windows Setup Wizard) ការគ្រប់គ្រងម៉ូដែលតាមរយៈ CSV ការទាញយកម៉ូដែល Gemma 4, Unsloth, LMStudio ទាំងអស់ និងផ្ទាំងស្រាវជ្រាវ Deep Research!
+យើងខ្ញុំសូមណែនាំ **LocalAiLab Assistant v0.0.3 beta** ដែលជាការធ្វើបច្ចុប្បន្នភាពដ៏ធំមួយ! រួមមានកម្មវិធីដំឡើងស្វ័យប្រវត្តិ (Windows Setup Wizard), គ្រប់គ្រងម៉ូដែល HuggingFace តាមរយៈ CSV ខាងក្រៅ, ប្រើ `ToolCallingAgent` ជាលំនាំដើម, Smart Parsers ការពារកំហុស retry loops, ធ្វើសមកាលកម្ម HF Token ជាមួយ `.env`, និងការរៀបចំទម្រង់ UI និងប្រព័ន្ធពណ៌ visually distinct សម្រាប់ Reasoning, Tools, និង Final Answer!
 
 ---
 
@@ -21,78 +21,63 @@
 - **ប៊ូតុង Cancel**៖ អាចចុចបោះបង់ការដំឡើងបានគ្រប់ពេល ដោយសុវត្ថិភាព។
 - **Shortcut ស្វ័យប្រវត្តិ**៖ បង្កើត Shortcut នៅលើ Desktop និង Start Menu ដោយស្វ័យប្រវត្តិ។
 
-#### 📄 2. ការគ្រប់គ្រងម៉ូដែលតាមរយៈ CSV (`models.csv` / `hf_models.csv`)
-- **ងាយស្រួលកែប្រែ**៖ បញ្ជីម៉ូដែលទាំងអស់ត្រូវបានផ្លាស់ប្តូរចេញពី Python code ទៅជាឯកសារ `models.csv` ធ្វើឱ្យអ្នកប្រើប្រាស់អាចបន្ថែម ឬកែប្រែម៉ូដែលក្នុង Excel ឬ Notepad បានយ៉ាងងាយ។
-- **ទំហំទាញយកច្បាស់លាស់ពី Hugging Face API**៖ ទំហំទាញយកពិតប្រាកដត្រូវបានទាញយកដោយស្វ័យប្រវត្តិពី Hugging Face Hub API (ឧ. Gemma 4 E2B = 4.8 GB, E4B = 7.4 GB, 31B = 62 GB, Unsloth MLX 4-bit = 1.3–6.1 GB)។
-- **អាប់ដេតភ្លាមៗ**៖ ចុច "Rescan GGUF Folder" ដើម្បី load ទិន្នន័យថ្មីពី CSV ដោយមិនបាច់បិទបើកកម្មវិធីឡើយ។
+#### 📄 2. ការគ្រប់គ្រងម៉ូដែលតាមរយៈ CSV ខាងក្រៅ (`hf_models.csv`)
+- **ងាយស្រួលកែប្រែ**៖ បញ្ជីម៉ូដែល HuggingFace ទាំងអស់ត្រូវបានរៀបចំក្នុង `hf_models.csv` សម្រាប់បន្ថែម/កែប្រែម៉ូដែល (Google, Unsloth, LMStudio) ជាមួយនឹងម៉ូដែលតូចបំផុត `google/gemma-4-E2B-it-qat-mobile-transformers` ជាលំនាំដើម។
+- **ទំហំទាញយកច្បាស់លាស់ពី Hugging Face API**៖ ទំហំទាញយកពិតប្រាកដត្រូវបានទាញយកដោយស្វ័យប្រវត្តិពី Hugging Face Hub API។
 
-#### ⚙️ 3. ការគ្រប់គ្រង Provider ថ្មី & UI សាមញ្ញ
-- **Accordion "ការកំណត់ម៉ូដែល" ជាសកល**៖ រៀបចំ API Keys, Model Provider, ផ្លូវ `llama-server.exe`, `whisper-server.exe`, និងថត GGUF ក្នុងកន្លែងតែមួយ។
-- **LiteLLM & Hugging Face API**៖ ភ្ជាប់ទៅកាន់ OpenAI, Anthropic, Groq, ឬ Hugging Face Inference API ដោយរលូន។
-- **UI ស្អាត និងលឿន**៖ សម្រួល UI ដោយដកបញ្ជីទម្លាក់ Model Quantization ចាស់ចេញ ដើម្បីឱ្យការជ្រើសរើសម៉ូដែល pre-quantized (Unsloth, MLX, Google QAT/CT) ធ្វើឡើងដោយផ្ទាល់ និងលឿនរហ័ស។
+#### ⚡ 3. ToolCallingAgent ជាលំនាំដើម & ស្ថាបត្យកម្ម Agent ថ្មី
+- **កាត់បន្ថយកំហុស Python Code**៖ ផ្ទាំងសន្ទនាទូទៅ (General Chat) ផ្ទាំង RAG Chat និងផ្ទាំងស្រាវជ្រាវស៊ីជម្រៅ (Deep Research) ប្រើ `ToolCallingAgent` ជាលំនាំដើម ដើមបីជៀសវាងកំហុស parsing កូដ Python លើ local models។
+- **CodeAgent សម្រាប់ Data Analysis**៖ ផ្ទាំងវិភាគទិន្នន័យ (Data Analysis) នៅតែប្រើ `CodeAgent` សម្រាប់ប្រតិបត្តិការកូដ Python លើ pandas/matplotlib។
 
-#### 🔬 4. ផ្ទាំងស្រាវជ្រាវស៊ីជម្រៅ (Deep Research Agent)
-- **Agent ពហុដំណាក់កាល**៖ បំបែកសំណួរធំៗជាសំណួររង ស្វែងរកតាមអ៊ីនធឺណិត រួចសរសេររបាយការណ៍ជា Markdown (`ToolCallingAgent`)។
-- **DuckDuckGo & Playwright Browser Tools**៖ ស្វែងរកព័ត៌មានតាម Web ដោយឥតគិតថ្លៃ និងអាចបើក Headless Browser ដើម្បីអាន/ទាញយកទិន្នន័យពី Web/PDF ដែលត្រូវការ JavaScript។
+#### 🧠 4. ឧបករណ៍វិភាគ Smart Parser ឆ្លាតវៃ (0 Error Retries)
+- **កាត់បន្ថយកំហុស Regex/JSON**៖ បន្ថែម `_smart_parse_code_blobs` និង `_smart_parse_json_blob` សម្រាប់ចាប់យក និងបំលែងចម្លើយអត្ថបទធម្មតា ឬទម្រង់ tool call បែប `call:web_search{query:...}` របស់ Gemma-4 និង local LLM ផ្សេងទៀត ដោយគ្មានកំហុស retry loop ឡើយ។
+- **បំលែងអត្ថបទធម្មតាទៅជា Final Answer**៖ ប្រសិនបើម៉ូដែលឆ្លើយជាអត្ថបទធម្មតាដោយគ្មាន JSON blob, Smart Parser បំលែងវាជា `final_answer` ដោយស្វ័យប្រវត្តិក្នុងរយៈពេល 1 វិនាទី។
 
-#### 🎯 5. ម៉ូដែល Gemma 4, Unsloth & LM Studio
-- **ម៉ូដែល Google, Unsloth & LM Studio**៖ បញ្ជីម៉ូដែល Hugging Face រួមមានម៉ូដែលផ្លូវការពី Google (E2B, E4B, 12B, 26B-A4B, 31B, Mobile QAT, Mobile CT, W4A16 CT), Unsloth (BnB 4-bit, MLX 4-bit/3-bit), និង LM Studio Community (MLX 4-bit)។
-- **Gemma 4 Vision Chat**៖ ម៉ូដែល Gemma 4 ទាំងអស់ជាម៉ូដែលចក្ខុវិស័យ ដូច្នេះអាចប្រើក្នុងផ្ទាំង "🎨 Vision Chat" បានភ្លាមៗ ដោយមិនចាំបាច់ម៉ូដែល VLM ដាច់ដោយឡែក។
-- **តម្រូវការ**៖ `transformers>=5.10.1` សម្រាប់ Gemma 4 (ដំឡើងស្វ័យប្រវត្តិ)។
+#### 🔑 5. ធ្វើសមកាលកម្ម HF Token & `.env`
+- **គ្មានសារព្រមាន token ទៀតឡើយ**៖ គាំទ្រការផ្ទុក `.env` ដោយស្វ័យប្រវត្តិ និងធ្វើសមកាលកម្មអថេរបរិស្ថាន `HF_TOKEN` ទៅកាន់ `os.environ` និង `.env` ដោយគ្មានសារព្រមានអត់ token ពី Hugging Face Hub ទៀតឡើយ។
 
----
+#### 🎨 6. សម្រួលទម្រង់ UI និងប្រព័ន្ធពណ៌ Visual Distinction
+- **ប្រព័ន្ធពណ៌ និង Container ថ្មី**៖
+  - 🧠 **Reasoning Process** (Amber Gold details block ជាមួយ toggle hint)
+  - ⚙️ 🛠️ **Step Logs & Tool Calls** (Tech Slate / Cyan cards ជាមួយ collapsible step logs)
+  - ✨ 💬 **Final Answer** (Emerald Green cards ជាមួយ high-contrast markdown typography)
+- **Emoji Fallback សកល**៖ បន្ថែម font fallbacks សកល (`Segoe UI Emoji`, `Apple Color Emoji`, `Noto Color Emoji`) សម្រាប់ Windows, Mac, Linux, និង Web Browsers។
 
-### 📥 របៀបដំឡើង (Quick Installation)
-
-1. ទាញយក **`LocalAiLab_Setup_v0.0.3.exe`** ពីផ្នែក **Assets** នៃ GitHub Releases។
-2. ចុចពីរដងលើ file executable ដើម្បីបើក Setup Wizard។
-3. ជ្រើសរើសទីតាំងដំឡើង រួចចុច **Install** — កម្មវិធីនឹងរៀបចំ Python Virtual Environment និង GPU/CPU PyTorch ដោយស្វ័យប្រវត្តិ។
-4. បន្ទាប់ពីដំឡើងរួចរាល់ ចុចលើ Shortcut **"LocalAiLab Assistant"** នៅលើ Desktop ដើម្បីចាប់ផ្តើមប្រើប្រាស់!
-
----
 ---
 
 ## 🇬🇧 English
 
 # 🚀 LocalAiLab Assistant Release Notes v0.0.3 beta
 
-We are excited to announce **LocalAiLab Assistant v0.0.3 beta**! This major update introduces CSV-based dynamic model management, exact download size tracking via Hugging Face API, a single-file Windows Setup Wizard, and an autonomous Deep Research agent.
+We are excited to announce **LocalAiLab Assistant v0.0.3 beta**! This major update introduces dynamic CSV model management, default `ToolCallingAgent` architecture, smart parser fallbacks for zero error retries, automatic HF Token and `.env` synchronization, a single-file Windows Setup Wizard, and distinct visual container styling for thinking, tools, and final answers.
 
 ---
 
 ### 🆕 What's New in v0.0.3 beta
 
 #### 📦 1. Windows Setup Wizard (`LocalAiLab_Setup_v0.0.3.exe`)
-- **Streamlined Setup**: Lightweight installer (~10.8 MB) built with a modern Inno Setup wizard.
-- **Custom Installation Folder**: Install anywhere (e.g., `D:\LocalAiLab`) without requiring administrator privileges (`PrivilegesRequired=lowest`).
-- **Live Progress Reporting**: Real-time progress bar (0%–100%) tracking Python environment creation and hardware-optimized PyTorch/CUDA setup.
-- **Graceful Cancellation**: Safe, single-click cancellation that cleans up background tasks cleanly.
-- **Desktop & Start Menu Shortcuts**: Automatic creation of launch shortcuts upon installation.
+- **Lightweight & Clean**: Built with Inno Setup. Allows users to choose any custom installation path (e.g. `E:\LocalAiLab`).
+- **Real-Time Progress Bar**: Shows live status during `.venv` creation & PyTorch/dependency installation.
+- **Cancel Button & Shortcuts**: Active cancel option and automatic Desktop & Start Menu shortcuts.
 
-#### 📄 2. CSV-Driven Model Management (`models.csv` / `hf_models.csv`)
-- **User-Editable Models File**: All Hugging Face model definitions are externalized to `models.csv`, allowing users to easily add, edit, or remove models using Excel or Notepad without touching code.
-- **Verified Hugging Face Download Sizes**: Exact download sizes are fetched live from Hugging Face Hub API (e.g., Gemma 4 E2B = 4.8 GB, E4B = 7.4 GB, 31B = 62 GB, Unsloth MLX 4-bit = 1.3–6.1 GB).
-- **Hot Reload**: Clicking "Rescan GGUF Folder" instantly reloads updated models from the CSV file at runtime.
+#### 📄 2. External `hf_models.csv` Model Registry
+- **Zero-Code Model Configuration**: HuggingFace models are organized in an external CSV file (`hf_models.csv`) featuring **Google**, **Unsloth**, and **LMStudio** models, using `google/gemma-4-E2B-it-qat-mobile-transformers` as the default model.
+- **Accurate Download Sizes**: Real download sizes pulled via Hugging Face Hub API.
 
-#### ⚙️ 3. Enhanced Model Settings & Streamlined UI
-- **Global Model Settings Accordion**: Consolidates API Keys, HuggingFace Inference tokens, LiteLLM parameters, `llama-server.exe` / `whisper-server.exe` paths, and GGUF directories into a central control panel.
-- **LiteLLM & HF Inference API**: Connect seamlessly to OpenAI, Anthropic, Groq, or Hugging Face Inference API endpoints.
-- **Clean UI**: Streamlined interface by removing unnecessary quantization controls in favor of pre-quantized model selections (Unsloth BnB 4-bit, MLX 4-bit/3-bit, Google QAT/CT).
+#### ⚡ 3. Default `ToolCallingAgent` Architecture
+- **No Python Code Parsing Errors**: General Chat, RAG Chat, and Deep Research default to `ToolCallingAgent` for structured tool calls without requiring models to write executable Python code blocks.
+- **Dedicated Data Analysis CodeAgent**: `CodeAgent` remains strictly reserved for Data Analysis (`data_analysis.py`), where executing Python pandas and matplotlib code is required.
 
-#### 🔬 4. Autonomous Deep Research Agent
-- **Multi-Step Search & Report**: Break down complex research prompts into sub-queries, search the web autonomously, and summarize findings into structured Markdown reports using `ToolCallingAgent`.
-- **DuckDuckGo & Headless Browser Tools**: Free web search using `DuckDuckGoSearchTool` alongside optional Playwright browser automation for scraping JS-heavy sites and PDFs.
+#### 🧠 4. Smart Parser Fallbacks (0 Error Retries)
+- **Resilient Tool Call Parsing**: `_smart_parse_code_blobs` and `_smart_parse_json_blob` automatically handle Gemma-4 `call:web_search{query:...}` tool call formats and unquoted JSON keys without throwing JSON syntax errors.
+- **Plain Text Answer Recovery**: If a model outputs plain text without a JSON blob, the smart parser automatically wraps it into a `final_answer` tool call in 1 second instead of failing into 300-second retry loops.
 
-#### 🎯 5. Google Gemma 4, Unsloth & LM Studio Models
-- **Curated Model Lineup**: Hugging Face dropdowns feature models exclusively from `google/` (E2B, E4B, 12B, 26B-A4B, 31B, Mobile QAT, Mobile CT, W4A16 CT), `unsloth/` (BnB 4-bit, MLX 4-bit/3-bit), and `lmstudio-community/` (MLX 4-bit).
-- **Native Gemma 4 Vision Chat**: Every Gemma 4 model is natively multimodal and works out of the box in the "🎨 Vision Chat" tab.
-- **Requirement**: `transformers>=5.10.1` for Gemma 4 (installed automatically).
+#### 🔑 5. HF Token & `.env` Synchronization
+- **Warning-Free Hugging Face Downloads**: Automatically loads `.env` (`load_dotenv()`) and exports `HF_TOKEN` across `os.environ` (`HF_TOKEN`, `HUGGING_FACE_HUB_TOKEN`, `HUGGINGFACEHUB_API_TOKEN`) and `.env` whenever a token is saved in the UI.
 
----
-
-### 📥 Quick Installation Guide
-
-1. Download **`LocalAiLab_Setup_v0.0.3.exe`** from the **Assets** section of GitHub Releases.
-2. Double-click the installer to launch the Setup Wizard.
-3. Select your preferred installation directory and click **Install** — the setup process will automatically configure Python dependencies and detect your GPU/CPU hardware.
-4. Launch the application via the **"LocalAiLab Assistant"** shortcut created on your Desktop!
+#### 🎨 6. Enhanced UI & Visual Container Distinction
+- **Distinct Visual Styling**:
+  - 🧠 **Reasoning Process**: Warm Amber Gold collapsible monologue block.
+  - ⚙️ 🛠️ **Step Logs & Tool Calls**: Tech Slate / Cyan cards with collapsible step logs and observation output containers.
+  - ✨ 💬 **Final Answers**: High-contrast Emerald Green cards.
+- **Global Cross-Platform Emoji Support**: Added `Segoe UI Emoji`, `Apple Color Emoji`, and `Noto Color Emoji` fallback font rules.

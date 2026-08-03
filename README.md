@@ -14,6 +14,11 @@
 
 ### 🆕 អ្វីដែលថ្មីក្នុងកំណែ 0.0.3 beta
 
+- **📄 បញ្ជីម៉ូដែល `hf_models.csv` ខាងក្រៅ**៖ បញ្ជីម៉ូដែល HuggingFace ទាំងអស់ត្រូវបានរៀបចំក្នុងឯកសារ CSV ងាយស្រួលកែប្រែ (`hf_models.csv`) ដោយមិនបាច់កែប្រែកូដ Python។ រៀបចំជាពិសេសសម្រាប់ម៉ូដែល **Google**, **Unsloth**, និង **LMStudio** (ជាមួយនឹងម៉ូដែលតូចបំផុត `google/gemma-4-E2B-it-qat-mobile-transformers` ជាលំនាំដើម)។
+- **⚡ ToolCallingAgent ជាលំនាំដើម**៖ ផ្ទាំងសន្ទនាទូទៅ (General Chat) ផ្ទាំង RAG Chat និងផ្ទាំងស្រាវជ្រាវស៊ីជម្រៅ (Deep Research) ប្រើ `ToolCallingAgent` ជាលំនាំដើម ដើមបីជៀសវាងកំហុស parsing កូដ Python លើ local models។ ផ្ទាំងវិភាគទិន្នន័យ (Data Analysis) នៅតែប្រើ `CodeAgent` សម្រាប់ប្រតិបត្តិការកូដ Python លើ pandas/matplotlib។
+- **🧠 ឧបករណ៍វិភាគ Smart Parser ឆ្លាតវៃ**៖ បន្ថែម `_smart_parse_code_blobs` និង `_smart_parse_json_blob` សម្រាប់ចាប់យក និងបំលែងចម្លើយអត្ថបទធម្មតា ឬទម្រង់ tool call បែប `call:web_search{query:...}` របស់ Gemma-4 និង local LLM ផ្សេងទៀត ដោយគ្មានកំហុស retry loop ឡើយ។
+- **🔑 ធ្វើសមកាលកម្ម HF Token & `.env`**៖ គាំទ្រការផ្ទុក `.env` ដោយស្វ័យប្រវត្តិ និងធ្វើសមកាលកម្មអថេរបរិស្ថាន `HF_TOKEN` ទៅកាន់ `os.environ` និង `.env` ដោយគ្មានសារព្រមានអត់ token ពី Hugging Face Hub ទៀតឡើយ។
+- **🎨 សម្រួលទម្រង់ UI និងប្រព័ន្ធពណ៌**៖ បង្កើតទម្រង់ visually distinct សម្រាប់ **🧠 Reasoning (Amber Gold)**, **⚙️ 🛠️ Step Logs & Tool Calls (Tech Slate / Cyan)**, និង **✨ 💬 Final Answer (Emerald Green)** ព្រមទាំងបន្ថែម font fallbacks សកល (`Segoe UI Emoji`, `Apple Color Emoji`, `Noto Color Emoji`)។
 - **📦 កម្មវិធីដំឡើង Setup Wizard (`LocalAiLab_Setup_v0.0.3.exe`)**៖ បង្កើតឡើងដោយ Inno Setup ដែលអនុញ្ញាតឱ្យអ្នកប្រើប្រាស់ជ្រើសរើសផ្លូវដំឡើង (ឧ. `D:\LocalAiLab`) ដោយមិនត្រូវការសិទ្ធិ Admin (`PrivilegesRequired=lowest`) បង្ហាញរបារកើនឡើង Progress Bar (0%–100%) ជាមួយព័ត៌មានលម្អិតបន្តផ្ទាល់ (live status) ពេលដំឡើង `.venv` & PyTorch/dependencies មានប៊ូតុង **បោះបង់ (Cancel)** អាចចុចនិងបង្ខំបិទបាន និងបង្កើត shortcut លើ Desktop/Start Menu ដោយស្វ័យប្រវត្តិ
 - **⚙️ Accordion "ការកំណត់ម៉ូដែល" ជាសកល**៖ ការកំណត់ provider/backend រួម (HF API token/model/provider, LiteLLM, ផ្លូវ `llama-server.exe`, ផ្លូវ `whisper-server.exe`, ថតម៉ូដែល GGUF) ត្រូវបានប្រមូលផ្តុំក្នុង accordion តែមួយនៅផ្នែកខាងលើកម្មវិធី។ ចំណែក **provider + model dropdown របស់ផ្ទាំងនីមួយៗ (និងប៊ូតុង Load/Unload)** នៅតែស្ថិតនៅក្នុងជ្រុងខាងស្តាំរបស់ផ្ទាំងនោះផ្ទាល់ (មិនមែនប្រមូលទៅក្នុង accordion កណ្តាលនោះទេ)។ ការកំណត់ Generation (វិន្ដូបរិបទ, Max New Tokens, ប្តូរបិទ/បើក Reasoning, "💥 ទំនេរ VRAM ទាំងអស់") សុទ្ធតែស្ថិតនៅផ្ទាំង 💬 ការសន្ទនាទូទៅ ប៉ុន្តែមានឥទ្ធិពលទៅលើកម្មវិធីទាំងមូល ព្រោះវារក្សាទុកជា setting សកល
 - **🔗 LiteLLM provider**៖ ក្រៅពី HuggingFace API អ្នកអាចភ្ជាប់ទៅ OpenAI/Anthropic/Groq/… ណាមួយដែល LiteLLM គាំទ្រ តាមរយៈ Model ID + API Key + API Base ផ្ទាល់ខ្លួន (មានតែសម្រាប់ LLM tab ប៉ុណ្ណោះ មិនមែន VLM/STT/Embedding ទេ)
@@ -274,6 +279,7 @@ python app.py
 ├── whisper_cpp_backend.py  # backend ជម្រើស whisper.cpp (STT តាមរយៈ subprocess server)
 ├── branding.py             # ស្លាកសញ្ញា ឈ្មោះកម្មវិធី/កំណែ និងមាតិកាផ្ទាំង ℹ️ អំពីកម្មវិធី
 ├── model_registry.py # បញ្ជីជម្រើសម៉ូដែល (LLM/VLM/STT) និងការស្កេន GGUF ឡើងវិញ
+├── hf_models.csv     # ឯកសារ CSV ខាងក្រៅសម្រាប់បញ្ជីម៉ូដែល HuggingFace (Google / Unsloth / LMStudio)
 ├── models.py         # ការផ្ទុក/ដោះស្រាយ/ដំណើរការ LLM, VLM, STT
 ├── knowledge_base.py # ការបញ្ចូលឯកសារ (PDF/TXT/MD/DOCX), ChromaDB, Visual Index, ការទាញយក
 ├── agent_memory.py   # ការចងចាំចម្រុះវេនសម្រាប់ CodeAgent (RAM តែប៉ុណ្ណោះ — មិនរក្សាទុកទៅថាសទេ)
@@ -311,6 +317,11 @@ The UI is fully bilingual — switch between **Khmer** and **English** instantly
 
 ### 🆕 What's New in Version 0.0.3 beta
 
+- **📄 External `hf_models.csv` Registry**: HuggingFace model options are now stored in an external CSV file (`hf_models.csv`) for easy user editing without modifying Python source code. Tailored to **Google**, **Unsloth**, and **LMStudio** models (with `google/gemma-4-E2B-it-qat-mobile-transformers` as default).
+- **⚡ Default `ToolCallingAgent` Architecture**: General Chat, RAG Chat, and Deep Research now default to `ToolCallingAgent` for structured tool calling without code execution errors. `CodeAgent` remains dedicated to Data Analysis (Python pandas & matplotlib data science).
+- **🧠 Smart Parser Fallbacks**: Introduced `_smart_parse_code_blobs` and `_smart_parse_json_blob` to automatically handle plain text final answers and parse Gemma-4 `call:web_search{query:...}` tool calls with 0 error retries.
+- **🔑 Automatic HF Token & `.env` Syncing**: Full `.env` file loading (`load_dotenv()`) and environment variable synchronization for `HF_TOKEN` across `os.environ` and `.env` for warning-free Hugging Face Hub downloads.
+- **🎨 Enhanced Chat & Response UI Aesthetics**: High-contrast UI theme distinguishing **🧠 Reasoning Process (Amber Gold)**, **⚙️ 🛠️ Step Logs & Tool Calls (Tech Slate / Cyan)**, and **✨ 💬 Final Answers (Emerald Green)** with global cross-platform emoji font fallbacks (`Segoe UI Emoji`, `Apple Color Emoji`, `Noto Color Emoji`).
 - **📦 Windows GUI Setup Wizard (`LocalAiLab_Setup_v0.0.3.exe`)**: Built with Inno Setup. Allows users to choose any custom installation path (e.g. `E:\LocalAiLab`), shows a real-time progress bar (0%–100%) with live setup status during `.venv` creation & PyTorch/dependency installation, includes an active and enforceable **Cancel** button, and automatically creates Desktop & Start Menu shortcuts.
 - **⚙️ Global "Model Settings" accordion**: shared provider/backend config (HF API token/model/provider, LiteLLM, `llama-server.exe` path, `whisper-server.exe` path, GGUF model folder) is collected into a single accordion near the top of the app. Each tab's own **provider dropdown + model dropdown + Load/Unload buttons** still live in that tab's own sidebar column (not moved into the central accordion). Generation settings (Context Window, Max New Tokens, the Reasoning toggle, "💥 Free All VRAM") live in the 💬 General Chat tab's sidebar, but apply app-wide since they're persisted global settings.
 - **🔗 LiteLLM provider**: besides the HF Inference API, the LLM tab can now point at any OpenAI/Anthropic/Groq/etc. endpoint LiteLLM supports, via a Model ID + API Key + API Base you configure yourself (LLM only — not available for VLM/STT/Embedding).

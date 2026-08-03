@@ -89,19 +89,21 @@ _MEMORY_STEP_CLASS_NAMES = (
 
 
 def _patch_smolagents_code_parser():
-    """Patch smolagents.utils.parse_code_blobs with a smart fallback.
-    When a model outputs plain text or 'Final Answer: ...' without wrapping
-    final_answer(...) in a ```python ... ``` code block, the default smolagents
-    parser raises a ValueError ('Your code snippet is invalid, because the regex
-    pattern ```python(...)``` was not found'). This patch catches that error and
-    automatically wraps the output in final_answer(...) so the run completes
-    cleanly in 1 second instead of failing into a 300-second error loop.
+    """Patch smolagents.utils.parse_code_blobs and smolagents.utils.parse_json_blob
+    with smart fallback parsers.
+    Handles:
+    1. CodeAgent: Plain text final answers without ```python ... ``` code block tags.
+    2. ToolCallingAgent: Model tool calls output in call:tool_name{key: val} format
+       or unquoted JSON key format (common with Gemma-4 and local LLMs).
     """
     try:
+        import json
+        import re
         import smolagents.utils as su
         if getattr(su, "_smart_parser_installed", False):
             return
         _orig_parse_code_blobs = su.parse_code_blobs
+        _orig_parse_json_blob = su.parse_json_blob
 
         def _smart_parse_code_blobs(text: str, code_block_tags: tuple) -> str:
             try:
@@ -122,7 +124,69 @@ def _patch_smolagents_code_parser():
                 escaped = clean_text.replace('"""', '\\"\\"\\"')
                 return f'final_answer("""{escaped}""")'
 
+        def _smart_parse_json_blob(json_blob: str) -> tuple:
+            try:
+                return _orig_parse_json_blob(json_blob)
+            except Exception as orig_err:
+                if not json_blob or not isinstance(json_blob, str):
+                    raise orig_err
+
+                # Match call:tool_name{key: val} format used by Gemma-4 and local LLMs
+                call_match = re.search(r'call:([a-zA-Z0-9_]+)\s*\{(.*)\}', json_blob, re.DOTALL)
+                if call_match:
+                    tool_name = call_match.group(1).strip()
+                    args_str = call_match.group(2).strip()
+                    args_dict = {}
+                    if args_str:
+                        try:
+                            args_dict = json.loads("{" + args_str + "}", strict=False)
+                        except Exception:
+                            pairs = re.findall(r'([a-zA-Z0-9_]+)\s*:\s*(".*?"|\'.*?\'|[^,}]+)', args_str, re.DOTALL)
+                            for k, v in pairs:
+                                v = v.strip().strip('"\'')
+                                args_dict[k] = v
+
+                    res_dict = {
+                        "name": tool_name,
+                        "arguments": args_dict,
+                        "action": tool_name,
+                        "action_input": args_dict,
+                    }
+                    return res_dict, json_blob[:call_match.start()]
+
+                # Fallback for plain text model outputs without any JSON blob
+                clean_text = json_blob.strip()
+                if clean_text:
+                    if "Final Answer:" in clean_text:
+                        clean_text = clean_text.split("Final Answer:", 1)[1].strip()
+                    elif "final_answer:" in clean_text.lower():
+                        clean_text = re.sub(r"(?i)final_answer:\s*", "", clean_text).strip()
+
+                    res_dict = {
+                        "name": "final_answer",
+                        "arguments": {"answer": clean_text},
+                        "action": "final_answer",
+                        "action_input": {"answer": clean_text},
+                    }
+                    return res_dict, ""
+
+                raise orig_err
+
         su.parse_code_blobs = _smart_parse_code_blobs
+        su.parse_json_blob = _smart_parse_json_blob
+
+        try:
+            import smolagents.models as sm
+            sm.parse_json_blob = _smart_parse_json_blob
+        except Exception:
+            pass
+
+        try:
+            import smolagents.agents as sa
+            sa.parse_json_blob = _smart_parse_json_blob
+        except Exception:
+            pass
+
         su._smart_parser_installed = True
     except Exception:
         pass

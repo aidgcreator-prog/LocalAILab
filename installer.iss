@@ -2,7 +2,7 @@
 ; Inno Setup Script for LocalAiLab Assistant
 ; =====================================================================
 ; This script packages LocalAiLab Assistant into a single Windows Setup
-; wizard (LocalAiLab_Setup_v0.0.3.exe). When executed by an end user, it extracts
+; wizard (LocalAiLab_Setup_v0.0.4.exe). When executed by an end user, it extracts
 ; the source files, runs SETUP.bat silently to create the Python venv &
 ; install PyTorch/dependencies, and creates Desktop/Start Menu shortcuts.
 ;

@@ -373,29 +373,25 @@ def _build_agent(llm, model_id: str = "",
     AgentClass = ToolCallingAgent if use_tc else CodeAgent
     agent_name = AgentClass.__name__
 
+    try:
+        agent_params = inspect.signature(AgentClass.__init__).parameters
+    except (TypeError, ValueError):
+        agent_params = {}
+
     kwargs = dict(
         model=llm,
         tools=[_search_tool, _webpage_tool, SpeechToTextTool()],
         max_steps=max_steps,
         verbosity_level=1,
     )
-    if execution_timeout is not None and execution_timeout > 0:
+    if execution_timeout is not None and execution_timeout > 0 and "executor_kwargs" in agent_params:
         kwargs["executor_kwargs"] = {"timeout_seconds": execution_timeout}
 
-    if AgentClass is CodeAgent:
-        try:
-            params = inspect.signature(CodeAgent.__init__).parameters
-            if "code_block_tags" in params:
-                kwargs["code_block_tags"] = "markdown"
-        except (TypeError, ValueError):
-            pass
+    if AgentClass is CodeAgent and "code_block_tags" in agent_params:
+        kwargs["code_block_tags"] = "markdown"
 
-    try:
-        params = inspect.signature(AgentClass.__init__).parameters
-        if "instructions" in params:
-            kwargs["instructions"] = GENERAL_AGENT_INSTRUCTIONS
-    except (TypeError, ValueError):
-        pass
+    if "instructions" in agent_params:
+        kwargs["instructions"] = GENERAL_AGENT_INSTRUCTIONS
 
     print(f"[GeneralAgent] Building {agent_name} on '{model_id or '(shared)'}' …")
     return AgentClass(**kwargs)
