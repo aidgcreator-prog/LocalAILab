@@ -107,12 +107,24 @@ class HardwareManager:
 
     @staticmethod
     def detect_nvidia_cuda_version() -> Optional[str]:
+        """Best-effort read of the driver's supported CUDA version from
+        nvidia-smi.
+
+        Newer NVIDIA drivers (r580+ — e.g. the 610.x header line) stopped
+        printing the legacy "CUDA Version: X.Y" text and now print
+        "CUDA UMD Version: X.Y" instead. Parse BOTH spellings so driver
+        detection doesn't silently fail — and the "Fix Environment" tool
+        doesn't fall through to a CPU recommendation — on current drivers.
+        """
         try:
             result = subprocess.run(["nvidia-smi"], capture_output=True, text=True, check=False)
             if result.returncode == 0:
                 for line in result.stdout.splitlines():
-                    if "CUDA Version:" in line:
-                        return line.split("CUDA Version:")[1].strip()
+                    for marker in ("CUDA UMD Version:", "CUDA Version:"):
+                        if marker in line:
+                            val = line.split(marker)[1].strip().rstrip("|").strip()
+                            if val and val.lower() != "n/a":
+                                return val
             return None
         except Exception:
             return None
@@ -143,27 +155,33 @@ class HardwareManager:
 
         try:
             v_parts = cuda_version.split('.')
-            major = v_parts[0]
-            minor = v_parts[1]
+            major = int(v_parts[0])
+            minor = int(v_parts[1])
 
-            if major == "11":
+            if major == 11:
                 return "https://download.pytorch.org/whl/cu118"
-            elif major == "12":
-                if minor == "0":
+            elif major == 12:
+                if minor == 0:
                     return "https://download.pytorch.org/whl/cu118"
-                elif minor in ("1", "2", "3"):
+                elif minor in (1, 2, 3):
                     return "https://download.pytorch.org/whl/cu121"
-                elif minor in ("4", "5"):
+                elif minor in (4, 5):
                     return "https://download.pytorch.org/whl/cu124"
-                elif minor in ("6", "7"):
+                elif minor in (6, 7):
                     return "https://download.pytorch.org/whl/cu126"
-                elif minor in ("8", "9"):
+                elif minor in (8, 9):
                     return "https://download.pytorch.org/whl/cu128"
                 else:
                     return "https://download.pytorch.org/whl/cu128"
-            elif major >= "13":
+            elif major >= 13:
+                # Driver newer than any known tier -> newest known-good tier
+                # (a new driver does not imply a new GPU; SETUP.ps1's
+                # real-kernel smoke test re-verifies compatibility).
                 return "https://download.pytorch.org/whl/cu128"
-            return "https://download.pytorch.org/whl/cpu"
+            # major < 11 (pre-Pascal-era driver): no current wheel fits,
+            # but mirror SETUP.ps1 and offer the oldest tier — the smoke
+            # test decides whether it actually runs.
+            return "https://download.pytorch.org/whl/cu118"
         except Exception:
             return "https://download.pytorch.org/whl/cpu"
 
@@ -197,19 +215,45 @@ class HardwareManager:
             pass
 
         if status["gpu_brand"] == "none":
+            # nvidia-smi was unavailable (or unparseable). Fall back to the
+            # Windows device list so an NVIDIA machine is never mislabeled
+            # "no GPU". Use PowerShell CIM first (works on all modern
+            # Windows; wmic is deprecated/removed in newer releases), then
+            # wmic as a fallback.
+            vc_names = ""
             try:
-                result = subprocess.run(["wmic", "path", "win32_VideoController", "get", "name"],
-                                        capture_output=True, text=True, check=False)
-                if "Radeon" in result.stdout or "AMD" in result.stdout:
-                    status["gpu_brand"] = "amd"
-                    status["cuda_version"] = "rocm7.2.1"
-                    status["recommended_index"] = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1"
-                elif "Intel" in result.stdout:
-                    status["gpu_brand"] = "intel"
-                    status["cuda_version"] = "xpu"
-                    status["recommended_index"] = "https://download.pytorch.org/whl/xpu"
+                result = subprocess.run(
+                    ["powershell", "-NoProfile", "-Command",
+                     "(Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue).Name -join ';'"],
+                    capture_output=True, text=True, check=False)
+                if result.returncode == 0:
+                    vc_names = result.stdout
             except Exception:
                 pass
+            if not vc_names:
+                try:
+                    result = subprocess.run(["wmic", "path", "win32_VideoController", "get", "name"],
+                                            capture_output=True, text=True, check=False)
+                    if result.returncode == 0:
+                        vc_names = result.stdout
+                except Exception:
+                    pass
+            if "NVIDIA" in vc_names or "GeForce" in vc_names or "RTX" in vc_names or "Quadro" in vc_names:
+                # NVIDIA card present but nvidia-smi didn't cooperate — treat
+                # it as a modern driver and point at the proven RTX-tier
+                # index (SETUP.ps1 uses the same fallback; the app's own
+                # real-kernel check verifies the result at runtime).
+                status["gpu_brand"] = "nvidia"
+                status["cuda_version"] = "unknown"
+                status["recommended_index"] = "https://download.pytorch.org/whl/cu128"
+            elif "Radeon" in vc_names or "AMD" in vc_names:
+                status["gpu_brand"] = "amd"
+                status["cuda_version"] = "rocm7.2.1"
+                status["recommended_index"] = "https://repo.radeon.com/rocm/windows/rocm-rel-7.2.1"
+            elif "Intel" in vc_names:
+                status["gpu_brand"] = "intel"
+                status["cuda_version"] = "xpu"
+                status["recommended_index"] = "https://download.pytorch.org/whl/xpu"
 
         return status
 

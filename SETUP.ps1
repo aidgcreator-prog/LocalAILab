@@ -331,6 +331,15 @@ $torchIndex = "https://download.pytorch.org/whl/cpu"
 $cudaCandidates = @()
 
 $nvidiaSmi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
+if (-not $nvidiaSmi) {
+    # nvidia-smi lives in System32 — check the fixed location directly so a
+    # degraded/inherited PATH inside the hidden installer session can't
+    # silently turn a good NVIDIA machine into a CPU install.
+    $sysNvSmi = Join-Path $env:SystemRoot "System32\nvidia-smi.exe"
+    if (Test-Path -LiteralPath $sysNvSmi) {
+        $nvidiaSmi = Get-Item -LiteralPath $sysNvSmi
+    }
+}
 $gpuDone = $false
 # Compute capability of GPU 0 (e.g. "6.1" for a Pascal-class card like an
 # MX230, "8.6" for an RTX 30-series, etc). Queried directly from
@@ -343,7 +352,7 @@ $gpuDone = $false
 $computeCap = $null
 
 if ($nvidiaSmi) {
-    $smiOut = & nvidia-smi 2>$null
+    $smiOut = & $nvidiaSmi 2>$null
     if ($LASTEXITCODE -eq 0) {
         $gpuBrand = "nvidia"
         # Newer NVIDIA drivers (r580+) changed nvidia-smi's header: instead
@@ -358,7 +367,7 @@ if ($nvidiaSmi) {
             }
         }
         try {
-            $ccOut = & nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>$null
+            $ccOut = & $nvidiaSmi --query-gpu=compute_cap --format=csv,noheader 2>$null
             if ($LASTEXITCODE -eq 0 -and $ccOut) {
                 $computeCap = ($ccOut -split "`r?`n")[0].Trim()
             }
@@ -366,7 +375,7 @@ if ($nvidiaSmi) {
 
         $gpuNameOut = $null
         try {
-            $gpuNameOut = (& nvidia-smi --query-gpu=name --format=csv,noheader 2>$null | Select-Object -First 1)
+            $gpuNameOut = (& $nvidiaSmi --query-gpu=name --format=csv,noheader 2>$null | Select-Object -First 1)
         } catch {}
 
         Write-Host "[OK] រកឃើញ GPU NVIDIA: $gpuNameOut | កំណែ CUDA Driver: $rawCuda | Compute Capability: $computeCap" -ForegroundColor Green
@@ -413,14 +422,14 @@ if ($nvidiaSmi) {
                 }
             } elseif ($cmajor -ge 13) {
                 Write-Host "[ចំណាំ] Driver CUDA version ($rawCuda) ថ្មីជាង wheel tier ដែលស្គាល់ - កំពុងចាប់ផ្តើមពី tier ដែលមាន wheel។ driver ថ្មីមិនមានន័យថា GPU ត្រូវបានគាំទ្រដោយ PyTorch ថ្មីៗនោះទេ - ការសាកល្បងផ្ទុកគំរូខាងក្រោមនឹងផ្ទៀងផ្ទាត់រឿងនេះឱ្យប្រាកដ។" -ForegroundColor Cyan
-                $cudaCandidates = @("cu128", "cu130", "cu126", "cu118")
+                $cudaCandidates = @("cu128", "cu126", "cu118")
             } else {
                 $cudaCandidates = @("cu118")
             }
         } else {
             # nvidia-smi worked but the "CUDA Version" line didn't parse —
             # assume a modern driver and start at the proven RTX-tier.
-            $cudaCandidates = @("cu128", "cu130", "cu126", "cu118")
+            $cudaCandidates = @("cu128", "cu126", "cu118")
         }
         $cudaVersion = $cudaCandidates[0]
         $torchIndex = "https://download.pytorch.org/whl/$cudaVersion"
@@ -436,7 +445,26 @@ if (-not $gpuDone) {
     } catch {}
     $vcNames = if ($vc) { $vc.Name -join ";" } else { "" }
 
-    if ($vcNames -match "Radeon|AMD") {
+    if ($vcNames -match "NVIDIA|GeForce|RTX|GTX|Quadro|Titan|NVS") {
+        # NVIDIA card present but nvidia-smi couldn't be run/parsed (e.g.
+        # it's not on PATH in this session, or it failed mid-run). WITHOUT
+        # this branch the old code fell into the final "no GPU detected"
+        # catch-all and silently installed CPU PyTorch on a perfectly good
+        # NVIDIA machine — exactly the trap that bit the v0.0.3 installs
+        # (nvidia-smi detection failing during the hidden installer run
+        # while the driver was fine). Checked FIRST because laptops very
+        # commonly pair an NVIDIA dGPU with an Intel/AMD iGPU — the real
+        # NVIDIA card must win the tier decision. Fall back to the proven
+        # RTX-tier candidates; the real-kernel smoke test in Step 5b still
+        # verifies the choice, so this is safe for genuinely old/unsupported
+        # cards.
+        $gpuBrand = "nvidia"
+        $cudaVersion = "cu128"
+        $cudaCandidates = @("cu128", "cu126", "cu118")
+        $torchIndex = "https://download.pytorch.org/whl/$cudaVersion"
+        Write-Host "[OK] រកឃើញ GPU NVIDIA ($vcNames) តាមរយៈ Windows device list (nvidia-smi មិនអាចប្រើបាន) — កំពុងព្យាយាម CUDA $cudaVersion ។" -ForegroundColor Green
+        $gpuDone = $true
+    } elseif ($vcNames -match "Radeon|AMD") {
         # AMD GPU present. On Windows, AMD publishes torch wheels ONLY on
         # its own repo (repo.radeon.com) — download.pytorch.org has no
         # Windows ROCm wheels. They require Python 3.12 and the pip
@@ -462,22 +490,6 @@ if (-not $gpuDone) {
         $cudaCandidates = @("xpu")
         Write-Host "[OK] នឹងដំឡើង PyTorch សម្រាប់ Intel XPU (wheel: $cudaVersion)" -ForegroundColor Green
         Write-Host "[ចំណាំ] តម្រូវឲ្យមាន Intel GPU driver ចុងក្រោយ។" -ForegroundColor Yellow
-        $gpuDone = $true
-    } elseif ($vcNames -match "NVIDIA|GeForce|RTX|GTX|Quadro|Titan|NVS") {
-        # NVIDIA card present but nvidia-smi couldn't be run/parsed (e.g.
-        # it's not on PATH in this session, or it failed mid-run). WITHOUT
-        # this branch the old code fell into the final "no GPU detected"
-        # catch-all and silently installed CPU PyTorch on a perfectly good
-        # NVIDIA machine — exactly the trap that bit the v0.0.3 installs
-        # (nvidia-smi detection failing during the hidden installer run
-        # while the driver was fine). Fall back to the proven RTX-tier
-        # candidates; the real-kernel smoke test in Step 5b still verifies
-        # the choice, so this is safe for genuinely old/unsupported cards.
-        $gpuBrand = "nvidia"
-        $cudaVersion = "cu128"
-        $cudaCandidates = @("cu128", "cu130", "cu126", "cu118")
-        $torchIndex = "https://download.pytorch.org/whl/$cudaVersion"
-        Write-Host "[OK] រកឃើញ GPU NVIDIA ($vcNames) តាមរយៈ Windows device list (nvidia-smi មិនអាចប្រើបាន) — កំពុងព្យាយាម CUDA $cudaVersion ។" -ForegroundColor Green
         $gpuDone = $true
     } else {
         Write-Host "[ព្រមាន] រកមិនឃើញ GPU ទេ (គ្មាន nvidia-smi ឬ GPU NVIDIA/AMD/Intel ក្នុងបញ្ជីឧបករណ៍) ។" -ForegroundColor Yellow
@@ -693,7 +705,7 @@ if ($gpuBrand -eq "amd_rocm") {
         Write-InstallProgress 40 "[5/8] កំពុងដំឡើង PyTorch ($tier)..." "Downloading PyTorch wheels for $tier (~2-3 GB)..."
         Write-Host "      អាចចំណាយពេលច្រើននាទី (torch មានទំហំប្រហែល ២-៣ GB)..."
 
-        if (Invoke-PipRetry @("install", "torch<2.12", "torchvision", "torchaudio", "--index-url", $tierIndex, "--timeout", "120") 3) {
+        if (Invoke-PipRetry @("install", "--no-cache-dir", "torch<2.12", "torchvision", "torchaudio", "--index-url", $tierIndex, "--timeout", "120") 3) {
             # Step 5b: real-kernel smoke test on this tier
             Write-Host ""
             Write-InstallProgress 62 "[5b/8] កំពុងផ្ទៀងផ្ទាត់ GPU kernel ($tier)..." "Executing GPU smoke test kernel..."
@@ -716,7 +728,7 @@ if ($gpuBrand -eq "amd_rocm") {
 if (-not $torchOk) {
     Write-Host ""
     Write-InstallProgress 40 "[5/8] កំពុងដំឡើង PyTorch (CPU-only)..." "Downloading PyTorch CPU wheels..."
-    if (Invoke-PipRetry @("install", "torch<2.12", "torchvision", "torchaudio", "--index-url", $cpuIndex, "--timeout", "120") 3) {
+    if (Invoke-PipRetry @("install", "--no-cache-dir", "torch<2.12", "torchvision", "torchaudio", "--index-url", $cpuIndex, "--timeout", "120") 3) {
         $torchOk = $true
         $cudaVersion = "cpu"
         $torchIndex = $cpuIndex
