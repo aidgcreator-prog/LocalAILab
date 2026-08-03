@@ -71,6 +71,7 @@ from i18n import LANGUAGES
 APP_VERSION = branding.APP_VERSION
 
 CSS = """
+* { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Segoe UI Emoji", "Segoe UI Symbol", "Apple Color Emoji", "Noto Color Emoji", sans-serif; }
 .status-bar   { font-size:0.82rem; color:#888; padding:4px 8px; }
 .header-wrap  { display:flex; align-items:baseline; gap:12px; margin-bottom:6px; }
 .header-title { font-size:1.6rem; font-weight:700; }
@@ -86,6 +87,167 @@ CSS = """
 .sidebar-hd   { margin-top:0 !important; opacity:0.85; }
 .gpu-warning  { background:#3a2e0f; border:1px solid #a87c1f; border-radius:8px;
                 padding:10px 14px; margin-bottom:10px; font-size:0.88rem; line-height:1.5; }
+
+/* ── Chat & Response Visual Distinction ─────────────────────── */
+
+/* 1. 🧠 Thinking / Reasoning Block (Amber Gold) */
+.think-block {
+    margin-bottom: 12px;
+    border: 1px solid #d97706 !important;
+    border-left: 4px solid #f59e0b !important;
+    border-radius: 10px !important;
+    background: linear-gradient(135deg, #261e10 0%, #1a140a 100%) !important;
+    padding: 10px 14px !important;
+    box-shadow: 0 4px 12px rgba(217, 119, 6, 0.15) !important;
+}
+.think-summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #fbbf24 !important;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+    font-size: 0.92rem;
+}
+.think-summary:hover {
+    color: #fef08a !important;
+}
+.think-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(245, 158, 11, 0.18);
+    padding: 3px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.think-hint {
+    font-size: 0.76rem;
+    color: #b45309;
+    font-weight: normal;
+}
+.think-body {
+    margin-top: 10px;
+    color: #fde68a !important;
+    font-family: 'Fira Code', 'Consolas', 'Courier New', monospace;
+    font-size: 0.88rem;
+    white-space: pre-wrap;
+    line-height: 1.6;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(217, 119, 6, 0.2);
+    max-height: 450px;
+    overflow-y: auto;
+}
+
+/* 2. ⚙️ 🛠️ Agent Step Logs & Tool Calls (Cyan Slate) */
+.agent-step-details {
+    margin-bottom: 12px;
+    border: 1px solid #0284c7 !important;
+    border-left: 4px solid #38bdf8 !important;
+    border-radius: 10px !important;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+    padding: 10px 14px !important;
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15) !important;
+}
+.agent-step-summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #38bdf8 !important;
+    user-select: none;
+    font-size: 0.9rem;
+}
+.agent-step-summary:hover {
+    color: #7dd3fc !important;
+}
+.agent-log-block {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.agent-thought-box {
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #e0f2fe;
+    font-size: 0.88rem;
+    line-height: 1.5;
+}
+.agent-plan-box {
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: #c7d2fe;
+}
+.plan-header { color: #818cf8; font-weight: 600; margin-bottom: 4px; }
+.agent-tool-box {
+    background: rgba(14, 165, 233, 0.1);
+    border: 1px solid rgba(14, 165, 233, 0.3);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #e0f2fe;
+}
+.tool-header { color: #38bdf8; font-size: 0.88rem; font-weight: 600; margin-bottom: 4px; }
+.agent-obs-box {
+    background: rgba(9, 13, 22, 0.7);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 8px;
+    padding: 8px 12px;
+}
+.obs-header { color: #0ea5e9; font-size: 0.84rem; font-weight: 600; margin-bottom: 4px; }
+.obs-code {
+    background: #060911;
+    color: #38bdf8;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 0.84rem;
+    overflow-x: auto;
+    max-height: 350px;
+    margin: 0;
+}
+.agent-err-box {
+    background: rgba(225, 29, 72, 0.12);
+    border: 1px solid rgba(225, 29, 72, 0.35);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: #fecdd3;
+}
+.err-header { color: #fb7185; font-weight: 600; }
+
+/* 3. ✨ Final Answer & Main Output (Emerald Green) */
+.final-answer-block {
+    margin-top: 6px;
+    margin-bottom: 12px;
+    border: 1px solid #059669 !important;
+    border-left: 5px solid #10b981 !important;
+    border-radius: 10px !important;
+    background: linear-gradient(135deg, #064e3b 0%, #022c22 100%) !important;
+    padding: 14px 16px !important;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.18) !important;
+    color: #f0fdf4 !important;
+    font-size: 0.98rem;
+    line-height: 1.7;
+}
+.answer-header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(16, 185, 129, 0.2);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #6ee7b7;
+    font-weight: 700;
+    font-size: 0.86rem;
+    padding: 3px 10px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    letter-spacing: 0.3px;
+}
 """
 
 
@@ -285,23 +447,8 @@ def build_ui():
                             value=mr.get_saved_reasoning_enabled(),
                             info="Off = '/no_think' prepended (Qwen3-family only)",
                         )
-                        quant_dd = gr.Dropdown(
-                            choices=list(mr.QUANTIZATION_OPTIONS.keys()),
-                            value=mr.get_effective_quantization_label(),
-                            label="📦 Model Quantization",
-                            info="bitsandbytes, Hugging Face models only (CUDA GPU). Recommended value follows the hardware tier — see README.",
-                        )
-                        quant_note_md = gr.Markdown(
-                            "**Note:** HuggingFace models download the full BF16 weights first "
-                            "(e.g. 58 GB for 31B), then quantize in-memory at load time. "
-                            "For smaller downloads, use **GGUF models** via the "
-                            "'🖥️ llama.cpp server' provider — they come pre-quantized "
-                            "(e.g. 18 GB for 31B Q4) with no extra quantization step.",
-                            visible=True,
-                        )
                         ctx_window_status = gr.Textbox(show_label=False, interactive=False, visible=False)
                         max_tokens_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        quant_status = gr.Textbox(show_label=False, interactive=False, visible=False)
                         with gr.Accordion(L["accordion_details"], open=False) as acc_ctx_detail:
                             ctx_window_detail_md = gr.Markdown(L["info_context_window_detail"])
                         free_vram_btn = gr.Button(L["btn_free_vram"], variant="stop", size="sm")
@@ -771,16 +918,8 @@ def build_ui():
                    "other models simply ignore it as harmless extra text).")
             return gr.update(value=msg, visible=True)
 
-        def do_change_quantization(label):
-            mode = mr.QUANTIZATION_OPTIONS.get(label, "none")
-            mr.set_quantization(mode)
-            msg = (f"✅ Quantization set to {mode} — applies the next time a "
-                   "Hugging Face model loads (CUDA GPU only; ignored on CPU).")
-            return gr.update(value=msg, visible=True)
-
         max_tokens_dd.change(do_change_max_new_tokens, [max_tokens_dd], [max_tokens_status])
         reasoning_chk.change(do_change_reasoning, [reasoning_chk], [max_tokens_status])
-        quant_dd.change(do_change_quantization, [quant_dd], [quant_status])
 
         # ── llama-server (external process) backend controls ────────
         def _reset_every_agent_cache():

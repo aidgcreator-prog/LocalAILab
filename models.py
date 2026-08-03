@@ -25,41 +25,7 @@ from i18n import LANGUAGES
 # (from Google's official docs and HuggingFace model cards). Used to
 # warn the user before downloading large models they haven't cached yet.
 # ──────────────────────────────────────────────────────────────────
-_DOWNLOAD_SIZE_GB = {
-    # Gemma 4 LLM (BF16)
-    "google/gemma-4-E2B-it": 11,
-    "google/gemma-4-E4B-it": 18,
-    "google/gemma-4-e4b-it-qat-mobile-transformers": 4,
-    "google/gemma-4-12B-it": 27,
-    "google/gemma-4-26B-A4B-it": 58,
-    "google/gemma-4-31B-it": 70,
-    # Gemma 4 QAT safetensors (BF16 weights from QAT pipeline — 10-11% smaller)
-    "google/gemma-4-12B-it-qat-q4_0-unquantized": 24,
-    "google/gemma-4-26B-A4B-it-qat-q4_0-unquantized": 52,
-    "google/gemma-4-31B-it-qat-q4_0-unquantized": 63,
-    # Gemma 4 pre-quantized GPTQ/AWQ (4-bit — much smaller downloads)
-    "Vishva007/gemma-4-12B-it-W4A16-AutoRound-GPTQ": 7,
-    "Vishva007/gemma-4-12B-it-W4A16-AutoRound-AWQ": 7,
-    "mattbucci/gemma-4-26B-AWQ": 14,
-    # Qwen2.5-VL
-    "Qwen/Qwen2.5-VL-3B-Instruct": 6,
-    "Qwen/Qwen2.5-VL-7B-Instruct": 15,
-    # SmolVLM
-    "HuggingFaceTB/SmolVLM-256M-Instruct": 0.5,
-    "HuggingFaceTB/SmolVLM-500M-Instruct": 1,
-    "HuggingFaceTB/SmolVLM2-2.2B-Instruct": 4,
-    # Embedding
-    "BAAI/bge-m3": 2,
-    "Qwen/Qwen3-Embedding-4B": 8,
-    "jinaai/jina-embeddings-v4": 4,
-    # Whisper STT
-    "openai/whisper-tiny": 0.6,
-    "openai/whisper-base": 0.7,
-    "openai/whisper-small": 1.5,
-    "openai/whisper-large-v3": 10,
-    "seanghay/whisper-small-khmer-v2": 1.5,
-    "metythorn/whisper-large-v3-turbo-mixed-20eps-clean-text-197k": 6,
-}
+_DOWNLOAD_SIZE_GB = mr.DOWNLOAD_SIZE_GB
 
 
 def is_model_cached(model_id: str) -> bool:
@@ -450,64 +416,14 @@ def reset_chroma_collection():
 
 
 def _is_gptq_or_awq(model_id: str) -> bool:
-    """Check if a model id is a pre-quantized GPTQ or AWQ checkpoint.
+    """Check if a model id is a pre-quantized GPTQ, AWQ, BnB, or MLX checkpoint.
     These models ship with quantized weights and must NOT be re-quantized
     by bitsandbytes — doing so breaks loading and wastes time."""
     mid = str(model_id).lower()
-    return "gptq" in mid or "awq" in mid
+    return "gptq" in mid or "awq" in mid or "bnb" in mid or "mlx" in mid or model_id in mr.GPTQ_AWQ_IDS
 
 
-def _bnb_quant_config(model_id: str = "", label: str = "model") -> Optional[Any]:
-    """Build a bitsandbytes BitsAndBytesConfig (4/8-bit) from the UI's
-    "Model Quantization" dropdown, or None when quantization is off.
 
-    Shared by the LLM loader (smolagents TransformersModel via model_kwargs)
-    and the VLM loader (direct transformers from_pretrained). bitsandbytes
-    supports CUDA (fast) and CPU (verified against bnb 0.50: load_in_4bit on
-    device_map="cpu" yields is_loaded_in_4bit=True — slower, but this is
-    exactly what the README's "CPU only / <8GB -> E2B 4-bit (1.5-3 GB)" row
-    assumes); other devices (e.g. MPS) have no bnb support, so the choice is
-    ignored there with a warning. Already-pre-quantized checkpoints (the
-    Mobile QAT Gemma-4 family, GPTQ, AWQ) are also skipped — re-quantizing
-    an already-quantized model with bnb is wrong and breaks loading.
-    """
-    quant_mode = mr.get_effective_quantization()
-    if quant_mode not in ("4bit", "8bit"):
-        return None
-    if "qat" in model_id.lower():
-        print(
-            f"[{label}] '{model_id}' is a pre-quantized Mobile QAT checkpoint — "
-            f"leaving it as-is instead of applying {quant_mode}."
-        )
-        return None
-    if _is_gptq_or_awq(model_id):
-        print(
-            f"[{label}] '{model_id}' is a pre-quantized GPTQ/AWQ checkpoint — "
-            f"leaving it as-is instead of applying {quant_mode}."
-        )
-        return None
-    try:
-        from transformers import BitsAndBytesConfig
-    except ImportError:
-        print(
-            f"[{label}] Warning: 'model quantization' is set to {quant_mode}, "
-            "but bitsandbytes is not installed — loading unquantized instead."
-        )
-        return None
-    if DEVICE not in ("cuda", "cpu"):
-        print(
-            f"[{label}] Warning: 'model quantization' is set to {quant_mode}, "
-            f"but bitsandbytes only supports CUDA/CPU (device is {DEVICE}) — "
-            "loading unquantized instead."
-        )
-        return None
-    return BitsAndBytesConfig(
-        load_in_4bit=(quant_mode == "4bit"),
-        load_in_8bit=(quant_mode == "8bit"),
-        bnb_4bit_compute_dtype=TORCH_DTYPE,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=True,
-    )
 
 
 def get_llm(model_id: Optional[str] = None, n_ctx: Optional[int] = None):
@@ -761,21 +677,7 @@ def get_llm(model_id: Optional[str] = None, n_ctx: Optional[int] = None):
                 )
                 base_kwargs["model_kwargs"] = {}
             else:
-                # Quantization — bitsandbytes 4/8-bit, wired from the UI's
-                # "Model Quantization" dropdown (mr.get_effective_quantization()).
-                # The config is injected through TransformersModel's model_kwargs
-                # passthrough so it lands in AutoModel.from_pretrained(...) at load
-                # time. _bnb_quant_config() handles CUDA+CPU support, the MPS/
-                # unknown-device warning, missing-bitsandbytes fallback, and
-                # skipping already-pre-quantized Mobile QAT checkpoints.
-                cfg = _bnb_quant_config(target, label="RAG")
-                if cfg is not None:
-                    base_kwargs["model_kwargs"] = {"quantization_config": cfg}
-                    print(
-                        f"[RAG] Loading LLM '{target}' with "
-                        f"{mr.get_effective_quantization()} bitsandbytes "
-                        f"quantization on {DEVICE.upper()} …"
-                    )
+                base_kwargs["model_kwargs"] = {}
             _llm = TransformersModel(**base_kwargs)
             # n_ctx doesn't apply to the HF backend — clear it so a later
             # switch back to a GGUF model doesn't skip a reload it needs
@@ -916,15 +818,7 @@ def get_vlm(model_id: Optional[str] = None, mmproj_path: Optional[str] = None):
     print(f"[VLM] Loading '{target}' on {DEVICE.upper()} …")
     from transformers import AutoProcessor
 
-    # Quantization — same bitsandbytes 4/8-bit control as the LLM tab.
-    # _bnb_quant_config() applies the UI dropdown, skips pre-quantized
-    # Mobile QAT checkpoints, and warns-and-falls-back on MPS/missing-bnb.
-    _vlm_cfg = _bnb_quant_config(target, label="VLM")
-    if _vlm_cfg is not None:
-        print(
-            f"[VLM] Loading '{target}' with {mr.get_effective_quantization()} "
-            f"bitsandbytes quantization on {DEVICE.upper()} …"
-        )
+
 
     if target in mr.QWEN_VL_IDS:
         from transformers import Qwen2_5_VLForConditionalGeneration
@@ -941,8 +835,6 @@ def get_vlm(model_id: Optional[str] = None, mmproj_path: Optional[str] = None):
             device_map=DEVICE,
             trust_remote_code=True,
         )
-        if _vlm_cfg is not None:
-            _vlm_kwargs["quantization_config"] = _vlm_cfg
         _vlm_model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             target, **_vlm_kwargs
         )
@@ -974,8 +866,6 @@ def get_vlm(model_id: Optional[str] = None, mmproj_path: Optional[str] = None):
             device_map=DEVICE,
             trust_remote_code=True,
         )
-        if _vlm_cfg is not None:
-            _vlm_kwargs["quantization_config"] = _vlm_cfg
         _vlm_model = ModelClass.from_pretrained(target, **_vlm_kwargs)
 
         _vlm_model._arch = "smolvlm"
@@ -1007,8 +897,6 @@ def get_vlm(model_id: Optional[str] = None, mmproj_path: Optional[str] = None):
         else:
             load_kwargs["torch_dtype"] = "auto"
             load_kwargs["device_map"] = "auto"
-        if _vlm_cfg is not None:
-            load_kwargs["quantization_config"] = _vlm_cfg
 
         _vlm_model = ModelClass.from_pretrained(target, **load_kwargs)
 

@@ -108,65 +108,84 @@ def _format_tool_calls(tool_calls) -> str:
         args = getattr(tc, "arguments", None)
         if args is None and isinstance(tc, dict):
             args = tc.get("arguments")
-        lines.append(f"🔧 **{name}**({args if args is not None else ''})")
+        args_str = str(args) if args is not None else ""
+        if len(args_str) > 800:
+            args_str = args_str[:800] + "…(truncated)"
+        lines.append(
+            f'<div class="tool-header">🛠️ <b>Tool Execution:</b> <code>{name}</code></div>\n'
+            f'<pre class="obs-code"><code>{args_str}</code></pre>'
+        )
     return "\n".join(lines)
 
 
 def _format_step(step) -> Optional[str]:
     """Best-effort human-readable rendition of one smolagents memory step
-    (ActionStep / PlanningStep / ...) for display in the chat history.
-    Returns None if the step has nothing worth showing (e.g. a pure
-    bookkeeping step with no model output, no tool calls, and no
-    observations) — callers skip appending a bubble in that case.
+    (ActionStep / PlanningStep / ...) formatted with distinct step log styling.
     """
     try:
         cls_name = step.__class__.__name__
 
-        # PlanningStep — the model's periodic re-plan (Deep Research's
-        # `planning_interval`, or any agent that uses it). Shown as its
-        # own distinct bubble so re-planning is visible, rather than
-        # silently folded into the next action step.
         if cls_name == "PlanningStep":
             plan = getattr(step, "plan", None) or getattr(step, "facts", None)
             if not plan:
                 return None
-            return f"🗺️ **Planning**\n\n{_truncate(plan)}"
+            return (
+                '<details class="agent-step-details" open>\n'
+                '<summary class="agent-step-summary">🗺️ <b>Planning & Strategy Step</b></summary>\n'
+                '<div class="agent-log-block">\n'
+                f'<div class="agent-plan-box"><div class="plan-header">🗺️ Strategy</div>{_truncate(plan)}</div>\n'
+                '</div>\n</details>'
+            )
 
-        # TaskStep / SystemPromptStep carry no useful "what just
-        # happened" info for a live progress bubble — they're structural
-        # bookkeeping, not something the agent "did" this step.
         if cls_name in ("TaskStep", "SystemPromptStep"):
             return None
 
         step_number = getattr(step, "step_number", None)
-        header = f"⚙️ Step {step_number}" if step_number is not None else "⚙️ Step"
+        header_text = f"⚙️ Step {step_number} — Execution Log & Tools" if step_number is not None else "⚙️ Agent Step — Execution Log"
 
         parts = []
 
         model_output = getattr(step, "model_output", None)
         if model_output:
-            parts.append(_truncate(model_output))
+            cleaned_out = _truncate(model_output)
+            parts.append(f'<div class="agent-thought-box"><b>🧠 Reasoning:</b>\n{cleaned_out}</div>')
 
         tool_calls = getattr(step, "tool_calls", None)
         tc_str = _format_tool_calls(tool_calls)
         if tc_str:
-            parts.append(tc_str)
+            parts.append(f'<div class="agent-tool-box">{tc_str}</div>')
 
         observations = getattr(step, "observations", None)
         if observations:
-            parts.append(f"**Output:**\n```\n{_truncate(observations, 1200)}\n```")
+            obs_text = _truncate(observations, 1200)
+            parts.append(
+                f'<div class="agent-obs-box">\n'
+                f'<div class="obs-header">📝 Execution Logs & Terminal Output</div>\n'
+                f'<pre class="obs-code"><code>{obs_text}</code></pre>\n'
+                '</div>'
+            )
 
         error = getattr(step, "error", None)
         if error:
-            parts.append(f"⚠️ **Error:** {_truncate(str(error), 800)}")
+            parts.append(
+                f'<div class="agent-err-box">\n'
+                f'<div class="err-header">⚠️ Execution Error</div>\n'
+                f'<div>{_truncate(str(error), 800)}</div>\n'
+                '</div>'
+            )
 
         if not parts:
             return None
 
-        return f"{header}\n\n" + "\n\n".join(parts)
+        body_html = "\n".join(parts)
+        return (
+            f'<details class="agent-step-details" open>\n'
+            f'<summary class="agent-step-summary">{header_text}</summary>\n'
+            f'<div class="agent-log-block">\n{body_html}\n</div>\n'
+            '</details>'
+        )
     except Exception:
-        # Never let a formatting glitch break the whole streamed run —
-        # worst case, this particular step just doesn't show a bubble.
+        # Never let a formatting glitch break the whole streamed run
         return None
 
 

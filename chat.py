@@ -55,64 +55,86 @@ DEEP_RESEARCH_MEMORY_TURNS = 4
 # module-level constants so the same HTML strings aren't built from scratch
 # on every single chat turn (see the three branches in
 # format_llm_response() below, which each use some combination of these).
-_DETAILS_TPL = (
-    '<details {open} style="'
-    "margin-bottom:12px;border:1px solid {border};"
-    'border-radius:8px;background:#2d2d2d;padding:10px;">\n'
-    '<summary style="cursor:pointer;font-weight:bold;color:#ffcc66;">'
-    "{summary}</summary>\n<div style=\"margin-top:10px;color:#cfcfcf;"
-    'font-family:monospace;white-space:pre-wrap;line-height:1.5;">'
-    "\n{body}\n</div>\n</details>\n"
+_THINK_TPL = (
+    '<details class="think-block" {open}>\n'
+    '<summary class="think-summary">\n'
+    '<span class="think-badge">{summary}</span>\n'
+    '<span class="think-hint">(click to toggle)</span>\n'
+    '</summary>\n'
+    '<div class="think-body">\n{body}\n</div>\n'
+    '</details>\n'
 )
+
 _ANSWER_TPL = (
-    '<div style="border-left:5px solid {border};padding:12px;'
-    'background:#1f1f1f;border-radius:8px;font-size:{fs}px;'
-    'line-height:1.6;">\n{body}\n</div>'
+    '<div class="final-answer-block">\n'
+    '<div class="answer-header-badge">{title}</div>\n'
+    '<div class="answer-body">\n{body}\n</div>\n'
+    '</div>'
 )
 
 
 def format_llm_response(text: str, lang_key: str = "kh") -> str:
+    if not text or not isinstance(text, str):
+        return text or ""
+
     l = LANGUAGES.get(lang_key, LANGUAGES["kh"])
-    m = re.search(r" thinking(.*?) response(.*)", text, re.DOTALL)
+    reasoning_title = l.get("err_reasoning", "🧠 ដំណើរការគិត / Reasoning Process")
+    answer_title = l.get("err_answer", "✨ ចម្លើយចុងក្រោយ / Final Answer")
+    no_reasoning = l.get("no_reasoning_text", "គ្មានព័ត៌មានគិត")
+    truncated_notice = l.get("truncated_notice", "⚠️ ការគិតត្រូវបានកាត់ផ្តាច់ (Truncated)")
 
-    if not m:
-        if " thinking" in text and " response" not in text:
-            partial_thinking = text.split(" thinking", 1)[1].strip()
-            return _DETAILS_TPL.format(
-                open="open", border="#a87c1f",
-                summary=l["reasoning_truncated"],
-                body=partial_thinking if partial_thinking else l["no_reasoning_text"],
-            ) + _ANSWER_TPL.format(border="#a87c1f", fs=15, body=l["truncated_notice"])
-        return text
+    thinking = None
+    answer = None
 
-    thinking = m.group(1).strip()
-    answer = m.group(2).strip()
+    # 1. Match <think>...</think> or <reasoning>...</reasoning> or <thought>...</thought>
+    m_tag = re.search(r"<(think|reasoning|thought)>(.*?)</\1>(.*)", text, re.DOTALL | re.IGNORECASE)
+    if m_tag:
+        thinking = m_tag.group(2).strip()
+        answer = m_tag.group(3).strip()
+    else:
+        # 2. Match " thinking... response..."
+        m_resp = re.search(r" thinking(.*?) response(.*)", text, re.DOTALL)
+        if m_resp:
+            thinking = m_resp.group(1).strip()
+            answer = m_resp.group(2).strip()
+        else:
+            # 3. Unclosed <think> or " thinking"
+            m_unclosed = re.search(r"<(think|reasoning|thought)>(.*)", text, re.DOTALL | re.IGNORECASE)
+            if m_unclosed:
+                thinking = m_unclosed.group(2).strip()
+                answer = ""
+            elif " thinking" in text and " response" not in text:
+                thinking = text.split(" thinking", 1)[1].strip()
+                answer = ""
 
-    if not answer:
-        return _DETAILS_TPL.format(
-            open="open", border="#a87c1f",
-            summary=l["reasoning_no_answer"],
-            body=thinking if thinking else l["no_reasoning_text"],
-        ) + _ANSWER_TPL.format(border="#a87c1f", fs=15, body=l["truncated_notice"])
+    if thinking is not None:
+        think_html = _THINK_TPL.format(
+            open="",
+            summary=reasoning_title,
+            body=thinking if thinking else no_reasoning,
+        )
+        if answer:
+            ans_html = _ANSWER_TPL.format(
+                title=answer_title,
+                body=answer,
+            )
+            return think_html + ans_html
+        else:
+            ans_html = _ANSWER_TPL.format(
+                title=answer_title,
+                body=truncated_notice,
+            )
+            return think_html + ans_html
 
-    return _DETAILS_TPL.format(
-        open="", border="#555",
-        summary=l["err_reasoning"],
-        body=thinking,
-    ) + _ANSWER_TPL.format(
-        border="#4CAF50", fs=16,
-        body=f"<b>{l['err_answer']}</b>\n" + answer,
-    )
+    return text
+
+
 def _strip_response_html(text: str) -> str:
-    """Recover the plain-text answer from a previously HTML-formatted
-    assistant reply (format_llm_response() wraps it in a collapsible
-    <think> accordion plus an <hr><sub>...timing/model footer</sub>) so it
-    can be fed back to the LLM as conversation memory without leaking
-    markup, stale timing numbers, or its own past "reasoning" commentary.
-    """
+    """Recover the plain-text answer from a previously HTML-formatted assistant reply."""
     if not text:
         return text
     text = re.sub(r"<details.*?</details>", "", text, flags=re.DOTALL)
+    text = re.sub(r"<div class=\"final-answer-block\".*?<div class=\"answer-body\">(.*?)</div>\s*</div>", r"\1", text, flags=re.DOTALL)
     text = re.sub(r"<hr>.*$", "", text, flags=re.DOTALL)
     text = re.sub(r"<b>\U0001F4AC[^<]*</b>\s*", "", text)
     text = re.sub(r"<[^>]+>", "", text)

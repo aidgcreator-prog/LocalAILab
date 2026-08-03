@@ -1,0 +1,27 @@
+category,label,model_id,download_size_gb,default
+stt,🟢 Whisper-tiny    (0.04 GB download | fastest),openai/whisper-tiny,0.04,default
+stt,🟡 Whisper-base    (0.07 GB download),openai/whisper-base,0.07,
+stt,🟡 Whisper-small   (0.23 GB download | recommended),openai/whisper-small,0.23,
+stt,🇰🇭 Whisper-small — ខ្មែរ (0.23 GB download | Khmer-tuned),seanghay/whisper-small-khmer-v2,0.23,
+stt,🇰🇭 Whisper-large-v3-turbo — ខ្មែរ (0.75 GB download | best for Khmer),metythorn/whisper-large-v3-turbo-mixed-20eps-clean-text-197k,0.75,
+stt,"🔵 Whisper-large-v3 (1.44 GB download | best accuracy, multilingual incl. Khmer)",openai/whisper-large-v3,1.44,
+both,🧠 Gemma-4-E2B Mobile QAT (2.18 GB download | CPU/edge tier),google/gemma-4-E2B-it-qat-mobile-transformers,2.18,default
+embed,"BGE-M3 (2.2 GB download | multilingual, recommended default)",BAAI/bge-m3,2.2,default
+both,🧠 Gemma-4-E4B Mobile QAT (3.1 GB download | CPU/edge tier),google/gemma-4-E4B-it-qat-mobile-transformers,3.1,default
+embed,Jina Embeddings v4 (3.5 GB download | 48GB+ VRAM tier),jinaai/jina-embeddings-v4,3.5,
+embed,Qwen3-Embedding-4B (3.75 GB download | 24GB+ VRAM tier),Qwen/Qwen3-Embedding-4B,3.75,
+both,🔵 Gemma-4-E2B    (4.8 GB download → 3 GB VRAM @4-bit | CPU/<8GB tier),google/gemma-4-E2B-it,4.8,
+both,🦥 Unsloth Gemma-4-E2B BnB 4-bit (4.8 GB download | 4-bit pre-quantized),unsloth/gemma-4-E2B-it-unsloth-bnb-4bit,4.8,
+both,🧠 Gemma-4-E2B Mobile CT (5.16 GB download | compressed-tensors),google/gemma-4-E2B-it-qat-mobile-ct,5.16,
+both,⚡ Gemma-4-E2B W4A16 CT (5.18 GB download | 4-bit compressed-tensors),google/gemma-4-E2B-it-qat-w4a16-ct,5.18,
+both,🟢 Gemma-4-E4B    (7.4 GB download → 5 GB VRAM @4-bit | 8-12GB tier),google/gemma-4-E4B-it,7.4,
+both,🦥 Unsloth Gemma-4-E4B BnB 4-bit (7.4 GB download | 4-bit pre-quantized),unsloth/gemma-4-E4B-it-unsloth-bnb-4bit,7.4,
+both,🧠 Gemma-4-E4B Mobile CT (8.08 GB download | compressed-tensors),google/gemma-4-E4B-it-qat-mobile-ct,8.08,
+both,⚡ Gemma-4-E4B W4A16 CT (8.14 GB download | 4-bit compressed-tensors),google/gemma-4-E4B-it-qat-w4a16-ct,8.14,
+both,"🟠 Gemma-4-12B QAT (11.1 GB download | QAT-optimized, 11% smaller)",google/gemma-4-12B-it-qat-q4_0-unquantized,11.1,
+both,⚡ Gemma-4-12B W4A16 CT (12.39 GB download | 4-bit compressed-tensors),google/gemma-4-12B-it-qat-w4a16-ct,12.39,
+both,🟠 Gemma-4-12B    (24.5 GB download | manual pick),google/gemma-4-12B-it,24.5,
+both,🔴 Gemma-4-26B-A4B QAT (26 GB download | QAT-optimized MoE),google/gemma-4-26B-A4B-it-qat-q4_0-unquantized,26,
+both,🦥 Unsloth Gemma-4-31B BnB 4-bit (29.1 GB download | 4-bit pre-quantized),unsloth/gemma-4-31B-it-unsloth-bnb-4bit,29.1,
+both,"🔴 Gemma-4-31B QAT (31 GB download | QAT-optimized, 10% smaller)",google/gemma-4-31B-it-qat-q4_0-unquantized,31,
+both,⚡ Gemma-4-31B W4A16 CT (31.29 GB download | 4-bit compressed-tensors),google/gemma-4-31B-it-qat-w4a16-ct,31.29,

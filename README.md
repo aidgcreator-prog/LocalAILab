@@ -210,7 +210,6 @@ python app.py
 | គែម (edge) | `google/gemma-4-e4b-it-qat-mobile-transformers` (Mobile QAT, ~3 GB) |
 | ប្រែប្រួល | ម៉ូដែល `.gguf` ណាមួយនៅក្នុងថតដែលអ្នកកំណត់ (តាមរយៈ llama.cpp) |
 
-> កម្រិត quantization (4-bit/8-bit) ខាងលើត្រូវបានជ្រើសរើសដោយស្វ័យប្រវត្តិសម្រាប់ផ្នែករឹងរបស់អ្នក ហើយអាចប្តូរបានតាមរយៈ "📦 Model Quantization" ក្នុង Model Settings (bitsandbytes — GPU តែប៉ុណ្ណោះ)។
 
 </details>
 
@@ -506,7 +505,6 @@ You can change models at runtime via the UI's model selection dropdowns.
 | Edge | `google/gemma-4-e4b-it-qat-mobile-transformers` (Mobile QAT, ~3 GB) |
 | varies | Any `.gguf` model in your configured folder (via llama.cpp) |
 
-> The quantization level (4-bit/8-bit) above is auto-picked for your hardware and can be changed via the "📦 Model Quantization" dropdown in Model Settings (bitsandbytes — GPU only).
 
 </details>
 

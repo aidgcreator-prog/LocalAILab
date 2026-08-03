@@ -162,11 +162,97 @@ def get_model_label_for_id(options: dict, model_id: str, fallback: str) -> str:
 # to user_config.json always wins over the hardware-detected default, so
 # switching hardware tiers never silently overrides a deliberate choice.
 # ──────────────────────────────────────────────────────────────────
-EMBED_OPTIONS = {
-    "BGE-M3 (~2 GB RAM | multilingual, recommended default)": "BAAI/bge-m3",
-    "Qwen3-Embedding-4B (~8 GB RAM | 24GB+ VRAM tier)":        "Qwen/Qwen3-Embedding-4B",
-    "Jina Embeddings v4 (~qwen3-based | 48GB+ VRAM tier)":     "jinaai/jina-embeddings-v4",
-}
+MODEL_CSV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models.csv")
+MODEL_CSV_ALT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hf_models.csv")
+
+BASE_MODEL_OPTIONS: dict[str, str] = {}
+BASE_VLM_OPTIONS: dict[str, str] = {}
+EMBED_OPTIONS: dict[str, str] = {}
+STT_OPTIONS: dict[str, str] = {}
+GEMMA4_IDS: set[str] = set()
+GPTQ_AWQ_IDS: set[str] = set()
+DOWNLOAD_SIZE_GB: dict[str, float] = {}
+
+
+CSV_DEFAULT_LLM_LABEL: Optional[str] = None
+CSV_DEFAULT_VLM_LABEL: Optional[str] = None
+CSV_DEFAULT_EMBED_MODEL: Optional[str] = None
+CSV_DEFAULT_STT_LABEL: Optional[str] = None
+
+
+def load_models_from_csv(csv_path: Optional[str] = None) -> None:
+    """Load all model options, architecture guards, and download sizes dynamically
+    from models.csv (or hf_models.csv) so users can add, remove, or edit models easily without changing code.
+    """
+    global CSV_DEFAULT_LLM_LABEL, CSV_DEFAULT_VLM_LABEL, CSV_DEFAULT_EMBED_MODEL, CSV_DEFAULT_STT_LABEL
+    path = csv_path
+    if not path:
+        path = MODEL_CSV_ALT_PATH if os.path.exists(MODEL_CSV_ALT_PATH) else MODEL_CSV_PATH
+    if not os.path.exists(path):
+        return
+
+    BASE_MODEL_OPTIONS.clear()
+    BASE_VLM_OPTIONS.clear()
+    EMBED_OPTIONS.clear()
+    STT_OPTIONS.clear()
+    GEMMA4_IDS.clear()
+    GPTQ_AWQ_IDS.clear()
+    DOWNLOAD_SIZE_GB.clear()
+    CSV_DEFAULT_LLM_LABEL = None
+    CSV_DEFAULT_VLM_LABEL = None
+    CSV_DEFAULT_EMBED_MODEL = None
+    CSV_DEFAULT_STT_LABEL = None
+
+    import csv
+    with open(path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            cat = str(row.get("category", "")).strip().lower()
+            label = str(row.get("label", "")).strip()
+            model_id = str(row.get("model_id", "")).strip()
+            size_str = str(row.get("download_size_gb", "")).strip()
+            is_default = str(row.get("default", "")).strip().lower() in ("default", "true", "1", "yes")
+
+            if not label or not model_id:
+                continue
+
+            if size_str:
+                try:
+                    DOWNLOAD_SIZE_GB[model_id] = float(size_str)
+                except ValueError:
+                    pass
+
+            mid_lower = model_id.lower()
+            if "gemma-4" in mid_lower or "gemma4" in mid_lower:
+                GEMMA4_IDS.add(model_id)
+
+            if any(kw in mid_lower for kw in ("4bit", "3bit", "bnb", "mlx", "qat", "ct", "gptq", "awq")):
+                GPTQ_AWQ_IDS.add(model_id)
+
+            if cat in ("both", "llm"):
+                BASE_MODEL_OPTIONS[label] = model_id
+                if is_default and not CSV_DEFAULT_LLM_LABEL:
+                    CSV_DEFAULT_LLM_LABEL = label
+            if cat in ("both", "vlm"):
+                BASE_VLM_OPTIONS[label] = model_id
+                if is_default and not CSV_DEFAULT_VLM_LABEL:
+                    CSV_DEFAULT_VLM_LABEL = label
+            if cat == "embed":
+                EMBED_OPTIONS[label] = model_id
+                if is_default and not CSV_DEFAULT_EMBED_MODEL:
+                    CSV_DEFAULT_EMBED_MODEL = model_id
+            if cat == "stt":
+                STT_OPTIONS[label] = model_id
+                if is_default and not CSV_DEFAULT_STT_LABEL:
+                    CSV_DEFAULT_STT_LABEL = label
+
+    # Append sentinel options
+    BASE_MODEL_OPTIONS[HF_API_ENTRY_LABEL] = HF_INFERENCE_API_SENTINEL
+    BASE_MODEL_OPTIONS[LITELLM_ENTRY_LABEL] = LITELLM_SENTINEL
+    BASE_VLM_OPTIONS[HF_API_ENTRY_LABEL] = HF_INFERENCE_API_SENTINEL
+
+
+load_models_from_csv()
 
 _EMBED_MODEL_BY_TIER = {
     HardwareManager.TIER_48GB_VRAM: "jinaai/jina-embeddings-v4",
@@ -180,9 +266,9 @@ _EMBED_MODEL_BY_TIER = {
 
 def get_recommended_embed_model() -> str:
     """The embedding model README.md's hardware-tier table recommends for
-    THIS machine, based on live-detected VRAM/RAM (see
-    hardware.HardwareManager.detect_hardware_tier()). Falls back to
-    BGE-M3 if the tier can't be determined."""
+    THIS machine, based on live-detected VRAM/RAM. Uses CSV default if set."""
+    if CSV_DEFAULT_EMBED_MODEL:
+        return CSV_DEFAULT_EMBED_MODEL
     tier = HardwareManager.detect_hardware_tier()
     return _EMBED_MODEL_BY_TIER.get(tier, "BAAI/bge-m3")
 
@@ -344,70 +430,7 @@ def set_max_new_tokens(n: int) -> None:
 # whose id contains "qat" (e.g. the Mobile QAT checkpoint) ship
 # pre-quantized and are never re-quantized by this control.
 # ──────────────────────────────────────────────────────────────────
-QUANTIZATION_OPTIONS = {
-    "None (full precision — default)": "none",
-    "8-bit (bitsandbytes — ~half the memory)": "8bit",
-    "4-bit NF4 (bitsandbytes — ~quarter the memory)": "4bit",
-}
-DEFAULT_QUANTIZATION_LABEL = "None (full precision — default)"
-DEFAULT_QUANTIZATION = QUANTIZATION_OPTIONS[DEFAULT_QUANTIZATION_LABEL]
 
-
-def get_recommended_quantization() -> str:
-    """The quantization mode README.md's hardware-tier table recommends
-    for THIS machine, matching the "Recommended Model / Quantization"
-    ladder:
-       CPU only / <8GB   -> E2B 4-bit      1.5-3 GB
-       8-12GB GPU        -> E4B 4-bit      3-5 GB
-       16GB GPU          -> 26B-A4B 4-bit  8-14 GB
-       24GB GPU          -> 26B-A4B 8-bit  14-28 GB  (the sweet spot)
-       24GB+ (max qual)  -> 31B 4-bit      18-20 GB  (absolute best)
-    The top (48GB+) tier is treated as the "24GB GPU (max quality)" pick —
-    the max VRAM the recommendation ladder targets is 24GB, which is the
-    realistic ceiling. A saved user override via set_quantization() always
-    wins (see get_effective_quantization())."""
-    tier = HardwareManager.detect_hardware_tier()
-    return {
-        HardwareManager.TIER_48GB_VRAM: "4bit",
-        HardwareManager.TIER_24GB_VRAM: "8bit",
-        HardwareManager.TIER_16GB_VRAM: "4bit",
-        HardwareManager.TIER_8GB_VRAM:  "4bit",
-        HardwareManager.TIER_CPU_ONLY:  "4bit",
-        HardwareManager.TIER_UNKNOWN:   "4bit",
-    }.get(tier, "none")
-
-
-def get_saved_quantization() -> str:
-    """The explicitly-persisted quantization mode, or 'none' if the user
-    never touched the control (used by the UI to show the current state)."""
-    saved = str(user_config.USER_CONFIG.get("quantization_mode", "none"))
-    return saved if saved in QUANTIZATION_OPTIONS.values() else "none"
-
-
-def get_effective_quantization() -> str:
-    """The quantization mode actually used when loading models: a saved
-    user override wins, otherwise the hardware-tier recommendation."""
-    saved = get_saved_quantization()
-    if saved != "none":
-        return saved
-    return get_recommended_quantization()
-
-
-def get_effective_quantization_label() -> str:
-    """Reverse-lookup the dropdown label matching the effective
-    quantization mode, for initializing the UI dropdown's value."""
-    effective = get_effective_quantization()
-    for label, value in QUANTIZATION_OPTIONS.items():
-        if value == effective:
-            return label
-    return DEFAULT_QUANTIZATION_LABEL
-
-
-def set_quantization(mode: str) -> None:
-    """Persist the chosen quantization mode so it survives an app
-    restart — mirrors set_context_window()'s persistence pattern."""
-    mode = mode if mode in QUANTIZATION_OPTIONS.values() else "none"
-    user_config.save_user_config({"quantization_mode": mode})
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -722,32 +745,6 @@ ORNITH_IDS = {
 # (the app's base LLM family), so this guard applies to the whole default
 # lineup — google/gemma-4-E2B-it (the app's default LLM), E4B, the Mobile
 # QAT edge checkpoint, and the 12B/26B-A4B/31B ladder.
-GEMMA4_IDS = {
-    "google/gemma-4-E2B-it",
-    "google/gemma-4-E4B-it",
-    "google/gemma-4-e4b-it-qat-mobile-transformers",
-    "google/gemma-4-12B-it",
-    "google/gemma-4-26B-A4B-it",
-    "google/gemma-4-31B-it",
-    # QAT safetensors variants — same architecture, QAT-optimized weights
-    "google/gemma-4-12B-it-qat-q4_0-unquantized",
-    "google/gemma-4-26B-A4B-it-qat-q4_0-unquantized",
-    "google/gemma-4-31B-it-qat-q4_0-unquantized",
-    # Pre-quantized GPTQ/AWQ variants — same base architecture, different weight format
-    "Vishva007/gemma-4-12B-it-W4A16-AutoRound-GPTQ",
-    "Vishva007/gemma-4-12B-it-W4A16-AutoRound-AWQ",
-    "mattbucci/gemma-4-26B-AWQ",
-}
-
-# Pre-quantized model IDs — these ship in GPTQ/AWQ format and must NOT be
-# re-quantized by bitsandbytes. Detected by checking if the model id contains
-# 'gptq' or 'awq' (case-insensitive).
-GPTQ_AWQ_IDS = {
-    "Vishva007/gemma-4-12B-it-W4A16-AutoRound-GPTQ",
-    "Vishva007/gemma-4-12B-it-W4A16-AutoRound-AWQ",
-    "mattbucci/gemma-4-26B-AWQ",
-}
-
 # ──────────────────────────────────────────────────────────────────
 # Hugging Face Inference API — persisted settings.  The sentinel
 # constant HF_INFERENCE_API_SENTINEL is defined near the top of this
@@ -808,56 +805,9 @@ def set_litellm_api_base(base: str) -> None:
     user_config.save_user_config({"litellm_api_base": base})
 
 
-# ──────────────────────────────────────────────────────────────────
-# LLM (HuggingFace + GGUF) options
-# ──────────────────────────────────────────────────────────────────
-BASE_MODEL_OPTIONS = {
-    # Gemma 4 — the app's base LLM family. Needs transformers>=5.10.1 (see
-    # models._MIN_TRANSFORMERS_VERSION["gemma4"] and GEMMA4_IDS above);
-    # loading with an older transformers raises a clear upgrade error
-    # instead of a cryptic AutoModel crash. Natively multimodal/encoder-
-    # free — loads here via the plain text-LLM path (smolagents'
-    # TransformersModel, which resolves Gemma 4 through
-    # AutoModelForImageTextToText), which works for inference/generation,
-    # though the vision/audio towers ride along unused; use the 🎨 Vision
-    # LLM dropdown instead if you specifically want Gemma 4's image
-    # understanding.
-    # Sizes below show: download size (BF16) → VRAM at recommended quantization.
-    "🔵 Gemma-4-E2B    (11 GB download → 3 GB VRAM @4-bit | CPU/<8GB tier)": "google/gemma-4-E2B-it",
-    "🟢 Gemma-4-E4B    (18 GB download → 5 GB VRAM @4-bit | 8-12GB tier)": "google/gemma-4-E4B-it",
-    "🧠 Gemma-4-E4B Mobile QAT (4 GB download | CPU/edge tier)": "google/gemma-4-e4b-it-qat-mobile-transformers",
-    "🟠 Gemma-4-12B    (27 GB download | manual pick)": "google/gemma-4-12B-it",
-    "🟠 Gemma-4-12B QAT (24 GB download | QAT-optimized, 11% smaller)": "google/gemma-4-12B-it-qat-q4_0-unquantized",
-    "🔴 Gemma-4-26B-A4B (58 GB download → 14 GB VRAM @4-bit | 16-24GB tier)": "google/gemma-4-26B-A4B-it",
-    "🔴 Gemma-4-26B-A4B QAT (52 GB download | QAT-optimized MoE)": "google/gemma-4-26B-A4B-it-qat-q4_0-unquantized",
-    "🔴 Gemma-4-31B    (70 GB download → 18 GB VRAM @4-bit | 24GB+ max quality)": "google/gemma-4-31B-it",
-    "🔴 Gemma-4-31B QAT (63 GB download | QAT-optimized, 10% smaller)": "google/gemma-4-31B-it-qat-q4_0-unquantized",
-    # Pre-quantized Gemma 4 — GPTQ/AWQ checkpoints that skip the BF16 download
-    # entirely. These load ~3x faster than BF16+bnb-quantize for the same result.
-    # Requires auto-gptq or autoawq package respectively (auto-installed by
-    # transformers on first load if not present).
-    "🟠 Gemma-4-12B GPTQ (7 GB download | 4-bit pre-quantized)": "Vishva007/gemma-4-12B-it-W4A16-AutoRound-GPTQ",
-    "🟠 Gemma-4-12B AWQ  (7 GB download | 4-bit pre-quantized)": "Vishva007/gemma-4-12B-it-W4A16-AutoRound-AWQ",
-    "🔴 Gemma-4-26B AWQ  (14 GB download | 4-bit pre-quantized MoE)": "mattbucci/gemma-4-26B-AWQ",
-    # Hugging Face Inference API — remote, no local weights needed. Picked via
-    # the same model dropdown; models.get_llm() detects the sentinel and builds
-    # smolagents.InferenceClientModel instead of loading locally. Requires a
-    # HF API token and model ID configured in the Model Settings accordion.
-    HF_API_ENTRY_LABEL: HF_INFERENCE_API_SENTINEL,
-    # LiteLLM — remote via OpenAI/Anthropic/Groq etc. Picked via the same
-    # model dropdown; models.get_llm() detects the sentinel and builds
-    # smolagents.LiteLLMModel instead of loading locally. Requires a model
-    # ID and API key configured in the Model Settings accordion.
-    LITELLM_ENTRY_LABEL: LITELLM_SENTINEL,
-}
-
-# MODEL_OPTIONS starts as a copy of the base HuggingFace models. Any local
+# MODEL_OPTIONS starts as a copy of the base HuggingFace models loaded from models.csv. Any local
 # .gguf models found under llama_backend.LLAMA_CPP_MODEL_DIR are merged in
-# on top of it so they appear in the same dropdowns. The folder is
-# user-configurable — via the LLAMA_CPP_MODEL_DIR environment variable at
-# startup, or live from the "📁 GGUF Model Folder" box in the UI (see
-# rescan_gguf_models() below). Kept as a single dict object that is mutated
-# in place (never reassigned) so every module that imported it sees updates.
+# on top of it so they appear in the same dropdowns.
 MODEL_OPTIONS = dict(BASE_MODEL_OPTIONS)
 MODEL_OPTIONS.update(llama_backend.discover_gguf_models())
 
@@ -900,9 +850,9 @@ def _label_for_model_id(model_id: str, options: dict) -> Optional[str]:
 
 
 def get_recommended_llm_label() -> str:
-    """The LLM label README.md's hardware-tier table recommends for THIS
-    machine. Falls back to the smallest Gemma 4 (E2B) if the tier can't
-    be determined or its model id isn't in the dropdown."""
+    """The LLM label recommended for THIS machine. Uses CSV default if set."""
+    if CSV_DEFAULT_LLM_LABEL and CSV_DEFAULT_LLM_LABEL in MODEL_OPTIONS:
+        return CSV_DEFAULT_LLM_LABEL
     tier = HardwareManager.detect_hardware_tier()
     model_id = _LLM_LABEL_BY_TIER.get(tier, _LLM_FALLBACK_MODEL_ID)
     return _label_for_model_id(model_id, MODEL_OPTIONS) or _LLM_FALLBACK_LABEL
@@ -988,56 +938,36 @@ def rescan_gguf_models(folder_path: Optional[str], lang_key: str = "kh"):
 
 
 # ──────────────────────────────────────────────────────────────────
-# Vision LLM (VLM) options
-# ──────────────────────────────────────────────────────────────────
-BASE_VLM_OPTIONS = {
-    "🔵 SmolVLM-256M  (0.5 GB download | tiny)":  "HuggingFaceTB/SmolVLM-256M-Instruct",
-    "🔵 SmolVLM-500M  (1 GB download | recommended)": "HuggingFaceTB/SmolVLM-500M-Instruct",
-    "🟢 Qwen2.5-VL-3B (6 GB download → 3 GB VRAM @4-bit | 8GB tier)": "Qwen/Qwen2.5-VL-3B-Instruct",
-    "🟠 Qwen2.5-VL-7B (15 GB download → 8 GB VRAM @4-bit | 16GB+ tier)": "Qwen/Qwen2.5-VL-7B-Instruct",
-    # Gemma 4 supplement — every Gemma 4 base model is multimodal, so each
-    # one doubles as a Vision Chat model (loaded via the "gemma4" VLM arch).
-    # Sizes match the LLM dropdown since the checkpoints are shared.
-    "🧠 Gemma-4-E4B Mobile QAT (4 GB download | edge)": "google/gemma-4-e4b-it-qat-mobile-transformers",
-    "🔵 Gemma-4-E2B   (11 GB download → 3 GB VRAM @4-bit | CPU/<8GB tier)": "google/gemma-4-E2B-it",
-    "🟢 Gemma-4-E4B   (18 GB download → 5 GB VRAM @4-bit | 8-12GB tier)": "google/gemma-4-E4B-it",
-    HF_API_ENTRY_LABEL: HF_INFERENCE_API_SENTINEL,
-}
-
-# VLM_OPTIONS starts as a copy of the base HuggingFace VLMs. Any local
+# VLM_OPTIONS starts as a copy of the base HuggingFace VLMs loaded from models.csv. Any local
 # GGUF vision-model pairs (main .gguf + matching mmproj .gguf) found
 # under llama_backend.LLAMA_CPP_MODEL_DIR are merged in on top of it —
-# same pattern as MODEL_OPTIONS for text LLMs — so they appear in the
-# same "🎨 Vision LLM" dropdown. Kept as a single dict object that is
-# mutated in place (never reassigned) so every module that imported it
-# sees updates.
+# same pattern as MODEL_OPTIONS for text LLMs.
 VLM_OPTIONS = dict(BASE_VLM_OPTIONS)
 
 # Default VLM selection — dynamic per detected hardware tier, mirroring
-# README.md's "Vision Model (HF/transformers)" column: Qwen2.5-VL-7B-
-# Instruct is the recommended pick from the 16GB-VRAM tier upward, since
-# every GGUF vision option in that table needs a llama_backend.py
-# chat-handler update this app doesn't have yet (see the README's
-# "Compatibility note"). Below that tier, the existing small SmolVLM-500M
-# stays the default — a 7B VLM would be a poor default on modest/CPU-only
-# hardware. A saved user override (see set_default_vlm()) always wins,
-# same persisted-choice pattern as DEFAULT_EMBED_MODEL above.
-_VLM_LABEL_BY_TIER = {
-    HardwareManager.TIER_48GB_VRAM: "🟠 Qwen2.5-VL-7B (15 GB download → 8 GB VRAM @4-bit | 16GB+ tier)",
-    HardwareManager.TIER_24GB_VRAM: "🟠 Qwen2.5-VL-7B (15 GB download → 8 GB VRAM @4-bit | 16GB+ tier)",
-    HardwareManager.TIER_16GB_VRAM: "🟠 Qwen2.5-VL-7B (15 GB download → 8 GB VRAM @4-bit | 16GB+ tier)",
-    HardwareManager.TIER_8GB_VRAM:  "🔵 SmolVLM-500M  (1 GB download | recommended)",
-    HardwareManager.TIER_CPU_ONLY:  "🔵 SmolVLM-500M  (1 GB download | recommended)",
-    HardwareManager.TIER_UNKNOWN:   "🔵 SmolVLM-500M  (1 GB download | recommended)",
+# Gemma 4 recommendations. A saved user override (see set_default_vlm())
+# always wins, same persisted-choice pattern as DEFAULT_EMBED_MODEL above.
+_VLM_MODEL_BY_TIER = {
+    HardwareManager.TIER_48GB_VRAM: "google/gemma-4-E4B-it",
+    HardwareManager.TIER_24GB_VRAM: "google/gemma-4-E4B-it",
+    HardwareManager.TIER_16GB_VRAM: "google/gemma-4-E4B-it",
+    HardwareManager.TIER_8GB_VRAM:  "google/gemma-4-E2B-it",
+    HardwareManager.TIER_CPU_ONLY:  "google/gemma-4-E2B-it",
+    HardwareManager.TIER_UNKNOWN:   "google/gemma-4-E2B-it",
 }
+_VLM_FALLBACK_MODEL_ID = "google/gemma-4-E2B-it"
 
 
 def get_recommended_vlm_label() -> str:
-    """The Vision LLM label README.md's hardware-tier table recommends
-    for THIS machine. Falls back to the small SmolVLM-500M default if the
-    tier can't be determined."""
+    """The Vision LLM label recommended for THIS machine. Uses CSV default if set."""
+    if CSV_DEFAULT_VLM_LABEL and CSV_DEFAULT_VLM_LABEL in VLM_OPTIONS:
+        return CSV_DEFAULT_VLM_LABEL
     tier = HardwareManager.detect_hardware_tier()
-    return _VLM_LABEL_BY_TIER.get(tier, "🔵 SmolVLM-500M  (~1 GB RAM | recommended)")
+    model_id = _VLM_MODEL_BY_TIER.get(tier, _VLM_FALLBACK_MODEL_ID)
+    lbl = _label_for_model_id(model_id, VLM_OPTIONS)
+    if lbl:
+        return lbl
+    return next(iter(VLM_OPTIONS.keys())) if VLM_OPTIONS else ""
 
 
 def get_default_vlm_label() -> str:
@@ -1117,13 +1047,14 @@ DEFAULT_VISUAL_RETRIEVER = "vidore/colsmolvlm-v0.1"
 # ──────────────────────────────────────────────────────────────────
 # Speech-to-Text (Whisper) options
 # ──────────────────────────────────────────────────────────────────
-STT_OPTIONS = {
-    "🟢 Whisper-tiny    (~1 GB RAM | fastest)":   "openai/whisper-tiny",
-    "🟡 Whisper-base    (~1 GB RAM)":              "openai/whisper-base",
-    "🟡 Whisper-small   (~2 GB RAM | recommended)": "openai/whisper-small",
-    "🔵 Whisper-large-v3 (~10 GB RAM | best accuracy, multilingual incl. Khmer)": "openai/whisper-large-v3",
-    "🇰🇭 Whisper-small — ខ្មែរ (~1 GB RAM | Khmer-tuned)": "seanghay/whisper-small-khmer-v2",
-    "🇰🇭 Whisper-large-v3-turbo — ខ្មែរ (~6 GB RAM | best for Khmer)": "metythorn/whisper-large-v3-turbo-mixed-20eps-clean-text-197k",
-}
-DEFAULT_STT_LABEL = "🇰🇭 Whisper-small — ខ្មែរ (~1 GB RAM | Khmer-tuned)"
-DEFAULT_STT_MODEL = STT_OPTIONS[DEFAULT_STT_LABEL]
+def get_default_stt_label() -> str:
+    saved = user_config.USER_CONFIG.get("default_stt_label")
+    if saved and saved in STT_OPTIONS:
+        return saved
+    if CSV_DEFAULT_STT_LABEL and CSV_DEFAULT_STT_LABEL in STT_OPTIONS:
+        return CSV_DEFAULT_STT_LABEL
+    return next(iter(STT_OPTIONS.keys())) if STT_OPTIONS else ""
+
+
+DEFAULT_STT_LABEL = get_default_stt_label()
+DEFAULT_STT_MODEL = STT_OPTIONS[DEFAULT_STT_LABEL] if DEFAULT_STT_LABEL in STT_OPTIONS else ""

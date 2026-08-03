@@ -8,7 +8,7 @@
 
 # 🚀 កំណែប្រែ LocalAiLab Assistant v0.0.3 beta
 
-យើងខ្ញុំសូមណែនាំ **LocalAiLab Assistant v0.0.3 beta** ដែលជាការធ្វើបច្ចុប្បន្នភាពដ៏ធំមួយ រួមមានកម្មវិធីដំឡើងស្វ័យប្រវត្តិ (Windows Setup Wizard) ការគ្រប់គ្រងម៉ូដែលកាន់តែទូលំទូលាយ និងផ្ទាំងស្រាវជ្រាវ Deep Research!
+យើងខ្ញុំសូមណែនាំ **LocalAiLab Assistant v0.0.3 beta** ដែលជាការធ្វើបច្ចុប្បន្នភាពដ៏ធំមួយ រួមមានកម្មវិធីដំឡើងស្វ័យប្រវត្តិ (Windows Setup Wizard) ការគ្រប់គ្រងម៉ូដែលតាមរយៈ CSV ការទាញយកម៉ូដែល Gemma 4, Unsloth, LMStudio ទាំងអស់ និងផ្ទាំងស្រាវជ្រាវ Deep Research!
 
 ---
 
@@ -21,28 +21,24 @@
 - **ប៊ូតុង Cancel**៖ អាចចុចបោះបង់ការដំឡើងបានគ្រប់ពេល ដោយសុវត្ថិភាព។
 - **Shortcut ស្វ័យប្រវត្តិ**៖ បង្កើត Shortcut នៅលើ Desktop និង Start Menu ដោយស្វ័យប្រវត្តិ។
 
-#### ⚙️ 2. ការគ្រប់គ្រងម៉ូដែល និង Provider ថ្មី
-- **Accordion "ការកំណត់ម៉ូដែល" ជាសកល**៖ រៀបចំ API Keys, Model Provider, ផ្លូវ `llama-server.exe`, `whisper-server.exe`, និងថត GGUF ក្នុងកន្លែងតែមួយ។
-- **LiteLLM Provider**៖ ភ្ជាប់ទៅកាន់ OpenAI, Anthropic, Groq, ៘ តាមរយៈ API Base Custom សម្រាប់ LLM។
-- **Hugging Face Inference API**៖ គាំទ្រម៉ូដែល remote សម្រាប់ LLM, VLM, STT, និង Embeddings។
-- **តម្រង & រក្សាទុក Provider**៖ ផ្ទាំងនីមួយៗចងចាំ provider និងម៉ូដែលចុងក្រោយដោយស្វ័យប្រវត្តិ (`user_config.json`)។
-- **GGUF Server / Local Backend**៖ គាំទ្រទាំង `llama-cpp-python` (In-process) និង `llama-server.exe` (External Process)។
+#### 📄 2. ការគ្រប់គ្រងម៉ូដែលតាមរយៈ CSV (`models.csv` / `hf_models.csv`)
+- **ងាយស្រួលកែប្រែ**៖ បញ្ជីម៉ូដែលទាំងអស់ត្រូវបានផ្លាស់ប្តូរចេញពី Python code ទៅជាឯកសារ `models.csv` ធ្វើឱ្យអ្នកប្រើប្រាស់អាចបន្ថែម ឬកែប្រែម៉ូដែលក្នុង Excel ឬ Notepad បានយ៉ាងងាយ។
+- **ទំហំទាញយកច្បាស់លាស់ពី Hugging Face API**៖ ទំហំទាញយកពិតប្រាកដត្រូវបានទាញយកដោយស្វ័យប្រវត្តិពី Hugging Face Hub API (ឧ. Gemma 4 E2B = 4.8 GB, E4B = 7.4 GB, 31B = 62 GB, Unsloth MLX 4-bit = 1.3–6.1 GB)។
+- **អាប់ដេតភ្លាមៗ**៖ ចុច "Rescan GGUF Folder" ដើម្បី load ទិន្នន័យថ្មីពី CSV ដោយមិនបាច់បិទបើកកម្មវិធីឡើយ។
 
-#### 🔬 3. ផ្ទាំងស្រាវជ្រាវស៊ីជម្រៅ (Deep Research Agent)
+#### ⚙️ 3. ការគ្រប់គ្រង Provider ថ្មី & UI សាមញ្ញ
+- **Accordion "ការកំណត់ម៉ូដែល" ជាសកល**៖ រៀបចំ API Keys, Model Provider, ផ្លូវ `llama-server.exe`, `whisper-server.exe`, និងថត GGUF ក្នុងកន្លែងតែមួយ។
+- **LiteLLM & Hugging Face API**៖ ភ្ជាប់ទៅកាន់ OpenAI, Anthropic, Groq, ឬ Hugging Face Inference API ដោយរលូន។
+- **UI ស្អាត និងលឿន**៖ សម្រួល UI ដោយដកបញ្ជីទម្លាក់ Model Quantization ចាស់ចេញ ដើម្បីឱ្យការជ្រើសរើសម៉ូដែល pre-quantized (Unsloth, MLX, Google QAT/CT) ធ្វើឡើងដោយផ្ទាល់ និងលឿនរហ័ស។
+
+#### 🔬 4. ផ្ទាំងស្រាវជ្រាវស៊ីជម្រៅ (Deep Research Agent)
 - **Agent ពហុដំណាក់កាល**៖ បំបែកសំណួរធំៗជាសំណួររង ស្វែងរកតាមអ៊ីនធឺណិត រួចសរសេររបាយការណ៍ជា Markdown (`ToolCallingAgent`)។
 - **DuckDuckGo & Playwright Browser Tools**៖ ស្វែងរកព័ត៌មានតាម Web ដោយឥតគិតថ្លៃ និងអាចបើក Headless Browser ដើម្បីអាន/ទាញយកទិន្នន័យពី Web/PDF ដែលត្រូវការ JavaScript។
 
-#### 🤖 4. ការគាំទ្រម៉ូដែលថ្មី & Feature ផ្សេងៗ
-- **Gemma 4 ជាម៉ូដែលមូលដ្ឋាន**៖ បញ្ជីម៉ូដែលមូលដ្ឋានឥឡូវជា **Gemma 4 តែមួយគ្រួសារ** — E2B, E4B, E4B Mobile QAT, 12B, 26B-A4B (MoE), និង 31B — ជាមួយការគាំទ្រ quantization 4-bit/8-bit និង Vision Chat (សូមមើលផ្នែកទី 5 ខាងក្រោម)។
-- **Data Analysis Agent**៖ វិភាគ CSV/Excel ដោយស្វ័យប្រវត្តិ ជាមួយជម្រើស workflow តាមប្រភេទ (ការលក់, អតិថិជន, ហិរញ្ញវត្ថុ, ប្រាក់ខែ)។
-- **ចងចាំការសន្ទនា (Conversation Memory)**៖ ប្រអប់ចងចាំបរិបទឆ្លង tab និងកំណត់ Context Window ពី 4K ដល់ 128K។
-
-#### 🎯 5. Gemma 4 — ជាម៉ូដែលមូលដ្ឋានតែមួយគត់
-- **Gemma 4 ទាំងស្រុង**៖ ម៉ូដែលមូលដ្ឋានឥឡូវជា Gemma 4 តែមួយគ្រួសារប៉ុណ្ណោះ (Qwen ដែលជាម៉ូដែលមូលដ្ឋានចាស់ត្រូវបានដកចេញ) ជាមួយទំហំ RAM ដែលបានកែត្រឹមត្រូវ៖ E2B (~10 GB), E4B (~16 GB), E4B Mobile QAT (~3 GB), 12B (~24 GB), 26B-A4B MoE (~53 GB, active ~4B), 31B (~65 GB)។
-- **ជ្រើសរើសម៉ូដែលតាមផ្នែករឹងដោយស្វ័យប្រវត្តិ**៖ កម្មវិធីជ្រើសរើសម៉ូដែល *និង* កម្រិត quantization ដែលសមស្របបំផុតតាម GPU/RAM ដែលរកឃើញ (CPU → E2B 4-bit, 8–12 GB → E4B 4-bit, 16 GB → 26B-A4B 4-bit, 24 GB → 26B-A4B 8-bit, 48 GB+ → 31B 4-bit)។
-- **📦 Model Quantization**៖ បញ្ជីទម្លាក់ថ្មីសម្រាប់ bitsandbytes 4-bit/8-bit (CUDA GPU តែប៉ុណ្ណោះ) ជួយសន្សំ RAM យ៉ាងច្រើនសម្រាប់ម៉ូដែលក្នុងស្រុក។
+#### 🎯 5. ម៉ូដែល Gemma 4, Unsloth & LM Studio
+- **ម៉ូដែល Google, Unsloth & LM Studio**៖ បញ្ជីម៉ូដែល Hugging Face រួមមានម៉ូដែលផ្លូវការពី Google (E2B, E4B, 12B, 26B-A4B, 31B, Mobile QAT, Mobile CT, W4A16 CT), Unsloth (BnB 4-bit, MLX 4-bit/3-bit), និង LM Studio Community (MLX 4-bit)។
 - **Gemma 4 Vision Chat**៖ ម៉ូដែល Gemma 4 ទាំងអស់ជាម៉ូដែលចក្ខុវិស័យ ដូច្នេះអាចប្រើក្នុងផ្ទាំង "🎨 Vision Chat" បានភ្លាមៗ ដោយមិនចាំបាច់ម៉ូដែល VLM ដាច់ដោយឡែក។
-- **តម្រូវការ**៖ `transformers>=5.10.1` សម្រាប់ Gemma 4 (SETUP/កម្មវិធីដំឡើងនឹងដំឡើងឱ្យស្វ័យប្រវត្តិ)។
+- **តម្រូវការ**៖ `transformers>=5.10.1` សម្រាប់ Gemma 4 (ដំឡើងស្វ័យប្រវត្តិ)។
 
 ---
 
@@ -60,7 +56,7 @@
 
 # 🚀 LocalAiLab Assistant Release Notes v0.0.3 beta
 
-We are excited to announce **LocalAiLab Assistant v0.0.3 beta**! This major update introduces a single-file Windows Setup Wizard, comprehensive model provider management, and an autonomous Deep Research agent.
+We are excited to announce **LocalAiLab Assistant v0.0.3 beta**! This major update introduces CSV-based dynamic model management, exact download size tracking via Hugging Face API, a single-file Windows Setup Wizard, and an autonomous Deep Research agent.
 
 ---
 
@@ -73,28 +69,24 @@ We are excited to announce **LocalAiLab Assistant v0.0.3 beta**! This major upda
 - **Graceful Cancellation**: Safe, single-click cancellation that cleans up background tasks cleanly.
 - **Desktop & Start Menu Shortcuts**: Automatic creation of launch shortcuts upon installation.
 
-#### ⚙️ 2. Enhanced Model Configuration & Provider System
-- **Global Model Settings Accordion**: Consolidates API Keys, HuggingFace Inference tokens, LiteLLM parameters, `llama-server.exe` / `whisper-server.exe` paths, and GGUF directories into a central control panel.
-- **LiteLLM Provider**: Seamlessly connect to OpenAI, Anthropic, Groq, and custom API endpoints.
-- **Hugging Face Inference API**: Remote model execution across LLM, VLM, STT, and Embedding tabs.
-- **Per-Tab Memory & Filtering**: Remembers selected models and providers per tab across application restarts via `user_config.json`.
-- **Flexible GGUF Backend**: Choose between in-process (`llama-cpp-python`) or external process (`llama-server.exe`) for local execution.
+#### 📄 2. CSV-Driven Model Management (`models.csv` / `hf_models.csv`)
+- **User-Editable Models File**: All Hugging Face model definitions are externalized to `models.csv`, allowing users to easily add, edit, or remove models using Excel or Notepad without touching code.
+- **Verified Hugging Face Download Sizes**: Exact download sizes are fetched live from Hugging Face Hub API (e.g., Gemma 4 E2B = 4.8 GB, E4B = 7.4 GB, 31B = 62 GB, Unsloth MLX 4-bit = 1.3–6.1 GB).
+- **Hot Reload**: Clicking "Rescan GGUF Folder" instantly reloads updated models from the CSV file at runtime.
 
-#### 🔬 3. Autonomous Deep Research Agent
+#### ⚙️ 3. Enhanced Model Settings & Streamlined UI
+- **Global Model Settings Accordion**: Consolidates API Keys, HuggingFace Inference tokens, LiteLLM parameters, `llama-server.exe` / `whisper-server.exe` paths, and GGUF directories into a central control panel.
+- **LiteLLM & HF Inference API**: Connect seamlessly to OpenAI, Anthropic, Groq, or Hugging Face Inference API endpoints.
+- **Clean UI**: Streamlined interface by removing unnecessary quantization controls in favor of pre-quantized model selections (Unsloth BnB 4-bit, MLX 4-bit/3-bit, Google QAT/CT).
+
+#### 🔬 4. Autonomous Deep Research Agent
 - **Multi-Step Search & Report**: Break down complex research prompts into sub-queries, search the web autonomously, and summarize findings into structured Markdown reports using `ToolCallingAgent`.
 - **DuckDuckGo & Headless Browser Tools**: Free web search using `DuckDuckGoSearchTool` alongside optional Playwright browser automation for scraping JS-heavy sites and PDFs.
 
-#### 🤖 4. New Models & Capabilities
-- **Gemma 4 base models**: The base LLM list is now the **Gemma 4 family only** — E2B, E4B, E4B Mobile QAT, 12B, 26B-A4B (MoE), and 31B — with 4-bit/8-bit quantization and Vision Chat support (see section 5 below).
-- **Data Analysis Workflows**: Automated CSV/Excel analysis with specialized workflow templates (Sales, Customer, Finance, Payroll).
-- **Expanded Context & Memory**: Global context window selection (4K to 128K) and experimental cross-tab conversation memory.
-
-#### 🎯 5. Gemma 4 — The Base Model Family
-- **Gemma 4 only**: The base LLM list is now exclusively the Gemma 4 family (the former Qwen base models were removed), with corrected RAM footprints: E2B (~10 GB), E4B (~16 GB), E4B Mobile QAT (~3 GB), 12B (~24 GB), 26B-A4B MoE (~53 GB, ~4B active), 31B (~65 GB).
-- **Automatic hardware-tier selection**: The app now picks the right model *and* quantization level for your detected hardware (CPU → E2B 4-bit, 8–12 GB → E4B 4-bit, 16 GB → 26B-A4B 4-bit, 24 GB → 26B-A4B 8-bit, 48 GB+ → 31B 4-bit).
-- **📦 Model Quantization**: New dropdown for bitsandbytes 4-bit/8-bit loading (CUDA GPU only) — big RAM savings on local models.
-- **Gemma 4 Vision Chat**: Every Gemma 4 model is natively multimodal, so they now work out of the box in the "🎨 Vision Chat" tab — no separate VLM needed.
-- **Requirement**: `transformers>=5.10.1` for Gemma 4 (installed automatically by SETUP/the Setup Wizard).
+#### 🎯 5. Google Gemma 4, Unsloth & LM Studio Models
+- **Curated Model Lineup**: Hugging Face dropdowns feature models exclusively from `google/` (E2B, E4B, 12B, 26B-A4B, 31B, Mobile QAT, Mobile CT, W4A16 CT), `unsloth/` (BnB 4-bit, MLX 4-bit/3-bit), and `lmstudio-community/` (MLX 4-bit).
+- **Native Gemma 4 Vision Chat**: Every Gemma 4 model is natively multimodal and works out of the box in the "🎨 Vision Chat" tab.
+- **Requirement**: `transformers>=5.10.1` for Gemma 4 (installed automatically).
 
 ---
 
