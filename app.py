@@ -28,6 +28,12 @@ This file is now just the entry point. Implementation lives in:
 import socket
 import warnings
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 import gradio as gr
 
 from ui import build_ui, CSS

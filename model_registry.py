@@ -750,15 +750,67 @@ ORNITH_IDS = {
 # constant HF_INFERENCE_API_SENTINEL is defined near the top of this
 # file alongside the other provider constants.
 # ──────────────────────────────────────────────────────────────────
+def _update_env_file(key: str, val: str) -> None:
+    try:
+        env_path = os.path.join(os.getcwd(), ".env")
+        lines = []
+        if os.path.exists(env_path):
+            with open(env_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        new_lines = []
+        found = False
+        for line in lines:
+            if line.strip().startswith(f"{key}=") or line.strip().startswith(f"{key} ="):
+                new_lines.append(f"{key}={val}\n")
+                found = True
+            else:
+                new_lines.append(line)
+        if not found:
+            if new_lines and not new_lines[-1].endswith("\n"):
+                new_lines.append("\n")
+            new_lines.append(f"{key}={val}\n")
+        with open(env_path, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+    except Exception:
+        pass
+
+
+_LAST_SYNCED_HF_TOKEN: Optional[str] = None
+
+
+def _sync_hf_token(token: str) -> None:
+    global _LAST_SYNCED_HF_TOKEN
+    t = str(token or "").strip()
+    if not t or t == "hf_abc123" or _LAST_SYNCED_HF_TOKEN == t:
+        return
+    _LAST_SYNCED_HF_TOKEN = t
+
+    os.environ["HF_TOKEN"] = t
+    os.environ["HUGGING_FACE_HUB_TOKEN"] = t
+    os.environ["HUGGINGFACEHUB_API_TOKEN"] = t
+    _update_env_file("HF_TOKEN", t)
+
+
 def get_saved_hf_token() -> str:
     val = str(user_config.USER_CONFIG.get("hf_token", "")).strip()
     if val and val != "hf_abc123":
+        _sync_hf_token(val)
         return val
-    return os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACEHUB_API_TOKEN", "")
+    env_val = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACEHUB_API_TOKEN", "") or os.environ.get("HUGGING_FACE_HUB_TOKEN", "")
+    if env_val:
+        _sync_hf_token(env_val)
+    return env_val
 
 
 def set_hf_token(token: str) -> None:
     user_config.save_user_config({"hf_token": token})
+    _sync_hf_token(token)
+
+
+# Synchronize HF token to os.environ and .env on startup
+_initial_hf_token = get_saved_hf_token()
+if _initial_hf_token:
+    _sync_hf_token(_initial_hf_token)
 
 
 def get_saved_hf_model_id() -> str:
