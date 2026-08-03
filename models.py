@@ -6,6 +6,7 @@ and lock, following the lazy-load/lock pattern used throughout the app.
 """
 
 import gc
+import os
 import threading
 import time
 from typing import Any, Optional
@@ -17,6 +18,84 @@ import model_registry as mr
 import whisper_cpp_backend
 from hardware import DEVICE, TORCH_DTYPE
 from i18n import LANGUAGES
+
+
+# ──────────────────────────────────────────────────────────────────
+# Download size estimation — BF16 download sizes in GB for each model
+# (from Google's official docs and HuggingFace model cards). Used to
+# warn the user before downloading large models they haven't cached yet.
+# ──────────────────────────────────────────────────────────────────
+_DOWNLOAD_SIZE_GB = {
+    # Gemma 4 LLM (BF16)
+    "google/gemma-4-E2B-it": 11,
+    "google/gemma-4-E4B-it": 18,
+    "google/gemma-4-e4b-it-qat-mobile-transformers": 4,
+    "google/gemma-4-12B-it": 27,
+    "google/gemma-4-26B-A4B-it": 58,
+    "google/gemma-4-31B-it": 70,
+    # Gemma 4 QAT safetensors (BF16 weights from QAT pipeline — 10-11% smaller)
+    "google/gemma-4-12B-it-qat-q4_0-unquantized": 24,
+    "google/gemma-4-26B-A4B-it-qat-q4_0-unquantized": 52,
+    "google/gemma-4-31B-it-qat-q4_0-unquantized": 63,
+    # Gemma 4 pre-quantized GPTQ/AWQ (4-bit — much smaller downloads)
+    "Vishva007/gemma-4-12B-it-W4A16-AutoRound-GPTQ": 7,
+    "Vishva007/gemma-4-12B-it-W4A16-AutoRound-AWQ": 7,
+    "mattbucci/gemma-4-26B-AWQ": 14,
+    # Qwen2.5-VL
+    "Qwen/Qwen2.5-VL-3B-Instruct": 6,
+    "Qwen/Qwen2.5-VL-7B-Instruct": 15,
+    # SmolVLM
+    "HuggingFaceTB/SmolVLM-256M-Instruct": 0.5,
+    "HuggingFaceTB/SmolVLM-500M-Instruct": 1,
+    "HuggingFaceTB/SmolVLM2-2.2B-Instruct": 4,
+    # Embedding
+    "BAAI/bge-m3": 2,
+    "Qwen/Qwen3-Embedding-4B": 8,
+    "jinaai/jina-embeddings-v4": 4,
+    # Whisper STT
+    "openai/whisper-tiny": 0.6,
+    "openai/whisper-base": 0.7,
+    "openai/whisper-small": 1.5,
+    "openai/whisper-large-v3": 10,
+    "seanghay/whisper-small-khmer-v2": 1.5,
+    "metythorn/whisper-large-v3-turbo-mixed-20eps-clean-text-197k": 6,
+}
+
+
+def is_model_cached(model_id: str) -> bool:
+    """Check if a HuggingFace model is already cached locally."""
+    if str(model_id).lower().endswith(".gguf"):
+        return os.path.isfile(model_id)
+    try:
+        from huggingface_hub import try_to_load_from_cache
+        result = try_to_load_from_cache(model_id, "config.json")
+        return result is not None and not isinstance(result, type(None))
+    except Exception:
+        return False
+
+
+def get_download_size_gb(model_id: str) -> Optional[float]:
+    """Return estimated BF16 download size in GB, or None if unknown."""
+    return _DOWNLOAD_SIZE_GB.get(model_id)
+
+
+def check_model_download(model_id: str) -> Optional[str]:
+    """Return a warning message if the model needs downloading, or None
+    if it's already cached or is a GGUF/local file."""
+    if is_model_cached(model_id):
+        return None
+    size_gb = get_download_size_gb(model_id)
+    if size_gb is None:
+        return f"Model '{model_id}' will be downloaded (size unknown)."
+    if size_gb >= 20:
+        return (
+            f"⚠️ '{model_id}' is NOT cached locally and will download "
+            f"~{size_gb:.0f} GB. This may take a while depending on your "
+            f"internet speed."
+        )
+    return (
+        f"Model '{model_id}' will download ~{size_gb:.0f} GB."
+    )
 
 _embed_model         = None
 _embed_model_id      = None
@@ -370,6 +449,14 @@ def reset_chroma_collection():
     _chroma_col = None
 
 
+def _is_gptq_or_awq(model_id: str) -> bool:
+    """Check if a model id is a pre-quantized GPTQ or AWQ checkpoint.
+    These models ship with quantized weights and must NOT be re-quantized
+    by bitsandbytes — doing so breaks loading and wastes time."""
+    mid = str(model_id).lower()
+    return "gptq" in mid or "awq" in mid
+
+
 def _bnb_quant_config(model_id: str = "", label: str = "model") -> Optional[Any]:
     """Build a bitsandbytes BitsAndBytesConfig (4/8-bit) from the UI's
     "Model Quantization" dropdown, or None when quantization is off.
@@ -381,8 +468,8 @@ def _bnb_quant_config(model_id: str = "", label: str = "model") -> Optional[Any]
     exactly what the README's "CPU only / <8GB -> E2B 4-bit (1.5-3 GB)" row
     assumes); other devices (e.g. MPS) have no bnb support, so the choice is
     ignored there with a warning. Already-pre-quantized checkpoints (the
-    Mobile QAT Gemma-4 family) are also skipped — re-quantizing an INT8 QAT
-    model with bnb is wrong and breaks loading.
+    Mobile QAT Gemma-4 family, GPTQ, AWQ) are also skipped — re-quantizing
+    an already-quantized model with bnb is wrong and breaks loading.
     """
     quant_mode = mr.get_effective_quantization()
     if quant_mode not in ("4bit", "8bit"):
@@ -390,6 +477,12 @@ def _bnb_quant_config(model_id: str = "", label: str = "model") -> Optional[Any]
     if "qat" in model_id.lower():
         print(
             f"[{label}] '{model_id}' is a pre-quantized Mobile QAT checkpoint — "
+            f"leaving it as-is instead of applying {quant_mode}."
+        )
+        return None
+    if _is_gptq_or_awq(model_id):
+        print(
+            f"[{label}] '{model_id}' is a pre-quantized GPTQ/AWQ checkpoint — "
             f"leaving it as-is instead of applying {quant_mode}."
         )
         return None
@@ -655,21 +748,34 @@ def get_llm(model_id: Optional[str] = None, n_ctx: Optional[int] = None):
                     "neither 'torch_dtype' nor 'dtype' as a constructor parameter — "
                     "loading without an explicit dtype (will use the model's default)."
                 )
-            # Quantization — bitsandbytes 4/8-bit, wired from the UI's
-            # "Model Quantization" dropdown (mr.get_effective_quantization()).
-            # The config is injected through TransformersModel's model_kwargs
-            # passthrough so it lands in AutoModel.from_pretrained(...) at load
-            # time. _bnb_quant_config() handles CUDA+CPU support, the MPS/
-            # unknown-device warning, missing-bitsandbytes fallback, and
-            # skipping already-pre-quantized Mobile QAT checkpoints.
-            cfg = _bnb_quant_config(target, label="RAG")
-            if cfg is not None:
-                base_kwargs["model_kwargs"] = {"quantization_config": cfg}
+            # Pre-quantized GPTQ/AWQ models — these ship with quantized
+            # weights and must NOT be re-quantized by bitsandbytes. They
+            # load via the same AutoModelForCausalLM path but the
+            # quantization config is embedded in the model's config.json.
+            # transformers auto-detects GPTQ/AWQ from the config and
+            # loads the right quantized linear layers.
+            if _is_gptq_or_awq(target):
                 print(
-                    f"[RAG] Loading LLM '{target}' with "
-                    f"{mr.get_effective_quantization()} bitsandbytes "
-                    f"quantization on {DEVICE.upper()} …"
+                    f"[RAG] Loading pre-quantized GPTQ/AWQ model '{target}' — "
+                    f"no additional quantization applied."
                 )
+                base_kwargs["model_kwargs"] = {}
+            else:
+                # Quantization — bitsandbytes 4/8-bit, wired from the UI's
+                # "Model Quantization" dropdown (mr.get_effective_quantization()).
+                # The config is injected through TransformersModel's model_kwargs
+                # passthrough so it lands in AutoModel.from_pretrained(...) at load
+                # time. _bnb_quant_config() handles CUDA+CPU support, the MPS/
+                # unknown-device warning, missing-bitsandbytes fallback, and
+                # skipping already-pre-quantized Mobile QAT checkpoints.
+                cfg = _bnb_quant_config(target, label="RAG")
+                if cfg is not None:
+                    base_kwargs["model_kwargs"] = {"quantization_config": cfg}
+                    print(
+                        f"[RAG] Loading LLM '{target}' with "
+                        f"{mr.get_effective_quantization()} bitsandbytes "
+                        f"quantization on {DEVICE.upper()} …"
+                    )
             _llm = TransformersModel(**base_kwargs)
             # n_ctx doesn't apply to the HF backend — clear it so a later
             # switch back to a GGUF model doesn't skip a reload it needs

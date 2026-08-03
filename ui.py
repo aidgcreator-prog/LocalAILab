@@ -291,6 +291,14 @@ def build_ui():
                             label="📦 Model Quantization",
                             info="bitsandbytes, Hugging Face models only (CUDA GPU). Recommended value follows the hardware tier — see README.",
                         )
+                        quant_note_md = gr.Markdown(
+                            "**Note:** HuggingFace models download the full BF16 weights first "
+                            "(e.g. 58 GB for 31B), then quantize in-memory at load time. "
+                            "For smaller downloads, use **GGUF models** via the "
+                            "'🖥️ llama.cpp server' provider — they come pre-quantized "
+                            "(e.g. 18 GB for 31B Q4) with no extra quantization step.",
+                            visible=True,
+                        )
                         ctx_window_status = gr.Textbox(show_label=False, interactive=False, visible=False)
                         max_tokens_status = gr.Textbox(show_label=False, interactive=False, visible=False)
                         quant_status = gr.Textbox(show_label=False, interactive=False, visible=False)
@@ -322,6 +330,15 @@ def build_ui():
                                 label="Code Execution Timeout (seconds)",
                                 info="Agentic mode only. How long a single Python code block "
                                      "can run before being killed. Default in smolagents is 30s.",
+                            )
+                            gen_tool_calling_chk = gr.Checkbox(
+                                label="Use native tool calling (ToolCallingAgent)",
+                                value=True,
+                                info="Uses ToolCallingAgent instead of CodeAgent. "
+                                     "Only works with models that support native "
+                                     "function-calling (LiteLLM, HF Inference API "
+                                     "on capable models). Falls back to CodeAgent "
+                                     "if unsupported.",
                             )
                         pending_gen_msg = gr.State("")
                     with gr.Column(scale=7):
@@ -586,7 +603,7 @@ def build_ui():
                             )
                             rag_tool_calling_chk = gr.Checkbox(
                                 label="Use native tool calling (ToolCallingAgent)",
-                                value=False,
+                                value=True,
                                 info="Uses ToolCallingAgent instead of CodeAgent. "
                                      "Only works with models that support native "
                                      "function-calling (LiteLLM, HF Inference API "
@@ -649,6 +666,15 @@ def build_ui():
                             dr_timeout = gr.Slider(
                                 minimum=30, maximum=1200, step=10, value=300,
                                 label="Code Execution Timeout (seconds)"
+                            )
+                            dr_tool_calling_chk = gr.Checkbox(
+                                label="Use native tool calling (ToolCallingAgent)",
+                                value=True,
+                                info="Uses ToolCallingAgent instead of CodeAgent for the manager. "
+                                     "Only works with models that support native "
+                                     "function-calling (LiteLLM, HF Inference API "
+                                     "on capable models). Falls back to CodeAgent "
+                                     "if unsupported.",
                             )
                         with gr.Accordion(L["accordion_details"], open=False) as acc_dr_detail:
                             dr_memory_detail_md = gr.Markdown(L["info_memory_detail"])
@@ -880,15 +906,13 @@ def build_ui():
 
         # General Chat
         def reload_gen_fn(label):
-            # Both the general agentic CodeAgent and the data-analysis
-            # agent hold their own reference to the shared LLM instance —
-            # reset both caches so neither keeps the old model (or its
-            # now-stale weights) alive; they rebuild cheaply against the
-            # newly loaded one on next use.
             general_agent.reset_agent()
             data_analysis.reset_agent()
             mid = mr.MODEL_OPTIONS.get(label, mr.DEFAULT_LLM_MODEL)
             try:
+                dl_warning = models.check_model_download(mid)
+                if dl_warning:
+                    gr.Warning(dl_warning)
                 models.force_reload_llm(mid)
                 return gr.update(value=f"✅ '{mid}' loaded", visible=True)
             except Exception as e:
@@ -914,7 +938,8 @@ def build_ui():
             return gr.update(value=msg, visible=True)
 
         def do_chat_general(pending_message, history, model_label, use_agentic,
-                            use_memory, lang_key, max_steps, execution_timeout):
+                            use_memory, lang_key, max_steps, execution_timeout,
+                            use_tool_calling):
             # chat.chat_general() is itself a generator (see chat.py):
             # for the direct path it yields once; for the agentic path it
             # yields once per LIVE agent step (thought/code, tool calls,
@@ -929,6 +954,7 @@ def build_ui():
                 pending_message, history, model_label, use_agentic, use_memory,
                 lang_key=lang_key, max_steps=max_steps,
                 execution_timeout=execution_timeout,
+                use_tool_calling=use_tool_calling,
             ):
                 last_history = updated_history
                 yield last_history, gr.update(open=True), gr.update()
@@ -939,7 +965,8 @@ def build_ui():
         ).then(
             do_chat_general,
             [pending_gen_msg, bot_gen, model_dd_gen, gen_agentic_chk,
-             gen_memory_chk, lang_state, gen_max_steps, gen_execution_timeout],
+             gen_memory_chk, lang_state, gen_max_steps, gen_execution_timeout,
+             gen_tool_calling_chk],
             [bot_gen, acc_gen_chat, status_gen]
         )
         send_gen.click(stash_gen, [msg_gen], [msg_gen, pending_gen_msg], queue=False).then(
@@ -947,7 +974,8 @@ def build_ui():
         ).then(
             do_chat_general,
             [pending_gen_msg, bot_gen, model_dd_gen, gen_agentic_chk,
-             gen_memory_chk, lang_state, gen_max_steps, gen_execution_timeout],
+             gen_memory_chk, lang_state, gen_max_steps, gen_execution_timeout,
+             gen_tool_calling_chk],
             [bot_gen, acc_gen_chat, status_gen]
         )
 
@@ -970,14 +998,13 @@ def build_ui():
 
         # RAG Chat (agentic — see rag_agent.py — or direct, see chat.py)
         def reload_rag_fn(label):
-            # The RAG CodeAgent and the data-analysis CodeAgent each hold
-            # their own reference to the shared LLM instance — reset both
-            # caches so neither keeps the old model (or stale weights)
-            # alive; they rebuild cheaply against the newly loaded model.
             rag_agent.reset_agent()
             data_analysis.reset_agent()
             mid = mr.MODEL_OPTIONS.get(label, mr.DEFAULT_LLM_MODEL)
             try:
+                dl_warning = models.check_model_download(mid)
+                if dl_warning:
+                    gr.Warning(dl_warning)
                 models.force_reload_llm(mid)
                 return gr.update(value=f"✅ '{mid}' loaded", visible=True)
             except Exception as e:
@@ -1042,6 +1069,9 @@ def build_ui():
             deep_research_agent.reset_agent()
             mid = mr.MODEL_OPTIONS.get(label, mr.DEFAULT_LLM_MODEL)
             try:
+                dl_warning = models.check_model_download(mid)
+                if dl_warning:
+                    gr.Warning(dl_warning)
                 models.force_reload_llm(mid)
                 return gr.update(value=f"✅ '{mid}' loaded", visible=True)
             except Exception as e:
@@ -1064,7 +1094,7 @@ def build_ui():
             l = LANGUAGES.get(lang_key, LANGUAGES["kh"])
             return gr.update(value=l["think_dr"], visible=True)
 
-        def do_chat_deep_research(pending_message, history, model_label, use_memory, use_playwright, headless, manager_max_steps, search_max_steps, timeout, lang_key):
+        def do_chat_deep_research(pending_message, history, model_label, use_memory, use_playwright, headless, manager_max_steps, search_max_steps, timeout, lang_key, use_tool_calling):
             # See do_chat_general()'s matching comment above. This is the
             # tab where live streaming matters most — a full research run
             # (manager planning + several delegated web_search_agent
@@ -1075,7 +1105,8 @@ def build_ui():
             last_history = history
             for updated_history, _ in chat.chat_deep_research(
                 pending_message, history, model_label, use_memory, use_playwright,
-                headless, manager_max_steps, search_max_steps, timeout, lang_key=lang_key
+                headless, manager_max_steps, search_max_steps, timeout, lang_key=lang_key,
+                use_tool_calling=use_tool_calling,
             ):
                 last_history = updated_history
                 yield last_history, gr.update(open=True), gr.update()
@@ -1084,13 +1115,13 @@ def build_ui():
         msg_dr.submit(stash_dr, [msg_dr], [msg_dr, pending_dr_msg], queue=False).then(
             show_thinking_dr, [lang_state], [status_dr], queue=False
         ).then(
-            do_chat_deep_research, [pending_dr_msg, bot_dr, model_dd_dr, dr_memory_chk, dr_use_playwright_chk, dr_headless_chk, dr_manager_max_steps, dr_search_max_steps, dr_timeout, lang_state],
+            do_chat_deep_research, [pending_dr_msg, bot_dr, model_dd_dr, dr_memory_chk, dr_use_playwright_chk, dr_headless_chk, dr_manager_max_steps, dr_search_max_steps, dr_timeout, lang_state, dr_tool_calling_chk],
             [bot_dr, acc_dr_chat, status_dr]
         )
         send_dr.click(stash_dr, [msg_dr], [msg_dr, pending_dr_msg], queue=False).then(
             show_thinking_dr, [lang_state], [status_dr], queue=False
         ).then(
-            do_chat_deep_research, [pending_dr_msg, bot_dr, model_dd_dr, dr_memory_chk, dr_use_playwright_chk, dr_headless_chk, dr_manager_max_steps, dr_search_max_steps, dr_timeout, lang_state],
+            do_chat_deep_research, [pending_dr_msg, bot_dr, model_dd_dr, dr_memory_chk, dr_use_playwright_chk, dr_headless_chk, dr_manager_max_steps, dr_search_max_steps, dr_timeout, lang_state, dr_tool_calling_chk],
             [bot_dr, acc_dr_chat, status_dr]
         )
 
@@ -1114,6 +1145,9 @@ def build_ui():
                 candidates = mr.get_mmproj_choices_for_vlm(mid)
                 mmproj_path = candidates.get(mmproj_label)
             try:
+                dl_warning = models.check_model_download(mid)
+                if dl_warning:
+                    gr.Warning(dl_warning)
                 models.force_reload_vlm(mid, mmproj_path=mmproj_path)
                 return gr.update(value=f"✅ '{mid}' loaded", visible=True)
             except Exception as e:
@@ -1413,13 +1447,12 @@ def build_ui():
         # Knowledge Base — Embedding Model
         def load_embed_fn(label, lang_key):
             mid = mr.EMBED_OPTIONS.get(label, mr.DEFAULT_EMBED_MODEL)
-            # Check BEFORE switching: if documents are already indexed,
-            # warn about the dimension mismatch this can cause rather than
-            # letting the user discover it only on the next query/upload —
-            # see knowledge_base.get_collection_embedding_dim().
             existing_dim = kb.get_collection_embedding_dim()
             mr.set_embed_model(mid)
             try:
+                dl_warning = models.check_model_download(mid)
+                if dl_warning:
+                    gr.Warning(dl_warning)
                 models.force_reload_embed_model(mid)
                 msg = f"✅ '{mid}' loaded."
                 if existing_dim is not None:

@@ -729,6 +729,23 @@ GEMMA4_IDS = {
     "google/gemma-4-12B-it",
     "google/gemma-4-26B-A4B-it",
     "google/gemma-4-31B-it",
+    # QAT safetensors variants — same architecture, QAT-optimized weights
+    "google/gemma-4-12B-it-qat-q4_0-unquantized",
+    "google/gemma-4-26B-A4B-it-qat-q4_0-unquantized",
+    "google/gemma-4-31B-it-qat-q4_0-unquantized",
+    # Pre-quantized GPTQ/AWQ variants — same base architecture, different weight format
+    "Vishva007/gemma-4-12B-it-W4A16-AutoRound-GPTQ",
+    "Vishva007/gemma-4-12B-it-W4A16-AutoRound-AWQ",
+    "mattbucci/gemma-4-26B-AWQ",
+}
+
+# Pre-quantized model IDs — these ship in GPTQ/AWQ format and must NOT be
+# re-quantized by bitsandbytes. Detected by checking if the model id contains
+# 'gptq' or 'awq' (case-insensitive).
+GPTQ_AWQ_IDS = {
+    "Vishva007/gemma-4-12B-it-W4A16-AutoRound-GPTQ",
+    "Vishva007/gemma-4-12B-it-W4A16-AutoRound-AWQ",
+    "mattbucci/gemma-4-26B-AWQ",
 }
 
 # ──────────────────────────────────────────────────────────────────
@@ -805,20 +822,23 @@ BASE_MODEL_OPTIONS = {
     # though the vision/audio towers ride along unused; use the 🎨 Vision
     # LLM dropdown instead if you specifically want Gemma 4's image
     # understanding.
-    # Sizes below follow the README's "Recommended Model / Quantization"
-    # ladder and show the footprint at the RECOMMENDED quantization level
-    # (bitsandbytes), not the full BF16/FP16 checkpoint size (params × 2):
-    #    CPU only / <8GB   -> E2B 4-bit      1.5-3 GB
-    #    8-12GB GPU        -> E4B 4-bit      3-5 GB
-    #    16GB GPU          -> 26B-A4B 4-bit  8-14 GB
-    #    24GB GPU          -> 26B-A4B 8-bit  14-28 GB
-    #    24GB+ (max qual)  -> 31B 4-bit      18-20 GB
-    "🔵 Gemma-4-E2B    (~2-3 GB @4-bit | CPU/<8GB tier | needs transformers>=5.10.1)": "google/gemma-4-E2B-it",
-    "🟢 Gemma-4-E4B    (~3-5 GB @4-bit | 8-12GB-VRAM tier | needs transformers>=5.10.1)": "google/gemma-4-E4B-it",
-    "🧠 Gemma-4-E4B Mobile QAT (~3 GB | CPU/edge tier | needs transformers>=5.10.1)": "google/gemma-4-e4b-it-qat-mobile-transformers",
-    "🟠 Gemma-4-12B-it    (~24 GB full precision | manual pick | needs transformers>=5.10.1)": "google/gemma-4-12B-it",
-    "🔴 Gemma-4-26B-A4B-it (MoE ~3.8B active | ~8-14 GB @4-bit | 16-24GB-VRAM tier | needs transformers>=5.10.1)": "google/gemma-4-26B-A4B-it",
-    "🔴 Gemma-4-31B-it    (Dense | ~18-20 GB @4-bit | 24GB-VRAM max quality | needs transformers>=5.10.1)": "google/gemma-4-31B-it",
+    # Sizes below show: download size (BF16) → VRAM at recommended quantization.
+    "🔵 Gemma-4-E2B    (11 GB download → 3 GB VRAM @4-bit | CPU/<8GB tier)": "google/gemma-4-E2B-it",
+    "🟢 Gemma-4-E4B    (18 GB download → 5 GB VRAM @4-bit | 8-12GB tier)": "google/gemma-4-E4B-it",
+    "🧠 Gemma-4-E4B Mobile QAT (4 GB download | CPU/edge tier)": "google/gemma-4-e4b-it-qat-mobile-transformers",
+    "🟠 Gemma-4-12B    (27 GB download | manual pick)": "google/gemma-4-12B-it",
+    "🟠 Gemma-4-12B QAT (24 GB download | QAT-optimized, 11% smaller)": "google/gemma-4-12B-it-qat-q4_0-unquantized",
+    "🔴 Gemma-4-26B-A4B (58 GB download → 14 GB VRAM @4-bit | 16-24GB tier)": "google/gemma-4-26B-A4B-it",
+    "🔴 Gemma-4-26B-A4B QAT (52 GB download | QAT-optimized MoE)": "google/gemma-4-26B-A4B-it-qat-q4_0-unquantized",
+    "🔴 Gemma-4-31B    (70 GB download → 18 GB VRAM @4-bit | 24GB+ max quality)": "google/gemma-4-31B-it",
+    "🔴 Gemma-4-31B QAT (63 GB download | QAT-optimized, 10% smaller)": "google/gemma-4-31B-it-qat-q4_0-unquantized",
+    # Pre-quantized Gemma 4 — GPTQ/AWQ checkpoints that skip the BF16 download
+    # entirely. These load ~3x faster than BF16+bnb-quantize for the same result.
+    # Requires auto-gptq or autoawq package respectively (auto-installed by
+    # transformers on first load if not present).
+    "🟠 Gemma-4-12B GPTQ (7 GB download | 4-bit pre-quantized)": "Vishva007/gemma-4-12B-it-W4A16-AutoRound-GPTQ",
+    "🟠 Gemma-4-12B AWQ  (7 GB download | 4-bit pre-quantized)": "Vishva007/gemma-4-12B-it-W4A16-AutoRound-AWQ",
+    "🔴 Gemma-4-26B AWQ  (14 GB download | 4-bit pre-quantized MoE)": "mattbucci/gemma-4-26B-AWQ",
     # Hugging Face Inference API — remote, no local weights needed. Picked via
     # the same model dropdown; models.get_llm() detects the sentinel and builds
     # smolagents.InferenceClientModel instead of loading locally. Requires a
@@ -868,8 +888,7 @@ _LLM_LABEL_BY_TIER = {
 # Absolute fallback — the smallest Gemma 4, guaranteed present in every
 # install regardless of the detected tier.
 _LLM_FALLBACK_MODEL_ID = "google/gemma-4-E2B-it"
-_LLM_FALLBACK_LABEL = ("🔵 Gemma-4-E2B    (~2-3 GB @4-bit | CPU/<8GB tier | "
-                       "needs transformers>=5.10.1)")
+_LLM_FALLBACK_LABEL = "🔵 Gemma-4-E2B    (11 GB download → 3 GB VRAM @4-bit | CPU/<8GB tier)"
 
 
 def _label_for_model_id(model_id: str, options: dict) -> Optional[str]:
@@ -972,16 +991,16 @@ def rescan_gguf_models(folder_path: Optional[str], lang_key: str = "kh"):
 # Vision LLM (VLM) options
 # ──────────────────────────────────────────────────────────────────
 BASE_VLM_OPTIONS = {
-    "🔵 SmolVLM-256M  (~0.5 GB RAM | tiny)":  "HuggingFaceTB/SmolVLM-256M-Instruct",
-    "🔵 SmolVLM-500M  (~1 GB RAM | recommended)": "HuggingFaceTB/SmolVLM-500M-Instruct",
-    "🟢 Qwen2.5-VL-3B (~2-3 GB @4-bit | 8GB-VRAM tier)": "Qwen/Qwen2.5-VL-3B-Instruct",
-    "🟠 Qwen2.5-VL-7B (~6-8 GB @4-bit | hardware-tier recommended, 16GB+ VRAM)": "Qwen/Qwen2.5-VL-7B-Instruct",
+    "🔵 SmolVLM-256M  (0.5 GB download | tiny)":  "HuggingFaceTB/SmolVLM-256M-Instruct",
+    "🔵 SmolVLM-500M  (1 GB download | recommended)": "HuggingFaceTB/SmolVLM-500M-Instruct",
+    "🟢 Qwen2.5-VL-3B (6 GB download → 3 GB VRAM @4-bit | 8GB tier)": "Qwen/Qwen2.5-VL-3B-Instruct",
+    "🟠 Qwen2.5-VL-7B (15 GB download → 8 GB VRAM @4-bit | 16GB+ tier)": "Qwen/Qwen2.5-VL-7B-Instruct",
     # Gemma 4 supplement — every Gemma 4 base model is multimodal, so each
     # one doubles as a Vision Chat model (loaded via the "gemma4" VLM arch).
-    # Sizes match the LLM dropdown (@4-bit) since the checkpoints are shared.
-    "🧠 Gemma-4-E4B Mobile QAT (~3 GB RAM | edge)": "google/gemma-4-e4b-it-qat-mobile-transformers",
-    "🔵 Gemma-4-E2B   (~2-3 GB @4-bit | CPU/<8GB tier)": "google/gemma-4-E2B-it",
-    "🟢 Gemma-4-E4B   (~3-5 GB @4-bit | 8-12GB-VRAM tier)": "google/gemma-4-E4B-it",
+    # Sizes match the LLM dropdown since the checkpoints are shared.
+    "🧠 Gemma-4-E4B Mobile QAT (4 GB download | edge)": "google/gemma-4-e4b-it-qat-mobile-transformers",
+    "🔵 Gemma-4-E2B   (11 GB download → 3 GB VRAM @4-bit | CPU/<8GB tier)": "google/gemma-4-E2B-it",
+    "🟢 Gemma-4-E4B   (18 GB download → 5 GB VRAM @4-bit | 8-12GB tier)": "google/gemma-4-E4B-it",
     HF_API_ENTRY_LABEL: HF_INFERENCE_API_SENTINEL,
 }
 
@@ -1004,12 +1023,12 @@ VLM_OPTIONS = dict(BASE_VLM_OPTIONS)
 # hardware. A saved user override (see set_default_vlm()) always wins,
 # same persisted-choice pattern as DEFAULT_EMBED_MODEL above.
 _VLM_LABEL_BY_TIER = {
-    HardwareManager.TIER_48GB_VRAM: "🟠 Qwen2.5-VL-7B (~6-8 GB @4-bit | hardware-tier recommended, 16GB+ VRAM)",
-    HardwareManager.TIER_24GB_VRAM: "🟠 Qwen2.5-VL-7B (~6-8 GB @4-bit | hardware-tier recommended, 16GB+ VRAM)",
-    HardwareManager.TIER_16GB_VRAM: "🟠 Qwen2.5-VL-7B (~6-8 GB @4-bit | hardware-tier recommended, 16GB+ VRAM)",
-    HardwareManager.TIER_8GB_VRAM:  "🔵 SmolVLM-500M  (~1 GB RAM | recommended)",
-    HardwareManager.TIER_CPU_ONLY:  "🔵 SmolVLM-500M  (~1 GB RAM | recommended)",
-    HardwareManager.TIER_UNKNOWN:   "🔵 SmolVLM-500M  (~1 GB RAM | recommended)",
+    HardwareManager.TIER_48GB_VRAM: "🟠 Qwen2.5-VL-7B (15 GB download → 8 GB VRAM @4-bit | 16GB+ tier)",
+    HardwareManager.TIER_24GB_VRAM: "🟠 Qwen2.5-VL-7B (15 GB download → 8 GB VRAM @4-bit | 16GB+ tier)",
+    HardwareManager.TIER_16GB_VRAM: "🟠 Qwen2.5-VL-7B (15 GB download → 8 GB VRAM @4-bit | 16GB+ tier)",
+    HardwareManager.TIER_8GB_VRAM:  "🔵 SmolVLM-500M  (1 GB download | recommended)",
+    HardwareManager.TIER_CPU_ONLY:  "🔵 SmolVLM-500M  (1 GB download | recommended)",
+    HardwareManager.TIER_UNKNOWN:   "🔵 SmolVLM-500M  (1 GB download | recommended)",
 }
 
 
@@ -1106,5 +1125,5 @@ STT_OPTIONS = {
     "🇰🇭 Whisper-small — ខ្មែរ (~1 GB RAM | Khmer-tuned)": "seanghay/whisper-small-khmer-v2",
     "🇰🇭 Whisper-large-v3-turbo — ខ្មែរ (~6 GB RAM | best for Khmer)": "metythorn/whisper-large-v3-turbo-mixed-20eps-clean-text-197k",
 }
-DEFAULT_STT_LABEL = "🟡 Whisper-small   (~2 GB RAM | recommended)"
+DEFAULT_STT_LABEL = "🇰🇭 Whisper-small — ខ្មែរ (~1 GB RAM | Khmer-tuned)"
 DEFAULT_STT_MODEL = STT_OPTIONS[DEFAULT_STT_LABEL]

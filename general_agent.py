@@ -46,7 +46,7 @@ import re
 import threading
 from typing import Optional
 
-from smolagents import CodeAgent, DuckDuckGoSearchTool, SpeechToTextTool, VisitWebpageTool
+from smolagents import CodeAgent, DuckDuckGoSearchTool, SpeechToTextTool, ToolCallingAgent, VisitWebpageTool
 
 import model_registry as mr
 import models
@@ -351,19 +351,35 @@ def build_task_with_citation_reminder(user_message: str, lang_key: str = "kh") -
 GENERAL_AGENT_DEFAULT_MAX_STEPS = 8
 
 
-def _build_code_agent(llm, model_id: str = "",
-                       max_steps: Optional[int] = None,
-                       execution_timeout: Optional[int] = None) -> CodeAgent:
+def _supports_native_tool_calls(llm) -> bool:
+    """Heuristic: does *llm* support native tool-calling (function-calling
+    API) — meaning we should use ToolCallingAgent instead of CodeAgent?"""
+    cls_name = type(llm).__name__
+    if cls_name == "LiteLLMModel":
+        return True
+    if cls_name == "InferenceClientModel":
+        model_id = getattr(llm, "model_id", "") or ""
+        tc_hints = ("qwen3", "qwen2.5", "llama-3", "llama-4", "phi-4",
+                    "deepseek-v3", "deepseek-r1", "mistral-large",
+                    "gemma-3", "gemma-4", "command-r")
+        return any(h in model_id.lower() for h in tc_hints)
+    return False
+
+
+def _build_agent(llm, model_id: str = "",
+                  max_steps: Optional[int] = None,
+                  execution_timeout: Optional[int] = None,
+                  use_tool_calling: bool = True):
     global _search_tool, _webpage_tool
     _search_tool  = TrackedDuckDuckGoSearchTool()
     _webpage_tool = TrackedVisitWebpageTool()
-    # Larger/slower local GGUF models pay a much higher per-step cost when
-    # a parsing/tool-calling loop goes wrong (each failed retry can take
-    # 30s-4min+ instead of a few seconds) — scale the step budget down for
-    # those so a broken run fails fast instead of grinding through all 8
-    # steps. See model_registry.get_max_steps_for_model().
     if max_steps is None:
         max_steps = mr.get_max_steps_for_model(model_id, GENERAL_AGENT_DEFAULT_MAX_STEPS)
+
+    use_tc = use_tool_calling and _supports_native_tool_calls(llm)
+    AgentClass = ToolCallingAgent if use_tc else CodeAgent
+    agent_name = AgentClass.__name__
+
     kwargs = dict(
         model=llm,
         tools=[_search_tool, _webpage_tool, SpeechToTextTool()],
@@ -372,20 +388,24 @@ def _build_code_agent(llm, model_id: str = "",
     )
     if execution_timeout is not None and execution_timeout > 0:
         kwargs["executor_kwargs"] = {"timeout_seconds": execution_timeout}
-    # Same markdown-fence compatibility switch used by rag_agent.py and
-    # data_analysis.py — many models (esp. "thinking"-tuned ones, or
-    # anything running through a raw llama.cpp chat template) write plain
-    # ```python fenced blocks instead of the <code></code> tags CodeAgent
-    # expects by default, which otherwise fails parsing on every step.
+
+    if AgentClass is CodeAgent:
+        try:
+            params = inspect.signature(CodeAgent.__init__).parameters
+            if "code_block_tags" in params:
+                kwargs["code_block_tags"] = "markdown"
+        except (TypeError, ValueError):
+            pass
+
     try:
-        params = inspect.signature(CodeAgent.__init__).parameters
-        if "code_block_tags" in params:
-            kwargs["code_block_tags"] = "markdown"
+        params = inspect.signature(AgentClass.__init__).parameters
         if "instructions" in params:
             kwargs["instructions"] = GENERAL_AGENT_INSTRUCTIONS
     except (TypeError, ValueError):
         pass
-    return CodeAgent(**kwargs)
+
+    print(f"[GeneralAgent] Building {agent_name} on '{model_id or '(shared)'}' …")
+    return AgentClass(**kwargs)
 
 
 def reset_tool_usage() -> None:
@@ -416,9 +436,10 @@ def get_tool_usage() -> tuple:
 
 def get_general_agent(model_id: Optional[str] = None,
                        max_steps: Optional[int] = None,
-                       execution_timeout: Optional[int] = None):
+                       execution_timeout: Optional[int] = None,
+                       use_tool_calling: bool = True):
     """Lazily build (or rebuild, if the model/settings changed) the agentic
-    General Chat CodeAgent.
+    General Chat CodeAgent or ToolCallingAgent.
 
     Args:
         model_id: HuggingFace model id or GGUF path. Falls back to the
@@ -427,6 +448,8 @@ def get_general_agent(model_id: Optional[str] = None,
             GENERAL_AGENT_DEFAULT_MAX_STEPS scaled by model size if None.
         execution_timeout: Seconds before the Python sandbox kills a single
             code-execution block. Uses smolagents' default (30s) if None.
+        use_tool_calling: Request native tool-calling (ToolCallingAgent).
+            Falls back to CodeAgent if the model doesn't support it.
     """
     global _general_agent, _general_agent_model_id
     global _general_agent_max_steps, _general_agent_execution_timeout
@@ -445,17 +468,12 @@ def get_general_agent(model_id: Optional[str] = None,
                 and execution_timeout == _general_agent_execution_timeout):
             return _general_agent
 
-        print(f"[GeneralAgent] Building CodeAgent on '{target}' …")
         llm = models.get_llm(target)
-        _general_agent = _build_code_agent(llm, target, max_steps, execution_timeout)
+        _general_agent = _build_agent(llm, target, max_steps, execution_timeout,
+                                       use_tool_calling=use_tool_calling)
         _general_agent_model_id = target
         _general_agent_max_steps = max_steps
         _general_agent_execution_timeout = execution_timeout
-        # Standard smolagents behaviour: a freshly-built CodeAgent starts
-        # with empty memory (agent.memory.steps == []). This only happens
-        # on first use in this tab, or after a model switch/reset — see
-        # agent_memory.py's module docstring for why this app no longer
-        # tries to restore memory from a previous model or app session.
         return _general_agent
 
 

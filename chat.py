@@ -218,7 +218,8 @@ def chat_general_direct(user_message: str, history: list, model_label: str, use_
 def chat_general_agentic(user_message: str, history: list, model_label: str,
                           use_memory: bool = True, lang_key: str = "kh",
                           max_steps: Optional[int] = None,
-                          execution_timeout: Optional[int] = None):
+                          execution_timeout: Optional[int] = None,
+                          use_tool_calling: bool = True):
     """Agentic General Chat: a smolagents CodeAgent (see general_agent.py)
     with the library's own built-in web-search/webpage tools
     (DuckDuckGoSearchTool, VisitWebpageTool), deciding for itself whether
@@ -240,7 +241,7 @@ def chat_general_agentic(user_message: str, history: list, model_label: str,
     history.append({"role": "user", "content": user_message})
     model_id = mr.MODEL_OPTIONS.get(model_label, mr.DEFAULT_LLM_MODEL)
     try:
-        agent = general_agent.get_general_agent(model_id, max_steps=max_steps, execution_timeout=execution_timeout)
+        agent = general_agent.get_general_agent(model_id, max_steps=max_steps, execution_timeout=execution_timeout, use_tool_calling=use_tool_calling)
         general_agent.reset_tool_usage()
         t0     = time.time()
         # reset=False keeps this CodeAgent's own memory (agent.memory.steps)
@@ -322,7 +323,8 @@ def chat_general(user_message: str, history: list, model_label: str,
                  use_agentic: bool = False, use_memory: bool = True,
                  lang_key: str = "kh",
                  max_steps: Optional[int] = None,
-                 execution_timeout: Optional[int] = None):
+                 execution_timeout: Optional[int] = None,
+                 use_tool_calling: bool = True):
     """General Chat entry point. Dispatches to:
 
     - use_agentic=False (default, unchanged behaviour): one direct LLM
@@ -347,7 +349,8 @@ def chat_general(user_message: str, history: list, model_label: str,
     """
     if use_agentic:
         yield from chat_general_agentic(user_message, history, model_label, use_memory, lang_key,
-                                         max_steps=max_steps, execution_timeout=execution_timeout)
+                                         max_steps=max_steps, execution_timeout=execution_timeout,
+                                         use_tool_calling=use_tool_calling)
     else:
         yield from chat_general_direct(user_message, history, model_label, use_memory, lang_key)
 
@@ -602,7 +605,7 @@ def chat_vision(user_message: str, uploaded_image, history: list,
     return history, None
 
 
-def chat_deep_research(user_message: str, history: list, model_label: str, use_memory: bool = True, use_playwright: bool = False, headless: bool = True, manager_max_steps: int = 12, search_max_steps: int = 6, timeout: int = 90, lang_key: str = "kh"):
+def chat_deep_research(user_message: str, history: list, model_label: str, use_memory: bool = True, use_playwright: bool = False, headless: bool = True, manager_max_steps: int = 12, search_max_steps: int = 6, timeout: int = 90, lang_key: str = "kh", use_tool_calling: bool = True):
     """Deep Research tab: a two-agent smolagents setup modeled on
     HuggingFace's own open_deep_research example (see
     https://github.com/huggingface/smolagents/tree/main/examples/open_deep_research)
@@ -631,7 +634,7 @@ def chat_deep_research(user_message: str, history: list, model_label: str, use_m
     history.append({"role": "user", "content": user_message})
     model_id = mr.MODEL_OPTIONS.get(model_label, mr.DEFAULT_LLM_MODEL)
     try:
-        agent = deep_research_agent.get_deep_research_agent(model_id, use_playwright, headless, manager_max_steps, search_max_steps, timeout)
+        agent = deep_research_agent.get_deep_research_agent(model_id, use_playwright, headless, manager_max_steps, search_max_steps, timeout, use_tool_calling=use_tool_calling)
         deep_research_agent.reset_tool_usage()
         t0     = time.time()
         # reset=False keeps the manager's own memory (its steps include

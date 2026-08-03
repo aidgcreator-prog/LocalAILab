@@ -560,7 +560,22 @@ def _build_search_agent(llm, model_id: str = "", use_playwright: bool = False, h
     return agent
 
 
-def _build_manager_agent(llm, search_agent, model_id: str = "", max_steps: Optional[int] = None, timeout: Optional[int] = None, use_playwright: bool = False, headless: bool = True) -> CodeAgent:
+def _supports_native_tool_calls(llm) -> bool:
+    """Heuristic: does *llm* support native tool-calling (function-calling
+    API) — meaning we should use ToolCallingAgent instead of CodeAgent?"""
+    cls_name = type(llm).__name__
+    if cls_name == "LiteLLMModel":
+        return True
+    if cls_name == "InferenceClientModel":
+        model_id = getattr(llm, "model_id", "") or ""
+        tc_hints = ("qwen3", "qwen2.5", "llama-3", "llama-4", "phi-4",
+                    "deepseek-v3", "deepseek-r1", "mistral-large",
+                    "gemma-3", "gemma-4", "command-r")
+        return any(h in model_id.lower() for h in tc_hints)
+    return False
+
+
+def _build_manager_agent(llm, search_agent, model_id: str = "", max_steps: Optional[int] = None, timeout: Optional[int] = None, use_playwright: bool = False, headless: bool = True, use_tool_calling: bool = True):
     final_max_steps = max_steps if max_steps is not None else mr.get_max_steps_for_model(model_id, MANAGER_DEFAULT_MAX_STEPS)
     tools = []
     if use_playwright and _playwright_available:
@@ -568,6 +583,11 @@ def _build_manager_agent(llm, search_agent, model_id: str = "", max_steps: Optio
             PlaywrightTextInspectorTool(),
             PlaywrightVisualizerTool(),
         ]
+
+    use_tc = use_tool_calling and _supports_native_tool_calls(llm)
+    AgentClass = ToolCallingAgent if use_tc else CodeAgent
+    agent_name = AgentClass.__name__
+
     kwargs = dict(
         model=llm,
         tools=tools,
@@ -577,8 +597,8 @@ def _build_manager_agent(llm, search_agent, model_id: str = "", max_steps: Optio
         verbosity_level=1,
     )
     try:
-        params = inspect.signature(CodeAgent.__init__).parameters
-        if "code_block_tags" in params:
+        params = inspect.signature(AgentClass.__init__).parameters
+        if AgentClass is CodeAgent and "code_block_tags" in params:
             kwargs["code_block_tags"] = "markdown"
         if "instructions" in params:
             base_instructions = DEEP_RESEARCH_INSTRUCTIONS
@@ -601,7 +621,8 @@ def _build_manager_agent(llm, search_agent, model_id: str = "", max_steps: Optio
             kwargs["final_answer_checks"] = [_validate_final_report]
     except (TypeError, ValueError):
         pass
-    return CodeAgent(**kwargs)
+    print(f"[DeepResearch] Building manager {agent_name} on '{model_id or '(shared)'}' …")
+    return AgentClass(**kwargs)
 
 
 def reset_tool_usage() -> None:
@@ -626,7 +647,7 @@ def get_tool_usage() -> tuple:
     return queries, urls, links
 
 
-def get_deep_research_agent(model_id: Optional[str] = None, use_playwright: bool = False, headless: bool = True, manager_max_steps: Optional[int] = None, search_max_steps: Optional[int] = None, timeout: Optional[int] = None):
+def get_deep_research_agent(model_id: Optional[str] = None, use_playwright: bool = False, headless: bool = True, manager_max_steps: Optional[int] = None, search_max_steps: Optional[int] = None, timeout: Optional[int] = None, use_tool_calling: bool = True):
     """Lazily build (or rebuild, if the model changed) the manager agent
     and its search sub-agent."""
     global _manager_agent, _manager_agent_model_id, _manager_agent_config
@@ -650,7 +671,7 @@ def get_deep_research_agent(model_id: Optional[str] = None, use_playwright: bool
         print(f"[DeepResearch] Building manager + web_search_agent on '{target}' (Playwright: {use_playwright}, Headless: {headless}) …")
         llm = models.get_llm(target)
         search_agent = _build_search_agent(llm, target, use_playwright, headless, search_max_steps, timeout)
-        _manager_agent = _build_manager_agent(llm, search_agent, target, manager_max_steps, timeout, use_playwright, headless)
+        _manager_agent = _build_manager_agent(llm, search_agent, target, manager_max_steps, timeout, use_playwright, headless, use_tool_calling=use_tool_calling)
         _manager_agent_model_id = target
         _manager_agent_config = current_config
         # Standard smolagents behaviour: a freshly-built agent starts with
