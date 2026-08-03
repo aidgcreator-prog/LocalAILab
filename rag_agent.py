@@ -29,21 +29,11 @@ from knowledge_base import RetrieverTool
 
 
 def _supports_native_tool_calls(llm) -> bool:
-    """Heuristic: does *llm* support native tool-calling (function-calling
-    API) — meaning we should use ToolCallingAgent instead of CodeAgent?"""
-    cls_name = type(llm).__name__
-    # LiteLLMModel wraps every provider's native tool-calling API.
-    if cls_name == "LiteLLMModel":
-        return True
-    # InferenceClientModel — depends on the model endpoint.
-    if cls_name == "InferenceClientModel":
-        model_id = getattr(llm, "model_id", "") or ""
-        # Known tool-calling models on HF Inference API.
-        tc_hints = ("qwen3", "qwen2.5", "llama-3", "llama-4", "phi-4",
-                    "deepseek-v3", "deepseek-r1", "mistral-large",
-                    "gemma-3", "gemma-4", "command-r")
-        return any(h in model_id.lower() for h in tc_hints)
-    return False
+    """Default to ToolCallingAgent for all models (TransformersModel, LlamaCppModel,
+    LiteLLMModel, InferenceClientModel) for reliable structured tool execution
+    without code parsing errors. CodeAgent remains used for Data Analysis where
+    Python execution is required."""
+    return True
 
 _rag_agent            = None
 _rag_agent_model_id   = None

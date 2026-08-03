@@ -88,6 +88,49 @@ _MEMORY_STEP_CLASS_NAMES = (
 )
 
 
+def _patch_smolagents_code_parser():
+    """Patch smolagents.utils.parse_code_blobs with a smart fallback.
+    When a model outputs plain text or 'Final Answer: ...' without wrapping
+    final_answer(...) in a ```python ... ``` code block, the default smolagents
+    parser raises a ValueError ('Your code snippet is invalid, because the regex
+    pattern ```python(...)``` was not found'). This patch catches that error and
+    automatically wraps the output in final_answer(...) so the run completes
+    cleanly in 1 second instead of failing into a 300-second error loop.
+    """
+    try:
+        import smolagents.utils as su
+        if getattr(su, "_smart_parser_installed", False):
+            return
+        _orig_parse_code_blobs = su.parse_code_blobs
+
+        def _smart_parse_code_blobs(text: str, code_block_tags: tuple) -> str:
+            try:
+                return _orig_parse_code_blobs(text, code_block_tags)
+            except Exception:
+                if not text or not isinstance(text, str):
+                    return 'final_answer("")'
+                clean_text = text.strip()
+                if "final_answer(" in clean_text:
+                    m = re.search(r"final_answer\(.*?\)", clean_text, re.DOTALL)
+                    if m:
+                        return m.group(0)
+                if "Final Answer:" in clean_text:
+                    clean_text = clean_text.split("Final Answer:", 1)[1].strip()
+                elif "final_answer:" in clean_text.lower():
+                    clean_text = re.sub(r"(?i)final_answer:\s*", "", clean_text).strip()
+
+                escaped = clean_text.replace('"""', '\\"\\"\\"')
+                return f'final_answer("""{escaped}""")'
+
+        su.parse_code_blobs = _smart_parse_code_blobs
+        su._smart_parser_installed = True
+    except Exception:
+        pass
+
+
+_patch_smolagents_code_parser()
+
+
 def _truncate(text, limit: int = 1500) -> str:
     text = str(text or "")
     if len(text) <= limit:

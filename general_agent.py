@@ -352,18 +352,11 @@ GENERAL_AGENT_DEFAULT_MAX_STEPS = 8
 
 
 def _supports_native_tool_calls(llm) -> bool:
-    """Heuristic: does *llm* support native tool-calling (function-calling
-    API) — meaning we should use ToolCallingAgent instead of CodeAgent?"""
-    cls_name = type(llm).__name__
-    if cls_name == "LiteLLMModel":
-        return True
-    if cls_name == "InferenceClientModel":
-        model_id = getattr(llm, "model_id", "") or ""
-        tc_hints = ("qwen3", "qwen2.5", "llama-3", "llama-4", "phi-4",
-                    "deepseek-v3", "deepseek-r1", "mistral-large",
-                    "gemma-3", "gemma-4", "command-r")
-        return any(h in model_id.lower() for h in tc_hints)
-    return False
+    """Default to ToolCallingAgent for all models (TransformersModel, LlamaCppModel,
+    LiteLLMModel, InferenceClientModel) for reliable structured tool execution
+    without code parsing errors. CodeAgent remains used for Data Analysis where
+    Python execution is required."""
+    return True
 
 
 def _build_agent(llm, model_id: str = "",
