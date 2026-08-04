@@ -188,8 +188,6 @@ def load_models_from_csv(csv_path: Optional[str] = None) -> None:
     path = csv_path
     if not path:
         path = MODEL_CSV_ALT_PATH if os.path.exists(MODEL_CSV_ALT_PATH) else MODEL_CSV_PATH
-    if not os.path.exists(path):
-        return
 
     BASE_MODEL_OPTIONS.clear()
     BASE_VLM_OPTIONS.clear()
@@ -203,48 +201,69 @@ def load_models_from_csv(csv_path: Optional[str] = None) -> None:
     CSV_DEFAULT_EMBED_MODEL = None
     CSV_DEFAULT_STT_LABEL = None
 
-    import csv
-    with open(path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            cat = str(row.get("category", "")).strip().lower()
-            label = str(row.get("label", "")).strip()
-            model_id = str(row.get("model_id", "")).strip()
-            size_str = str(row.get("download_size_gb", "")).strip()
-            is_default = str(row.get("default", "")).strip().lower() in ("default", "true", "1", "yes")
+    if os.path.exists(path):
+        import csv
+        with open(path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                cat = str(row.get("category", "")).strip().lower()
+                label = str(row.get("label", "")).strip()
+                model_id = str(row.get("model_id", "")).strip()
+                size_str = str(row.get("download_size_gb", "")).strip()
+                is_default = str(row.get("default", "")).strip().lower() in ("default", "true", "1", "yes")
 
-            if not label or not model_id:
-                continue
+                if not label or not model_id:
+                    continue
 
-            if size_str:
-                try:
-                    DOWNLOAD_SIZE_GB[model_id] = float(size_str)
-                except ValueError:
-                    pass
+                if size_str:
+                    try:
+                        DOWNLOAD_SIZE_GB[model_id] = float(size_str)
+                    except ValueError:
+                        pass
 
-            mid_lower = model_id.lower()
-            if "gemma-4" in mid_lower or "gemma4" in mid_lower:
-                GEMMA4_IDS.add(model_id)
+                mid_lower = model_id.lower()
+                if "gemma-4" in mid_lower or "gemma4" in mid_lower:
+                    GEMMA4_IDS.add(model_id)
 
-            if any(kw in mid_lower for kw in ("4bit", "3bit", "bnb", "mlx", "qat", "ct", "gptq", "awq")):
-                GPTQ_AWQ_IDS.add(model_id)
+                if any(kw in mid_lower for kw in ("4bit", "3bit", "bnb", "mlx", "qat", "ct", "gptq", "awq")):
+                    GPTQ_AWQ_IDS.add(model_id)
 
-            if cat in ("both", "llm"):
-                BASE_MODEL_OPTIONS[label] = model_id
-                if is_default and not CSV_DEFAULT_LLM_LABEL:
-                    CSV_DEFAULT_LLM_LABEL = label
-            if cat in ("both", "vlm"):
-                BASE_VLM_OPTIONS[label] = model_id
-                if is_default and not CSV_DEFAULT_VLM_LABEL:
-                    CSV_DEFAULT_VLM_LABEL = label
-            if cat == "embed":
-                EMBED_OPTIONS[label] = model_id
-                if is_default and not CSV_DEFAULT_EMBED_MODEL:
-                    CSV_DEFAULT_EMBED_MODEL = model_id
-            if cat == "stt":
-                STT_OPTIONS[label] = model_id
-                if is_default and not CSV_DEFAULT_STT_LABEL:
-                    CSV_DEFAULT_STT_LABEL = label
+                if cat in ("both", "llm"):
+                    BASE_MODEL_OPTIONS[label] = model_id
+                    if is_default and not CSV_DEFAULT_LLM_LABEL:
+                        CSV_DEFAULT_LLM_LABEL = label
+                if cat in ("both", "vlm"):
+                    BASE_VLM_OPTIONS[label] = model_id
+                    if is_default and not CSV_DEFAULT_VLM_LABEL:
+                        CSV_DEFAULT_VLM_LABEL = label
+                if cat == "embed":
+                    EMBED_OPTIONS[label] = model_id
+                    if is_default and not CSV_DEFAULT_EMBED_MODEL:
+                        CSV_DEFAULT_EMBED_MODEL = model_id
+                if cat == "stt":
+                    STT_OPTIONS[label] = model_id
+                    if is_default and not CSV_DEFAULT_STT_LABEL:
+                        CSV_DEFAULT_STT_LABEL = label
+
+    # Built-in fallbacks if CSV file was missing or empty
+    if not BASE_MODEL_OPTIONS:
+        BASE_MODEL_OPTIONS["🧠 Gemma-4-E2B Mobile QAT (2.18 GB download | CPU/edge tier)"] = "google/gemma-4-E2B-it-qat-mobile-transformers"
+        BASE_MODEL_OPTIONS["🔵 Gemma-4-E2B    (4.8 GB download → 3 GB VRAM @4-bit | CPU/<8GB tier)"] = "google/gemma-4-E2B-it"
+        BASE_MODEL_OPTIONS["🟢 Gemma-4-E4B    (7.4 GB download → 5 GB VRAM @4-bit | 8-12GB tier)"] = "google/gemma-4-E4B-it"
+        BASE_MODEL_OPTIONS["🔴 Gemma-4-26B-A4B QAT (26 GB download | QAT-optimized MoE)"] = "google/gemma-4-26B-A4B-it-qat-q4_0-unquantized"
+        GEMMA4_IDS.update(BASE_MODEL_OPTIONS.values())
+
+    if not BASE_VLM_OPTIONS:
+        BASE_VLM_OPTIONS["🧠 Gemma-4-E2B Mobile QAT (2.18 GB download | CPU/edge tier)"] = "google/gemma-4-E2B-it-qat-mobile-transformers"
+        BASE_VLM_OPTIONS["🟢 Gemma-4-E4B    (7.4 GB download → 5 GB VRAM @4-bit | 8-12GB tier)"] = "google/gemma-4-E4B-it"
+
+    if not EMBED_OPTIONS:
+        EMBED_OPTIONS["BGE-M3 (2.2 GB download | multilingual, recommended default)"] = "BAAI/bge-m3"
+
+    if not STT_OPTIONS:
+        STT_OPTIONS["🟢 Whisper-tiny    (0.04 GB download | fastest)"] = "openai/whisper-tiny"
+        STT_OPTIONS["🟡 Whisper-small   (0.23 GB download | recommended)"] = "openai/whisper-small"
+        STT_OPTIONS["🇰🇭 Whisper-small — ខ្មែរ (0.23 GB download | Khmer-tuned)"] = "seanghay/whisper-small-khmer-v2"
 
     # Append sentinel options
     BASE_MODEL_OPTIONS[HF_API_ENTRY_LABEL] = HF_INFERENCE_API_SENTINEL
@@ -887,10 +906,8 @@ _LLM_LABEL_BY_TIER = {
     HardwareManager.TIER_UNKNOWN:   "google/gemma-4-E2B-it",
 }
 
-# Absolute fallback — the smallest Gemma 4, guaranteed present in every
-# install regardless of the detected tier.
+# Absolute fallback — the smallest Gemma 4, guaranteed present in every install.
 _LLM_FALLBACK_MODEL_ID = "google/gemma-4-E2B-it"
-_LLM_FALLBACK_LABEL = "🔵 Gemma-4-E2B    (11 GB download → 3 GB VRAM @4-bit | CPU/<8GB tier)"
 
 
 def _label_for_model_id(model_id: str, options: dict) -> Optional[str]:
@@ -907,7 +924,13 @@ def get_recommended_llm_label() -> str:
         return CSV_DEFAULT_LLM_LABEL
     tier = HardwareManager.detect_hardware_tier()
     model_id = _LLM_LABEL_BY_TIER.get(tier, _LLM_FALLBACK_MODEL_ID)
-    return _label_for_model_id(model_id, MODEL_OPTIONS) or _LLM_FALLBACK_LABEL
+    lbl = _label_for_model_id(model_id, MODEL_OPTIONS)
+    if lbl:
+        return lbl
+    fallback_lbl = _label_for_model_id(_LLM_FALLBACK_MODEL_ID, MODEL_OPTIONS)
+    if fallback_lbl:
+        return fallback_lbl
+    return next(iter(MODEL_OPTIONS.keys())) if MODEL_OPTIONS else ""
 
 
 def get_default_llm_label() -> str:
@@ -917,7 +940,10 @@ def get_default_llm_label() -> str:
     saved = user_config.USER_CONFIG.get("default_llm_label")
     if saved and saved in MODEL_OPTIONS:
         return saved
-    return get_recommended_llm_label()
+    rec = get_recommended_llm_label()
+    if rec and rec in MODEL_OPTIONS:
+        return rec
+    return next(iter(MODEL_OPTIONS.keys())) if MODEL_OPTIONS else ""
 
 
 def set_default_llm(label: str) -> None:
@@ -925,15 +951,9 @@ def set_default_llm(label: str) -> None:
     set_default_vlm()."""
     user_config.save_user_config({"default_llm_label": label})
 
-# DEFAULT_LLM_LABEL — the label selected by default in the model dropdowns.
-# Resolved dynamically via get_default_llm_label() so a saved user override
-# (default_llm_label in user_config.json) wins, else the hardware-tier
-# recommendation (see _LLM_LABEL_BY_TIER / get_recommended_llm_label()
-# below). Unlike the old static default, this lets a capable machine
-# default to a Gemma 4 size that actually fits it instead of always the
-# smallest.
+
 DEFAULT_LLM_LABEL = get_default_llm_label()
-DEFAULT_LLM_MODEL = MODEL_OPTIONS[DEFAULT_LLM_LABEL]
+DEFAULT_LLM_MODEL = MODEL_OPTIONS.get(DEFAULT_LLM_LABEL, next(iter(MODEL_OPTIONS.values())) if MODEL_OPTIONS else "")
 
 
 def rescan_gguf_models(folder_path: Optional[str], lang_key: str = "kh"):
@@ -1039,7 +1059,7 @@ def set_default_vlm(label: str) -> None:
 
 
 DEFAULT_VLM_LABEL = get_default_vlm_label()
-DEFAULT_VLM_MODEL = VLM_OPTIONS[DEFAULT_VLM_LABEL]
+DEFAULT_VLM_MODEL = VLM_OPTIONS.get(DEFAULT_VLM_LABEL, next(iter(VLM_OPTIONS.values())) if VLM_OPTIONS else "")
 
 # Maps a GGUF vision model's main .gguf path -> its paired mmproj (vision
 # projector) .gguf path (see llama_backend.discover_gguf_vlm_models()).

@@ -45,8 +45,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-; ── Application code (root-level .py modules only) ────────────────
+; ── Application code (root-level .py modules & model registries) ──
 Source: "*.py";                       DestDir: "{app}"; Flags: ignoreversion
+Source: "*.csv";                      DestDir: "{app}"; Flags: ignoreversion
 ; ── Setup & launch scripts ─────────────────────────────────────────
 Source: "requirements.txt";           DestDir: "{app}"; Flags: ignoreversion
 Source: "SETUP.bat";                  DestDir: "{app}"; Flags: ignoreversion

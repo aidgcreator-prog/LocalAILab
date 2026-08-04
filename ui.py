@@ -312,108 +312,109 @@ def build_ui():
         # selected language instead of staying stuck in Khmer/English.
         gpu_warning_html = gr.HTML(value=_gpu_warning_html("kh"))
 
-        with gr.Accordion(L["accordion_model_settings"], open=False) as acc_model_settings:
-            # ── Provider / Backend ────────────────────────────────
-            provider_section_md = gr.Markdown(f"### {L['label_provider_section']}")
-            with gr.Row():
-                hf_token_tb = gr.Textbox(
-                    value=mr.get_saved_hf_token(),
-                    placeholder="hf_... or your HF API token",
-                    label="🤗 HF API Token", type="password", scale=4,
-                )
-                hf_model_id_tb = gr.Textbox(
-                    value=mr.get_saved_hf_model_id(),
-                    placeholder="e.g. google/gemma-4-26B-A4B-it",
-                    label="🤗 HF Model ID", scale=4,
-                )
-                hf_provider_tb = gr.Textbox(
-                    value=mr.get_saved_hf_provider(),
-                    placeholder="optional — leave blank for auto",
-                    label="🤗 HF Provider (optional)", scale=3,
-                )
-            hf_api_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-            with gr.Row():
-                litellm_model_id_tb = gr.Textbox(
-                    value=mr.get_saved_litellm_model_id(),
-                    placeholder="e.g. anthropic/claude-4-sonnet-20250514 or gpt-4o",
-                    label="🔗 LiteLLM Model ID", scale=4,
-                )
-                litellm_api_key_tb = gr.Textbox(
-                    value=mr.get_saved_litellm_api_key(),
-                    placeholder="sk-... or your API key",
-                    label="🔗 LiteLLM API Key", type="password", scale=4,
-                )
-                litellm_api_base_tb = gr.Textbox(
-                    value=mr.get_saved_litellm_api_base(),
-                    placeholder="optional — leave blank for default",
-                    label="🔗 LiteLLM API Base URL", scale=3,
-                )
-            litellm_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-            with gr.Row():
-                llama_server_exe_tb = gr.Textbox(
-                    value=llama_backend.LLAMA_SERVER_EXE_PATH,
-                    placeholder=r"e.g. D:\llama.cpp\llama-server.exe",
-                    label="🖥️ llama-server.exe Path", scale=5,
-                )
-                llama_server_args_tb = gr.Textbox(
-                    value=llama_backend.LLAMA_SERVER_EXTRA_ARGS,
-                    placeholder="optional extra flags",
-                    label="Extra llama-server Args", scale=3,
-                )
-                llama_server_timeout_dd = gr.Dropdown(
-                    choices=list(mr.LLAMA_SERVER_TIMEOUT_OPTIONS.keys()),
-                    value=mr.get_saved_llm_server_timeout_label(),
-                    label="⏱️ llama-server Timeout", scale=3,
-                )
-            llama_server_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-            with gr.Accordion(L["accordion_details"], open=False) as acc_llama_server_detail:
-                llama_server_detail_md = gr.Markdown(
-                    "The default backend (**llama-cpp-python, in-process**) loads a "
-                    "`.gguf` model directly inside this app's own Python process — "
-                    "no extra setup needed beyond what SETUP.bat already installs.\n\n"
-                    "**llama-server (external process)** instead launches a real "
-                    "`llama-server` executable as a separate process and talks to it over "
-                    "its OpenAI-compatible HTTP API.\n\n"
-                    "**⏱️ llama-server Request Timeout**: how long (in seconds) this "
-                    "app will wait for a single generation to finish before giving "
-                    "up. The default (300s) is enough for most models, but a large "
-                    "or CPU-bound model can genuinely need more time than that."
-                )
-            with gr.Row():
-                whisper_server_exe_tb = gr.Textbox(
-                    value=whisper_cpp_backend.WHISPER_CPP_SERVER_EXE_PATH,
-                    placeholder=r"e.g. D:\whisper.cpp\whisper-server.exe",
-                    label="🖥️ whisper.cpp Server Path", scale=5,
-                )
-                whisper_server_args_tb = gr.Textbox(
-                    value=whisper_cpp_backend.WHISPER_CPP_SERVER_EXTRA_ARGS,
-                    placeholder="optional extra flags",
-                    label="Extra whisper-server Args", scale=3,
-                )
-            whisper_server_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-            with gr.Row():
-                gguf_dir_tb = gr.Textbox(
-                    value=llama_backend.LLAMA_CPP_MODEL_DIR,
-                    placeholder=L["gguf_dir_placeholder"],
-                    label=L["label_gguf_dir"], scale=8,
-                )
-                scan_gguf_btn = gr.Button(L["btn_scan_gguf"], scale=2)
-            gguf_scan_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-
-        # ── Global action: free all models (visible on every tab) ──
-        with gr.Row():
-            free_all_btn = gr.Button("💥 Free All VRAM", variant="stop", size="sm")
-            free_all_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-
         # ── Tabs ──────────────────────────────────────────────────
         with gr.Tabs():
 
-            # ── Tab 1: General Chat ───────────────────────────────
+            # ── Tab 1: Dedicated Settings Tab ─────────────────────
+            with gr.Tab(L["tab_settings"]) as tab_settings:
+                settings_desc = gr.Markdown(L["tab_settings_desc"])
+
+                # Section 1: Global & Provider / Backend Settings
+                with gr.Accordion(L["acc_settings_global"], open=True) as acc_settings_global_sec:
+                    provider_section_md = gr.Markdown(f"### {L['label_provider_section']}")
+                    with gr.Row():
+                        hf_token_tb = gr.Textbox(
+                            value=mr.get_saved_hf_token(),
+                            placeholder="hf_... or your HF API token",
+                            label="🤗 HF API Token", type="password", scale=4,
+                        )
+                        hf_model_id_tb = gr.Textbox(
+                            value=mr.get_saved_hf_model_id(),
+                            placeholder="e.g. google/gemma-4-26B-A4B-it",
+                            label="🤗 HF Model ID", scale=4,
+                        )
+                        hf_provider_tb = gr.Textbox(
+                            value=mr.get_saved_hf_provider(),
+                            placeholder="optional — leave blank for auto",
+                            label="🤗 HF Provider (optional)", scale=3,
+                        )
+                    hf_api_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    with gr.Row():
+                        litellm_model_id_tb = gr.Textbox(
+                            value=mr.get_saved_litellm_model_id(),
+                            placeholder="e.g. anthropic/claude-4-sonnet-20250514 or gpt-4o",
+                            label="🔗 LiteLLM Model ID", scale=4,
+                        )
+                        litellm_api_key_tb = gr.Textbox(
+                            value=mr.get_saved_litellm_api_key(),
+                            placeholder="sk-... or your API key",
+                            label="🔗 LiteLLM API Key", type="password", scale=4,
+                        )
+                        litellm_api_base_tb = gr.Textbox(
+                            value=mr.get_saved_litellm_api_base(),
+                            placeholder="optional — leave blank for default",
+                            label="🔗 LiteLLM API Base URL", scale=3,
+                        )
+                    litellm_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    with gr.Row():
+                        llama_server_exe_tb = gr.Textbox(
+                            value=llama_backend.LLAMA_SERVER_EXE_PATH,
+                            placeholder=r"e.g. D:\llama.cpp\llama-server.exe",
+                            label="🖥️ llama-server.exe Path", scale=5,
+                        )
+                        llama_server_args_tb = gr.Textbox(
+                            value=llama_backend.LLAMA_SERVER_EXTRA_ARGS,
+                            placeholder="optional extra flags",
+                            label="Extra llama-server Args", scale=3,
+                        )
+                        llama_server_timeout_dd = gr.Dropdown(
+                            choices=list(mr.LLAMA_SERVER_TIMEOUT_OPTIONS.keys()),
+                            value=mr.get_saved_llm_server_timeout_label(),
+                            label="⏱️ llama-server Timeout", scale=3,
+                        )
+                    llama_server_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    with gr.Accordion(L["accordion_details"], open=False) as acc_llama_server_detail:
+                        llama_server_detail_md = gr.Markdown(
+                            "The default backend (**llama-cpp-python, in-process**) loads a "
+                            "`.gguf` model directly inside this app's own Python process — "
+                            "no extra setup needed beyond what SETUP.bat already installs.\n\n"
+                            "**llama-server (external process)** instead launches a real "
+                            "`llama-server` executable as a separate process and talks to it over "
+                            "its OpenAI-compatible HTTP API.\n\n"
+                            "**⏱️ llama-server Request Timeout**: how long (in seconds) this "
+                            "app will wait for a single generation to finish before giving "
+                            "up. The default (300s) is enough for most models, but a large "
+                            "or CPU-bound model can genuinely need more time than that."
+                        )
+                    with gr.Row():
+                        whisper_server_exe_tb = gr.Textbox(
+                            value=whisper_cpp_backend.WHISPER_CPP_SERVER_EXE_PATH,
+                            placeholder=r"e.g. D:\whisper.cpp\whisper-server.exe",
+                            label="🖥️ whisper.cpp Server Path", scale=5,
+                        )
+                        whisper_server_args_tb = gr.Textbox(
+                            value=whisper_cpp_backend.WHISPER_CPP_SERVER_EXTRA_ARGS,
+                            placeholder="optional extra flags",
+                            label="Extra whisper-server Args", scale=3,
+                        )
+                    whisper_server_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    with gr.Row():
+                        gguf_dir_tb = gr.Textbox(
+                            value=llama_backend.LLAMA_CPP_MODEL_DIR,
+                            placeholder=L["gguf_dir_placeholder"],
+                            label=L["label_gguf_dir"], scale=8,
+                        )
+                        scan_gguf_btn = gr.Button(L["btn_scan_gguf"], scale=2)
+                    gguf_scan_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    with gr.Row():
+                        free_all_btn = gr.Button("💥 Free All VRAM", variant="stop", size="sm")
+                        free_all_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+
+            # ── Tab 2: General Chat ───────────────────────────────
             with gr.Tab(L["tab_general"]) as tab_gen:
-                with gr.Row():
-                    with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
-                        gen_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
-                        gen_desc = gr.Markdown(L["tab_general_desc"])
+                with gr.Accordion(f"⚙️ {L['accordion_settings']}", open=False) as acc_gen_tab_settings:
+                    gen_desc = gr.Markdown(L["tab_general_desc"])
+                    with gr.Row():
                         provider_dd_gen = gr.Dropdown(
                             choices=list(mr.LLM_PROVIDER_OPTIONS.keys()),
                             value=mr.get_provider_label(mr.LLM_PROVIDER_OPTIONS, mr.get_saved_provider("gen")),
@@ -424,12 +425,12 @@ def build_ui():
                             value=mr.DEFAULT_LLM_LABEL,
                             label="Model",
                         )
-                        with gr.Row():
-                            reload_gen = gr.Button(L["btn_load"], size="sm", scale=1)
-                            unload_gen_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
-                        reload_gen_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        # ── Generation Settings (shared) ────────
-                        gr.Markdown(f"### {L['label_generation_section']}")
+                    with gr.Row():
+                        reload_gen = gr.Button(L["btn_load"], size="sm", scale=1)
+                        unload_gen_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                    reload_gen_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    gr.Markdown(f"### {L['label_generation_section']}")
+                    with gr.Row():
                         ctx_window_dd = gr.Dropdown(
                             choices=list(mr.CONTEXT_WINDOW_OPTIONS.keys()),
                             value=mr.get_saved_context_window_label(),
@@ -442,72 +443,65 @@ def build_ui():
                             label="🧮 Max New Tokens",
                             info="Shared between reasoning and answer",
                         )
-                        reasoning_chk = gr.Checkbox(
-                            label="🧠 Enable Reasoning",
-                            value=mr.get_saved_reasoning_enabled(),
-                            info="Off = '/no_think' prepended (Qwen3-family only)",
+                    reasoning_chk = gr.Checkbox(
+                        label="🧠 Enable Reasoning",
+                        value=mr.get_saved_reasoning_enabled(),
+                        info="Off = '/no_think' prepended (Qwen3-family only)",
+                    )
+                    ctx_window_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    max_tokens_status = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    with gr.Accordion(L["accordion_details"], open=False) as acc_ctx_detail:
+                        ctx_window_detail_md = gr.Markdown(L["info_context_window_detail"])
+                    free_vram_btn = gr.Button(L["btn_free_vram"], variant="stop", size="sm")
+                    free_vram_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    gen_agentic_chk = gr.Checkbox(
+                        label=L["label_gen_agentic"], value=False,
+                        info=L["info_gen_agentic"],
+                    )
+                    gen_memory_chk = gr.Checkbox(
+                        label=L["label_memory"], value=True,
+                        info=L["info_memory"],
+                    )
+                    with gr.Accordion(L["accordion_details"], open=False) as acc_gen_detail:
+                        gen_agentic_detail_md = gr.Markdown(L["info_gen_agentic_detail"])
+                        gen_memory_detail_md  = gr.Markdown(L["info_memory_detail"])
+                    with gr.Accordion("Advanced Agent Settings", open=False):
+                        gen_max_steps = gr.Slider(
+                            minimum=1, maximum=30, step=1, value=8,
+                            label="Max Steps",
+                            info="Agentic mode only. How many steps before giving up. "
+                                 "Raise for complex multi-step questions, lower to fail fast.",
                         )
-                        ctx_window_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        max_tokens_status = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        with gr.Accordion(L["accordion_details"], open=False) as acc_ctx_detail:
-                            ctx_window_detail_md = gr.Markdown(L["info_context_window_detail"])
-                        free_vram_btn = gr.Button(L["btn_free_vram"], variant="stop", size="sm")
-                        free_vram_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        # ── Tab-specific settings ───────────────
-                        gen_agentic_chk = gr.Checkbox(
-                            label=L["label_gen_agentic"], value=False,
-                            info=L["info_gen_agentic"],
+                        gen_execution_timeout = gr.Slider(
+                            minimum=30, maximum=600, step=10, value=120,
+                            label="Code Execution Timeout (seconds)",
+                            info="Agentic mode only. How long a single Python code block "
+                                 "can run before being killed. Default in smolagents is 30s.",
                         )
-                        gen_memory_chk = gr.Checkbox(
-                            label=L["label_memory"], value=True,
-                            info=L["info_memory"],
+                        gen_tool_calling_chk = gr.Checkbox(
+                            label="Use native tool calling (ToolCallingAgent)",
+                            value=True,
+                            info="Uses ToolCallingAgent instead of CodeAgent. "
+                                 "Only works with models that support native "
+                                 "function-calling (LiteLLM, HF Inference API "
+                                 "on capable models). Falls back to CodeAgent "
+                                 "if unsupported.",
                         )
-                        with gr.Accordion(L["accordion_details"], open=False) as acc_gen_detail:
-                            gen_agentic_detail_md = gr.Markdown(L["info_gen_agentic_detail"])
-                            gen_memory_detail_md  = gr.Markdown(L["info_memory_detail"])
-                        with gr.Accordion("Advanced Agent Settings", open=False):
-                            gen_max_steps = gr.Slider(
-                                minimum=1, maximum=30, step=1, value=8,
-                                label="Max Steps",
-                                info="Agentic mode only. How many steps before giving up. "
-                                     "Raise for complex multi-step questions, lower to fail fast.",
-                            )
-                            gen_execution_timeout = gr.Slider(
-                                minimum=30, maximum=600, step=10, value=120,
-                                label="Code Execution Timeout (seconds)",
-                                info="Agentic mode only. How long a single Python code block "
-                                     "can run before being killed. Default in smolagents is 30s.",
-                            )
-                            gen_tool_calling_chk = gr.Checkbox(
-                                label="Use native tool calling (ToolCallingAgent)",
-                                value=True,
-                                info="Uses ToolCallingAgent instead of CodeAgent. "
-                                     "Only works with models that support native "
-                                     "function-calling (LiteLLM, HF Inference API "
-                                     "on capable models). Falls back to CodeAgent "
-                                     "if unsupported.",
-                            )
-                        pending_gen_msg = gr.State("")
-                    with gr.Column(scale=7):
-                        with gr.Accordion(L["accordion_chat"], open=False) as acc_gen_chat:
-                            bot_gen   = gr.Chatbot(height=440)
-                            clear_gen = gr.Button(L["btn_clear"], size="sm")
-                        with gr.Row():
-                            msg_gen  = gr.Textbox(placeholder=L["placeholder_gen"], show_label=False, scale=8)
-                            send_gen = gr.Button(L["btn_send"], variant="primary", scale=1)
-                        # Status indicator — hidden until a message is sent,
-                        # then shows "thinking" text immediately (before the
-                        # potentially slow LLM/agent call even starts) so the
-                        # UI never looks frozen. See show_thinking_gen() /
-                        # do_chat_general() below.
-                        status_gen = gr.Markdown(visible=False)
+                with gr.Column():
+                    with gr.Accordion(L["accordion_chat"], open=False) as acc_gen_chat:
+                        bot_gen   = gr.Chatbot(height=440)
+                        clear_gen = gr.Button(L["btn_clear"], size="sm")
+                    with gr.Row():
+                        msg_gen  = gr.Textbox(placeholder=L["placeholder_gen"], show_label=False, scale=8)
+                        send_gen = gr.Button(L["btn_send"], variant="primary", scale=1)
+                    status_gen = gr.Markdown(visible=False)
+                    pending_gen_msg = gr.State("")
 
-            # ── Tab 2: Vision Chat ────────────────────────────────
+            # ── Tab 3: Vision Chat ────────────────────────────────
             with gr.Tab(L["tab_vision"]) as tab_vis:
-                with gr.Row():
-                    with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
-                        vis_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
-                        vis_desc = gr.Markdown(L["tab_vision_desc"])
+                with gr.Accordion(f"⚙️ {L['accordion_settings']}", open=False) as acc_vis_tab_settings:
+                    vis_desc = gr.Markdown(L["tab_vision_desc"])
+                    with gr.Row():
                         provider_dd_vlm = gr.Dropdown(
                             choices=list(mr.VLM_PROVIDER_OPTIONS.keys()),
                             value=mr.get_provider_label(mr.VLM_PROVIDER_OPTIONS, mr.get_saved_provider("vlm")),
@@ -524,39 +518,37 @@ def build_ui():
                             label="mmproj (vision projector)",
                             visible=False,
                         )
-                        with gr.Row():
-                            load_vlm_btn = gr.Button(L["btn_load"], size="sm", scale=1)
-                            unload_vlm_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
-                        load_vlm_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        vis_rag_chk = gr.Checkbox(
-                            label=L["label_vis_rag"], value=False,
-                            info=L["label_vis_rag_info"],
-                        )
-                        vis_memory_chk = gr.Checkbox(
-                            label=L["label_memory"], value=True,
-                            info=L["info_memory"],
-                        )
-                        with gr.Accordion(L["accordion_details"], open=False) as acc_vis_detail:
-                            vis_rag_detail_md    = gr.Markdown(L["label_vis_rag_info_detail"])
-                            vis_memory_detail_md = gr.Markdown(L["info_memory_detail"])
-                        pending_vis_msg = gr.State("")
-                    with gr.Column(scale=7):
-                        with gr.Accordion(L["accordion_chat"], open=False) as acc_vis_chat:
-                            bot_vis   = gr.Chatbot(height=400)
-                            clear_vis = gr.Button(L["btn_clear"], size="sm")
-                        with gr.Row():
-                            msg_vis    = gr.Textbox(placeholder=L["placeholder_vis"], show_label=False, scale=6)
-                            img_upload = gr.Image(type="pil", sources=["upload", "clipboard"], scale=2)
-                            send_vis   = gr.Button(L["btn_send"], variant="primary", scale=1)
-                        # See status_gen above.
-                        status_vis = gr.Markdown(visible=False)
+                    with gr.Row():
+                        load_vlm_btn = gr.Button(L["btn_load"], size="sm", scale=1)
+                        unload_vlm_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                    load_vlm_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    vis_rag_chk = gr.Checkbox(
+                        label=L["label_vis_rag"], value=False,
+                        info=L["label_vis_rag_info"],
+                    )
+                    vis_memory_chk = gr.Checkbox(
+                        label=L["label_memory"], value=True,
+                        info=L["info_memory"],
+                    )
+                    with gr.Accordion(L["accordion_details"], open=False) as acc_vis_detail:
+                        vis_rag_detail_md    = gr.Markdown(L["label_vis_rag_info_detail"])
+                        vis_memory_detail_md = gr.Markdown(L["info_memory_detail"])
+                with gr.Column():
+                    with gr.Accordion(L["accordion_chat"], open=False) as acc_vis_chat:
+                        bot_vis   = gr.Chatbot(height=400)
+                        clear_vis = gr.Button(L["btn_clear"], size="sm")
+                    with gr.Row():
+                        msg_vis    = gr.Textbox(placeholder=L["placeholder_vis"], show_label=False, scale=6)
+                        img_upload = gr.Image(type="pil", sources=["upload", "clipboard"], scale=2)
+                        send_vis   = gr.Button(L["btn_send"], variant="primary", scale=1)
+                    status_vis = gr.Markdown(visible=False)
+                    pending_vis_msg = gr.State("")
 
-            # ── Tab 3: Speech to Text ─────────────────────────────
+            # ── Tab 4: Speech to Text ─────────────────────────────
             with gr.Tab(L["tab_stt"]) as tab_stt:
-                with gr.Row():
-                    with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
-                        stt_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
-                        stt_desc = gr.Markdown(L["tab_stt_desc"])
+                with gr.Accordion(f"⚙️ {L['accordion_settings']}", open=False) as acc_stt_tab_settings:
+                    stt_desc = gr.Markdown(L["tab_stt_desc"])
+                    with gr.Row():
                         provider_dd_stt = gr.Dropdown(
                             choices=list(mr.STT_PROVIDER_OPTIONS.keys()),
                             value=mr.get_provider_label(mr.STT_PROVIDER_OPTIONS, mr.get_saved_provider("stt")),
@@ -567,30 +559,29 @@ def build_ui():
                             value=mr.DEFAULT_STT_LABEL,
                             label="Model",
                         )
-                        with gr.Row():
-                            load_stt_btn = gr.Button(L["btn_load"], size="sm", scale=1)
-                            unload_stt_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
-                        load_stt_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        stt_lang_dd = gr.Dropdown(
-                            choices=[("Auto-detect", "auto"), ("English", "english"), ("Khmer", "khmer"),
-                                     ("French", "french"), ("Chinese", "chinese"), ("Japanese", "japanese")],
-                            value="auto", label=L["label_stt_lang"],
-                        )
-                        stt_hint = gr.Markdown(L["stt_khmer_hint"])
-                        with gr.Accordion(L["accordion_details"], open=False) as acc_stt_detail:
-                            stt_hint_detail_md = gr.Markdown(L["stt_khmer_hint_detail"])
-                    with gr.Column(scale=7):
-                        with gr.Accordion(f"📝 {L['label_res']}", open=False) as acc_stt_result:
-                            stt_output = gr.Textbox(label=L["label_res"], lines=8, interactive=True)
-                        stt_audio      = gr.Audio(label=L["stt_audio_label"], sources=["microphone", "upload"], type="filepath")
-                        transcribe_btn = gr.Button(L["btn_transcribe"], variant="primary")
+                    with gr.Row():
+                        load_stt_btn = gr.Button(L["btn_load"], size="sm", scale=1)
+                        unload_stt_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                    load_stt_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    stt_lang_dd = gr.Dropdown(
+                        choices=[("Auto-detect", "auto"), ("English", "english"), ("Khmer", "khmer"),
+                                 ("French", "french"), ("Chinese", "chinese"), ("Japanese", "japanese")],
+                        value="auto", label=L["label_stt_lang"],
+                    )
+                    stt_hint = gr.Markdown(L["stt_khmer_hint"])
+                    with gr.Accordion(L["accordion_details"], open=False) as acc_stt_detail:
+                        stt_hint_detail_md = gr.Markdown(L["stt_khmer_hint_detail"])
+                with gr.Column():
+                    with gr.Accordion(f"📝 {L['label_res']}", open=False) as acc_stt_result:
+                        stt_output = gr.Textbox(label=L["label_res"], lines=8, interactive=True)
+                    stt_audio      = gr.Audio(label=L["stt_audio_label"], sources=["microphone", "upload"], type="filepath")
+                    transcribe_btn = gr.Button(L["btn_transcribe"], variant="primary")
 
-            # ── Tab 4: Data Analysis ──────────────────────────────
+            # ── Tab 5: Data Analysis ──────────────────────────────
             with gr.Tab(L["tab_data"]) as tab_data:
-                with gr.Row():
-                    with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
-                        data_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
-                        data_desc = gr.Markdown(L["tab_data_desc"])
+                with gr.Accordion(f"⚙️ {L['accordion_settings']}", open=False) as acc_data_tab_settings:
+                    data_desc = gr.Markdown(L["tab_data_desc"])
+                    with gr.Row():
                         provider_dd_data = gr.Dropdown(
                             choices=list(mr.LLM_PROVIDER_OPTIONS.keys()),
                             value=mr.get_provider_label(mr.LLM_PROVIDER_OPTIONS, mr.get_saved_provider("data")),
@@ -601,68 +592,66 @@ def build_ui():
                             value=mr.DEFAULT_LLM_LABEL,
                             label="Model",
                         )
-                        with gr.Row():
-                            reload_data_btn = gr.Button(L["btn_load"], size="sm", scale=1)
-                            unload_data_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
-                        reload_data_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        data_memory_chk = gr.Checkbox(
-                            label=L["label_memory"], value=True,
-                            info=L["info_memory"],
+                    with gr.Row():
+                        reload_data_btn = gr.Button(L["btn_load"], size="sm", scale=1)
+                        unload_data_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                    reload_data_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    data_memory_chk = gr.Checkbox(
+                        label=L["label_memory"], value=True,
+                        info=L["info_memory"],
+                    )
+                    analysis_type_data = gr.Radio(
+                        choices=[
+                            ("exploratory", L["analysis_exploratory"]),
+                            ("sales", L["analysis_sales"]),
+                            ("customer", L["analysis_customer"]),
+                            ("financial", L["analysis_financial"]),
+                            ("payroll", L["analysis_payroll"]),
+                        ],
+                        label=L["label_analysis_type"],
+                        value="exploratory",
+                    )
+                    with gr.Accordion(L["accordion_details"], open=False) as acc_data_detail:
+                        data_memory_detail_md = gr.Markdown(L["info_memory_detail"])
+                    with gr.Accordion("Advanced Agent Settings", open=False):
+                        data_max_steps = gr.Slider(
+                            minimum=1, maximum=30, step=1, value=15,
+                            label="Max Steps",
+                            info="How many agentic steps before giving up. "
+                                 "Larger values let the agent do more work (more charts, "
+                                 "deeper analysis) but take longer and cost more tokens.",
                         )
-                        analysis_type_data = gr.Radio(
-                            choices=[
-                                ("exploratory", L["analysis_exploratory"]),
-                                ("sales", L["analysis_sales"]),
-                                ("customer", L["analysis_customer"]),
-                                ("financial", L["analysis_financial"]),
-                                ("payroll", L["analysis_payroll"]),
-                            ],
-                            label=L["label_analysis_type"],
-                            value="exploratory",
+                        data_execution_timeout = gr.Slider(
+                            minimum=30, maximum=600, step=10, value=120,
+                            label="Code Execution Timeout (seconds)",
+                            info="How long a single Python code block is allowed to run "
+                                 "before being killed. Raise this for large datasets or "
+                                 "slow models. Default in smolagents is 30s.",
                         )
-                        with gr.Accordion(L["accordion_details"], open=False) as acc_data_detail:
-                            data_memory_detail_md = gr.Markdown(L["info_memory_detail"])
-                        with gr.Accordion("Advanced Agent Settings", open=False):
-                            data_max_steps = gr.Slider(
-                                minimum=1, maximum=30, step=1, value=15,
-                                label="Max Steps",
-                                info="How many agentic steps before giving up. "
-                                     "Larger values let the agent do more work (more charts, "
-                                     "deeper analysis) but take longer and cost more tokens.",
-                            )
-                            data_execution_timeout = gr.Slider(
-                                minimum=30, maximum=600, step=10, value=120,
-                                label="Code Execution Timeout (seconds)",
-                                info="How long a single Python code block is allowed to run "
-                                     "before being killed. Raise this for large datasets or "
-                                     "slow models. Default in smolagents is 30s.",
-                            )
-                        reset_data_btn = gr.Button(L["btn_reset_agent"], size="sm")
-                        reset_data_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        pending_data_question = gr.State("")
-                    with gr.Column(scale=7):
-                        with gr.Accordion(L["accordion_chat"], open=False) as acc_data_chat:
-                            bot_data   = gr.Chatbot(height=420)
-                            clear_data = gr.Button(L["btn_clear"], size="sm")
-                        with gr.Accordion(L["accordion_data_results"], open=False) as acc_data_results:
-                            data_gallery     = gr.Gallery(label=L["label_charts"], columns=3, height=280)
-                            data_report_file = gr.File(label=L["label_report_file"], interactive=False)
-                        data_file_up = gr.File(label=L["data_file_label"], file_types=[".csv", ".xlsx", ".xls"], file_count="multiple")
-                        with gr.Row():
-                            msg_data  = gr.Textbox(placeholder=L["placeholder_data"], show_label=False, scale=8)
-                            send_data = gr.Button(L["btn_send"], variant="primary", scale=1)
-                        # See status_gen above.
-                        status_data = gr.Markdown(visible=False)
+                    reset_data_btn = gr.Button(L["btn_reset_agent"], size="sm")
+                    reset_data_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+                with gr.Column():
+                    with gr.Accordion(L["accordion_chat"], open=False) as acc_data_chat:
+                        bot_data   = gr.Chatbot(height=420)
+                        clear_data = gr.Button(L["btn_clear"], size="sm")
+                    with gr.Accordion(L["accordion_data_results"], open=False) as acc_data_results:
+                        data_gallery     = gr.Gallery(label=L["label_charts"], columns=3, height=280)
+                        data_report_file = gr.File(label=L["label_report_file"], interactive=False)
+                    data_file_up = gr.File(label=L["data_file_label"], file_types=[".csv", ".xlsx", ".xls"], file_count="multiple")
+                    with gr.Row():
+                        msg_data  = gr.Textbox(placeholder=L["placeholder_data"], show_label=False, scale=8)
+                        send_data = gr.Button(L["btn_send"], variant="primary", scale=1)
+                    status_data = gr.Markdown(visible=False)
+                    pending_data_question = gr.State("")
 
-            # ── Tab 5: Knowledge Base ─────────────────────────────
+            # ── Tab 6: Knowledge Base ─────────────────────────────
             with gr.Tab(L["tab_kb"]) as tab_kb:
-                with gr.Row():
-                    with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
-                        kb_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
-                        kb_status_bar = gr.Textbox(
-                            value="…", interactive=False,
-                            show_label=False, elem_classes=["status-bar"]
-                        )
+                with gr.Accordion(f"⚙️ {L['accordion_settings']}", open=False) as acc_kb_tab_settings:
+                    kb_status_bar = gr.Textbox(
+                        value="…", interactive=False,
+                        show_label=False, elem_classes=["status-bar"]
+                    )
+                    with gr.Row():
                         provider_dd_embed = gr.Dropdown(
                             choices=list(mr.EMBED_PROVIDER_OPTIONS.keys()),
                             value=mr.get_provider_label(mr.EMBED_PROVIDER_OPTIONS, mr.get_saved_provider("embed")),
@@ -673,44 +662,43 @@ def build_ui():
                             value=mr.get_default_embed_label(),
                             label="Model",
                         )
+                    with gr.Row():
+                        load_embed_btn = gr.Button(L["btn_load"], size="sm", scale=1)
+                        unload_embed_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                    load_embed_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    with gr.Accordion(L["accordion_details"], open=False) as acc_embed_detail:
+                        embed_detail_md = gr.Markdown(L["info_embed_detail"])
+                with gr.Column():
+                    with gr.Accordion(L["accordion_add"], open=True) as acc_add:
+                        file_up    = gr.File(label=L["file_label"], file_types=[".pdf",".txt",".md",".docx"], file_count="multiple")
+                        vis_ret_dd = gr.Dropdown(choices=list(mr.VISUAL_RETRIEVER_OPTIONS.keys()), value=list(mr.VISUAL_RETRIEVER_OPTIONS.keys())[0], label=L["label_vis_ret"])
                         with gr.Row():
-                            load_embed_btn = gr.Button(L["btn_load"], size="sm", scale=1)
-                            unload_embed_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
-                        load_embed_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        with gr.Accordion(L["accordion_details"], open=False) as acc_embed_detail:
-                            embed_detail_md = gr.Markdown(L["info_embed_detail"])
-                    with gr.Column(scale=7):
-                        with gr.Accordion(L["accordion_add"], open=True) as acc_add:
-                            file_up    = gr.File(label=L["file_label"], file_types=[".pdf",".txt",".md",".docx"], file_count="multiple")
-                            vis_ret_dd = gr.Dropdown(choices=list(mr.VISUAL_RETRIEVER_OPTIONS.keys()), value=list(mr.VISUAL_RETRIEVER_OPTIONS.keys())[0], label=L["label_vis_ret"])
-                            with gr.Row():
-                                theme_tb    = gr.Textbox(label=L["theme_label"], placeholder=L["theme_placeholder"], scale=1)
-                                subtheme_tb = gr.Textbox(label=L["subtheme_label"], placeholder=L["subtheme_placeholder"], scale=1)
-                            with gr.Row():
-                                up_btn             = gr.Button(L["btn_index"], variant="primary", scale=3)
-                                unload_visual_btn  = gr.Button(L["btn_unload"], size="sm", scale=2)
-                            up_msg = gr.Textbox(label=L["label_res"], interactive=False, lines=4, visible=False)
+                            theme_tb    = gr.Textbox(label=L["theme_label"], placeholder=L["theme_placeholder"], scale=1)
+                            subtheme_tb = gr.Textbox(label=L["subtheme_label"], placeholder=L["subtheme_placeholder"], scale=1)
+                        with gr.Row():
+                            up_btn             = gr.Button(L["btn_index"], variant="primary", scale=3)
+                            unload_visual_btn  = gr.Button(L["btn_unload"], size="sm", scale=2)
+                        up_msg = gr.Textbox(label=L["label_res"], interactive=False, lines=4, visible=False)
 
-                        with gr.Accordion(L["label_kb_docs"], open=False) as acc_kb_docs:
-                            doc_table = gr.Dataframe(
-                                headers=L["doc_table_headers"],
-                                datatype=["str","str","str","number","str","str"],
-                                value=[],
-                                interactive=True, wrap=True,
-                            )
-                            with gr.Row():
-                                refresh_btn    = gr.Button(L["btn_refresh"], size="sm", scale=2)
-                                delete_sel_btn = gr.Button(L["btn_delete"], variant="stop", size="sm", scale=2)
-                                clear_all_btn  = gr.Button(L["btn_clear_all"], variant="stop", size="sm", scale=2)
-                            action_msg = gr.Textbox(label="", interactive=False, lines=1, visible=False)
-                        selected_rows_state = gr.State([])
+                    with gr.Accordion(L["label_kb_docs"], open=False) as acc_kb_docs:
+                        doc_table = gr.Dataframe(
+                            headers=L["doc_table_headers"],
+                            datatype=["str","str","str","number","str","str"],
+                            value=[],
+                            interactive=True, wrap=True,
+                        )
+                        with gr.Row():
+                            refresh_btn    = gr.Button(L["btn_refresh"], size="sm", scale=2)
+                            delete_sel_btn = gr.Button(L["btn_delete"], variant="stop", size="sm", scale=2)
+                            clear_all_btn  = gr.Button(L["btn_clear_all"], variant="stop", size="sm", scale=2)
+                        action_msg = gr.Textbox(label="", interactive=False, lines=1, visible=False)
+                    selected_rows_state = gr.State([])
 
-            # ── Tab 7: RAG Chat (agentic — see rag_agent.py) ──────
+            # ── Tab 7: RAG Chat ───────────────────────────────────
             with gr.Tab(L["tab_rag"]) as tab_rag:
-                with gr.Row():
-                    with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
-                        rag_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
-                        rag_desc = gr.Markdown(L["tab_rag_desc"])
+                with gr.Accordion(f"⚙️ {L['accordion_settings']}", open=False) as acc_rag_tab_settings:
+                    rag_desc = gr.Markdown(L["tab_rag_desc"])
+                    with gr.Row():
                         provider_dd_rag = gr.Dropdown(
                             choices=list(mr.LLM_PROVIDER_OPTIONS.keys()),
                             value=mr.get_provider_label(mr.LLM_PROVIDER_OPTIONS, mr.get_saved_provider("rag")),
@@ -721,60 +709,57 @@ def build_ui():
                             value=mr.DEFAULT_LLM_LABEL,
                             label="Model",
                         )
-                        with gr.Row():
-                            reload_rag = gr.Button(L["btn_load"], size="sm", scale=1)
-                            unload_rag_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
-                        reload_rag_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        rag_status_bar = gr.Textbox(
-                            value="…", interactive=False,
-                            show_label=False, elem_classes=["status-bar"]
+                    with gr.Row():
+                        reload_rag = gr.Button(L["btn_load"], size="sm", scale=1)
+                        unload_rag_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                    reload_rag_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    rag_status_bar = gr.Textbox(
+                        value="…", interactive=False,
+                        show_label=False, elem_classes=["status-bar"]
+                    )
+                    with gr.Row():
+                        theme_tb_rag    = gr.Textbox(label=L["theme_label"], placeholder=L["theme_placeholder"], scale=1)
+                        subtheme_tb_rag = gr.Textbox(label=L["subtheme_label"], placeholder=L["subtheme_placeholder"], scale=1)
+                    rag_agentic_chk = gr.Checkbox(
+                        label=L["label_rag_agentic"], value=True,
+                        info=L["info_rag_agentic"],
+                    )
+                    rag_memory_chk = gr.Checkbox(
+                        label=L["label_memory"], value=True,
+                        info=L["info_memory"],
+                    )
+                    with gr.Accordion(L["accordion_details"], open=False) as acc_rag_detail:
+                        rag_agentic_detail_md = gr.Markdown(L["info_rag_agentic_detail"])
+                        rag_memory_detail_md  = gr.Markdown(L["info_memory_detail"])
+                    with gr.Accordion("Advanced Agent Settings", open=False):
+                        rag_max_steps = gr.Slider(
+                            minimum=1, maximum=15, step=1, value=6,
+                            label="Max Steps (agentic mode only)",
                         )
-                        with gr.Row():
-                            theme_tb_rag    = gr.Textbox(label=L["theme_label"], placeholder=L["theme_placeholder"], scale=1)
-                            subtheme_tb_rag = gr.Textbox(label=L["subtheme_label"], placeholder=L["subtheme_placeholder"], scale=1)
-                        rag_agentic_chk = gr.Checkbox(
-                            label=L["label_rag_agentic"], value=True,
-                            info=L["info_rag_agentic"],
+                        rag_tool_calling_chk = gr.Checkbox(
+                            label="Use native tool calling (ToolCallingAgent)",
+                            value=True,
+                            info="Uses ToolCallingAgent instead of CodeAgent. "
+                                 "Only works with models that support native "
+                                 "function-calling (LiteLLM, HF Inference API "
+                                 "on capable models). Falls back to CodeAgent "
+                                 "if unsupported.",
                         )
-                        rag_memory_chk = gr.Checkbox(
-                            label=L["label_memory"], value=True,
-                            info=L["info_memory"],
-                        )
-                        with gr.Accordion(L["accordion_details"], open=False) as acc_rag_detail:
-                            rag_agentic_detail_md = gr.Markdown(L["info_rag_agentic_detail"])
-                            rag_memory_detail_md  = gr.Markdown(L["info_memory_detail"])
-                        with gr.Accordion("Advanced Agent Settings", open=False):
-                            rag_max_steps = gr.Slider(
-                                minimum=1, maximum=15, step=1, value=6,
-                                label="Max Steps (agentic mode only)",
-                            )
-                            rag_tool_calling_chk = gr.Checkbox(
-                                label="Use native tool calling (ToolCallingAgent)",
-                                value=True,
-                                info="Uses ToolCallingAgent instead of CodeAgent. "
-                                     "Only works with models that support native "
-                                     "function-calling (LiteLLM, HF Inference API "
-                                     "on capable models). Falls back to CodeAgent "
-                                     "if unsupported.",
-                            )
-                        pending_rag_msg = gr.State("")
-                    with gr.Column(scale=7):
-                        with gr.Accordion(L["accordion_chat"], open=False) as acc_rag_chat:
-                            bot_rag   = gr.Chatbot(height=440)
-                            clear_rag = gr.Button(L["btn_clear"], size="sm")
-                        with gr.Row():
-                            msg_rag  = gr.Textbox(placeholder=L["placeholder_rag"], show_label=False, scale=8)
-                            send_rag = gr.Button(L["btn_send"], variant="primary", scale=1)
-                        # See status_gen above.
-                        status_rag = gr.Markdown(visible=False)
+                with gr.Column():
+                    with gr.Accordion(L["accordion_chat"], open=False) as acc_rag_chat:
+                        bot_rag   = gr.Chatbot(height=440)
+                        clear_rag = gr.Button(L["btn_clear"], size="sm")
+                    with gr.Row():
+                        msg_rag  = gr.Textbox(placeholder=L["placeholder_rag"], show_label=False, scale=8)
+                        send_rag = gr.Button(L["btn_send"], variant="primary", scale=1)
+                    status_rag = gr.Markdown(visible=False)
+                    pending_rag_msg = gr.State("")
 
-            # ── Tab 8: Deep Research (manager + web-search sub-agent — ──
-            # see deep_research_agent.py) ─────────────────────────────
+            # ── Tab 8: Deep Research ──────────────────────────────
             with gr.Tab(L["tab_deep_research"]) as tab_deep_research:
-                with gr.Row():
-                    with gr.Column(scale=3, min_width=260, elem_classes=["tab-sidebar"]):
-                        dr_settings_header = gr.Markdown(f"### {L['accordion_settings']}", elem_classes=["sidebar-hd"])
-                        dr_desc = gr.Markdown(L["tab_deep_research_desc"])
+                with gr.Accordion(f"⚙️ {L['accordion_settings']}", open=False) as acc_dr_tab_settings:
+                    dr_desc = gr.Markdown(L["tab_deep_research_desc"])
+                    with gr.Row():
                         provider_dd_dr = gr.Dropdown(
                             choices=list(mr.LLM_PROVIDER_OPTIONS.keys()),
                             value=mr.get_provider_label(mr.LLM_PROVIDER_OPTIONS, mr.get_saved_provider("dr")),
@@ -785,58 +770,57 @@ def build_ui():
                             value=mr.DEFAULT_LLM_LABEL,
                             label="Model",
                         )
-                        with gr.Row():
-                            reload_dr = gr.Button(L["btn_load"], size="sm", scale=1)
-                            unload_dr_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
-                        reload_dr_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        dr_memory_chk = gr.Checkbox(
-                            label=L["label_memory"], value=True,
-                            info=L["info_memory"],
+                    with gr.Row():
+                        reload_dr = gr.Button(L["btn_load"], size="sm", scale=1)
+                        unload_dr_btn = gr.Button(L["btn_unload"], size="sm", scale=1)
+                    reload_dr_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+                    dr_memory_chk = gr.Checkbox(
+                        label=L["label_memory"], value=True,
+                        info=L["info_memory"],
+                    )
+                    dr_use_playwright_chk = gr.Checkbox(
+                        label="Use Playwright (Headless Browser) Tools", value=False,
+                        info="Use Playwright for searching and browsing. Requires Playwright browsers installed.",
+                    )
+                    dr_headless_chk = gr.Checkbox(
+                        label="Run Playwright Headless", value=False,
+                        info="If unchecked, Playwright will open a visible browser window (with head).",
+                    )
+                    with gr.Accordion("Advanced Agent Settings", open=False):
+                        dr_manager_max_steps = gr.Slider(
+                            minimum=1, maximum=30, step=1, value=12,
+                            label="Manager Agent Max Steps"
                         )
-                        dr_use_playwright_chk = gr.Checkbox(
-                            label="Use Playwright (Headless Browser) Tools", value=False,
-                            info="Use Playwright for searching and browsing. Requires Playwright browsers installed.",
+                        dr_search_max_steps = gr.Slider(
+                            minimum=1, maximum=15, step=1, value=6,
+                            label="Search Sub-agent Max Steps"
                         )
-                        dr_headless_chk = gr.Checkbox(
-                            label="Run Playwright Headless", value=False,
-                            info="If unchecked, Playwright will open a visible browser window (with head).",
+                        dr_timeout = gr.Slider(
+                            minimum=30, maximum=1200, step=10, value=300,
+                            label="Code Execution Timeout (seconds)"
                         )
-                        with gr.Accordion("Advanced Agent Settings", open=False):
-                            dr_manager_max_steps = gr.Slider(
-                                minimum=1, maximum=30, step=1, value=12,
-                                label="Manager Agent Max Steps"
-                            )
-                            dr_search_max_steps = gr.Slider(
-                                minimum=1, maximum=15, step=1, value=6,
-                                label="Search Sub-agent Max Steps"
-                            )
-                            dr_timeout = gr.Slider(
-                                minimum=30, maximum=1200, step=10, value=300,
-                                label="Code Execution Timeout (seconds)"
-                            )
-                            dr_tool_calling_chk = gr.Checkbox(
-                                label="Use native tool calling (ToolCallingAgent)",
-                                value=True,
-                                info="Uses ToolCallingAgent instead of CodeAgent for the manager. "
-                                     "Only works with models that support native "
-                                     "function-calling (LiteLLM, HF Inference API "
-                                     "on capable models). Falls back to CodeAgent "
-                                     "if unsupported.",
-                            )
-                        with gr.Accordion(L["accordion_details"], open=False) as acc_dr_detail:
-                            dr_memory_detail_md = gr.Markdown(L["info_memory_detail"])
-                        reset_dr_btn = gr.Button(L["btn_reset_agent"], size="sm")
-                        reset_dr_out = gr.Textbox(show_label=False, interactive=False, visible=False)
-                        pending_dr_msg = gr.State("")
-                    with gr.Column(scale=7):
-                        with gr.Accordion(L["accordion_chat"], open=False) as acc_dr_chat:
-                            bot_dr   = gr.Chatbot(height=460)
-                            clear_dr = gr.Button(L["btn_clear"], size="sm")
-                        with gr.Row():
-                            msg_dr  = gr.Textbox(placeholder=L["placeholder_deep_research"], show_label=False, scale=8)
-                            send_dr = gr.Button(L["btn_send"], variant="primary", scale=1)
-                        # See status_gen above.
-                        status_dr = gr.Markdown(visible=False)
+                        dr_tool_calling_chk = gr.Checkbox(
+                            label="Use native tool calling (ToolCallingAgent)",
+                            value=True,
+                            info="Uses ToolCallingAgent instead of CodeAgent for the manager. "
+                                 "Only works with models that support native "
+                                 "function-calling (LiteLLM, HF Inference API "
+                                 "on capable models). Falls back to CodeAgent "
+                                 "if unsupported.",
+                        )
+                    with gr.Accordion(L["accordion_details"], open=False) as acc_dr_detail:
+                        dr_memory_detail_md = gr.Markdown(L["info_memory_detail"])
+                    reset_dr_btn = gr.Button(L["btn_reset_agent"], size="sm")
+                    reset_dr_out = gr.Textbox(show_label=False, interactive=False, visible=False)
+                with gr.Column():
+                    with gr.Accordion(L["accordion_chat"], open=False) as acc_dr_chat:
+                        bot_dr   = gr.Chatbot(height=460)
+                        clear_dr = gr.Button(L["btn_clear"], size="sm")
+                    with gr.Row():
+                        msg_dr  = gr.Textbox(placeholder=L["placeholder_deep_research"], show_label=False, scale=8)
+                        send_dr = gr.Button(L["btn_send"], variant="primary", scale=1)
+                    status_dr = gr.Markdown(visible=False)
+                    pending_dr_msg = gr.State("")
 
             # ── Tab 9: About ──────────────────────────────────────
             with gr.Tab(L["tab_about"]) as tab_about:
@@ -844,7 +828,22 @@ def build_ui():
                 gr.Markdown("---")
                 about_md_en = gr.Markdown(branding.about_content_en(DEVICE.upper(), APP_VERSION))
 
-        # ── Event handlers ────────────────────────────────────────
+        # Provider switching handlers — dynamically updates model dropdown for chosen provider
+        def _on_provider_change(tab_key, model_type, provider_map, provider_label):
+            sentinel = provider_map.get(provider_label, mr.PROVIDER_LOCAL_HF)
+            mr.set_saved_provider(tab_key, sentinel)
+            opts = mr.get_model_options_for_provider(sentinel, model_type)
+            choices = list(opts.keys())
+            val = choices[0] if choices else None
+            return gr.update(choices=choices, value=val)
+
+        provider_dd_gen.change(lambda p: _on_provider_change("gen", "llm", mr.LLM_PROVIDER_OPTIONS, p), [provider_dd_gen], [model_dd_gen])
+        provider_dd_vlm.change(lambda p: _on_provider_change("vlm", "vlm", mr.VLM_PROVIDER_OPTIONS, p), [provider_dd_vlm], [vlm_dd])
+        provider_dd_stt.change(lambda p: _on_provider_change("stt", "stt", mr.STT_PROVIDER_OPTIONS, p), [provider_dd_stt], [stt_dd])
+        provider_dd_data.change(lambda p: _on_provider_change("data", "llm", mr.LLM_PROVIDER_OPTIONS, p), [provider_dd_data], [model_dd_data])
+        provider_dd_embed.change(lambda p: _on_provider_change("embed", "embed", mr.EMBED_PROVIDER_OPTIONS, p), [provider_dd_embed], [embed_dd])
+        provider_dd_rag.change(lambda p: _on_provider_change("rag", "llm", mr.LLM_PROVIDER_OPTIONS, p), [provider_dd_rag], [model_dd_rag])
+        provider_dd_dr.change(lambda p: _on_provider_change("dr", "llm", mr.LLM_PROVIDER_OPTIONS, p), [provider_dd_dr], [model_dd_dr])
 
         # GGUF model folder — rescan updates every model dropdown at once,
         # and reveals the scan-result textbox (hidden until a scan runs).
@@ -1673,11 +1672,7 @@ def build_ui():
                 f'<div class="header-wrap"><span class="header-title">{l["title"]}</span>'
                 f'<span class="beta-badge">BETA</span></div>',
                 f'<div class="header-wrap"><span class="header-sub">{l["subtitle"].format(device=DEVICE.upper(), version=APP_VERSION)}</span></div>',
-                # Tab strip titles themselves (gr.Tab's own `label=`) — these
-                # were previously never updated on a language switch, only
-                # the CONTENT inside each tab was, which is why the tab
-                # titles stayed stuck in Khmer even after switching to
-                # English (or vice versa).
+                # Tab strip titles
                 gr.update(label=l["tab_general"]),
                 gr.update(label=l["tab_vision"]),
                 gr.update(label=l["tab_stt"]),
@@ -1685,13 +1680,20 @@ def build_ui():
                 gr.update(label=l["tab_kb"]),
                 gr.update(label=l["tab_rag"]),
                 gr.update(label=l["tab_deep_research"]),
+                gr.update(label=l["tab_settings"]),
                 gr.update(label=l["tab_about"]),
-                # GPU-incompatibility warning banner, re-rendered in the
-                # newly selected language (empty string if there's
-                # nothing to warn about — see _gpu_warning_html()).
+                # GPU warning
                 _gpu_warning_html(lk),
-                # Model Settings accordion (collapsed by default)
-                gr.update(value=l["accordion_model_settings"]),
+                # Settings tab description & accordions
+                gr.update(value=l["tab_settings_desc"]),
+                gr.update(label=l["acc_settings_global"]),
+                gr.update(label=f"⚙️ {l['accordion_settings']}"),
+                gr.update(label=f"⚙️ {l['accordion_settings']}"),
+                gr.update(label=f"⚙️ {l['accordion_settings']}"),
+                gr.update(label=f"⚙️ {l['accordion_settings']}"),
+                gr.update(label=f"⚙️ {l['accordion_settings']}"),
+                gr.update(label=f"⚙️ {l['accordion_settings']}"),
+                gr.update(label=f"⚙️ {l['accordion_settings']}"),
                 # GGUF model folder
                 gr.update(label=l["label_gguf_dir"], placeholder=l["gguf_dir_placeholder"]),
                 gr.update(value=l["btn_scan_gguf"]),
@@ -1701,7 +1703,6 @@ def build_ui():
                 gr.update(value=l["btn_send"]),
                 gr.update(value=l["btn_clear"]),
                 gr.update(label=l["accordion_chat"]),
-                gr.update(value=f"### {l['accordion_settings']}"),
                 gr.update(value=l["tab_general_desc"]),
                 gr.update(label=l["label_gen_agentic"], info=l["info_gen_agentic"]),
                 gr.update(label=l["label_memory"], info=l["info_memory"]),
@@ -1713,7 +1714,6 @@ def build_ui():
                 gr.update(value=l["btn_send"]),
                 gr.update(value=l["btn_clear"]),
                 gr.update(label=l["accordion_chat"]),
-                gr.update(value=f"### {l['accordion_settings']}"),
                 gr.update(value=l["tab_rag_desc"]),
                 gr.update(label=l["theme_label"], placeholder=l["theme_placeholder"]),
                 gr.update(label=l["subtheme_label"], placeholder=l["subtheme_placeholder"]),
@@ -1727,7 +1727,6 @@ def build_ui():
                 gr.update(value=l["btn_send"]),
                 gr.update(value=l["btn_clear"]),
                 gr.update(label=l["accordion_chat"]),
-                gr.update(value=f"### {l['accordion_settings']}"),
                 gr.update(value=l["tab_deep_research_desc"]),
                 gr.update(label=l["label_memory"], info=l["info_memory"]),
                 gr.update(label=l["label_llm"]),
@@ -1739,20 +1738,17 @@ def build_ui():
                 gr.update(value=l["btn_send"]),
                 gr.update(value=l["btn_clear"]),
                 gr.update(label=l["accordion_chat"]),
-                gr.update(value=f"### {l['accordion_settings']}"),
                 gr.update(value=l["tab_vision_desc"]),
                 gr.update(label=l["label_vlm"]),
                 gr.update(label=l["label_vis_rag"], info=l["label_vis_rag_info"]),
                 gr.update(label=l["label_memory"], info=l["info_memory"]),
                 gr.update(value=l["btn_load"]),
                 gr.update(value=l["btn_unload"]),
-                gr.update(value=l["btn_unload"]),
                 # STT
                 gr.update(label=l["stt_audio_label"]),
                 gr.update(value=l["btn_transcribe"]),
                 gr.update(label=f"📝 {l['label_res']}"),
                 gr.update(label=l["label_res"]),
-                gr.update(value=f"### {l['accordion_settings']}"),
                 gr.update(value=l["tab_stt_desc"]),
                 gr.update(label=l["label_stt"]),
                 gr.update(label=l["label_stt_lang"]),
@@ -1768,7 +1764,6 @@ def build_ui():
                 gr.update(label=l["accordion_data_results"]),
                 gr.update(label=l["label_charts"]),
                 gr.update(label=l["label_report_file"]),
-                gr.update(value=f"### {l['accordion_settings']}"),
                 gr.update(value=l["tab_data_desc"]),
                 gr.update(label=l["label_llm"]),
                 gr.update(label=l["label_memory"], info=l["info_memory"]),
@@ -1804,13 +1799,13 @@ def build_ui():
                 # Status bars (Knowledge Base tab + RAG Chat tab)
                 kb.get_index_stats(lk),
                 kb.get_index_stats(lk),
-                # Status indicators — reset to hidden with correct language text
+                # Status indicators
                 gr.update(value=l["think_gen"], visible=False),
                 gr.update(value=l["think_rag"], visible=False),
                 gr.update(value=l["think_dr"], visible=False),
                 gr.update(value=l["think_vis"], visible=False),
                 gr.update(value=l["think_data"], visible=False),
-                # "Details" accordions (collapsed long explanations) + their content
+                # "Details" accordions
                 gr.update(label=l["accordion_details"]), gr.update(value=l["info_context_window_detail"]),
                 gr.update(label=l["accordion_details"]), gr.update(value=l["info_gen_agentic_detail"]), gr.update(value=l["info_memory_detail"]),
                 gr.update(label=l["accordion_details"]), gr.update(value=l["info_rag_agentic_detail"]), gr.update(value=l["info_memory_detail"]),
@@ -1818,7 +1813,7 @@ def build_ui():
                 gr.update(label=l["accordion_details"]), gr.update(value=l["label_vis_rag_info_detail"]), gr.update(value=l["info_memory_detail"]),
                 gr.update(label=l["accordion_details"]), gr.update(value=l["stt_khmer_hint_detail"]),
                 gr.update(label=l["accordion_details"]), gr.update(value=l["info_memory_detail"]),
-                # ── Global Model Settings accordion (new) ──────────
+                # Provider section header & dropdowns
                 gr.update(value=f"### {l['label_provider_section']}"),
                 gr.update(label=l["label_provider"]),
                 gr.update(label=l["label_provider"]),
@@ -1827,45 +1822,44 @@ def build_ui():
                 gr.update(label=l["label_provider"]),
                 gr.update(label=l["label_provider"]),
                 gr.update(label=l["label_provider"]),
+                # Data Analysis load/unload buttons
                 gr.update(value=l["btn_load"]),
                 gr.update(value=l["btn_unload"]),
+                # Whisper server status
                 gr.update(visible=False),
             )
 
         _lang_outputs = [
             lang_state, header_title, header_sub,
-            # Tab strip titles (gr.Tab's own label=) — see switch_lang()'s
-            # matching block above for why these are needed separately
-            # from every other per-tab component below.
-            tab_gen, tab_vis, tab_stt, tab_data, tab_kb, tab_rag, tab_deep_research, tab_about,
+            tab_gen, tab_vis, tab_stt, tab_data, tab_kb, tab_rag, tab_deep_research, tab_settings, tab_about,
             gpu_warning_html,
-            acc_model_settings,
+            settings_desc,
+            acc_settings_global_sec, acc_gen_tab_settings, acc_vis_tab_settings, acc_stt_tab_settings,
+            acc_data_tab_settings, acc_kb_tab_settings, acc_rag_tab_settings, acc_dr_tab_settings,
             gguf_dir_tb, scan_gguf_btn, ctx_window_dd,
             # General Chat
-            msg_gen, send_gen, clear_gen, acc_gen_chat, gen_settings_header, gen_desc, gen_agentic_chk, gen_memory_chk, model_dd_gen, reload_gen, unload_gen_btn,
+            msg_gen, send_gen, clear_gen, acc_gen_chat, gen_desc, gen_agentic_chk, gen_memory_chk, model_dd_gen, reload_gen, unload_gen_btn,
             # RAG Chat
-            msg_rag, send_rag, clear_rag, acc_rag_chat, rag_settings_header, rag_desc, theme_tb_rag, subtheme_tb_rag, rag_agentic_chk, rag_memory_chk, model_dd_rag, reload_rag, unload_rag_btn,
+            msg_rag, send_rag, clear_rag, acc_rag_chat, rag_desc, theme_tb_rag, subtheme_tb_rag, rag_agentic_chk, rag_memory_chk, model_dd_rag, reload_rag, unload_rag_btn,
             # Deep Research
-            msg_dr, send_dr, clear_dr, acc_dr_chat, dr_settings_header, dr_desc, dr_memory_chk, model_dd_dr, reload_dr, unload_dr_btn, reset_dr_btn,
+            msg_dr, send_dr, clear_dr, acc_dr_chat, dr_desc, dr_memory_chk, model_dd_dr, reload_dr, unload_dr_btn, reset_dr_btn,
             # Vision Chat
-            msg_vis, send_vis, clear_vis, acc_vis_chat, vis_settings_header, vis_desc, vlm_dd, mmproj_dd_vis, vis_rag_chk, vis_memory_chk, load_vlm_btn, unload_vlm_btn,
+            msg_vis, send_vis, clear_vis, acc_vis_chat, vis_desc, vlm_dd, mmproj_dd_vis, vis_rag_chk, vis_memory_chk, load_vlm_btn, unload_vlm_btn,
             # STT
-            stt_audio, transcribe_btn, acc_stt_result, stt_output, stt_settings_header, stt_desc,
+            stt_audio, transcribe_btn, acc_stt_result, stt_output, stt_desc,
             stt_dd, stt_lang_dd, load_stt_btn, unload_stt_btn, stt_hint,
             # Data Analysis
             data_file_up, msg_data, send_data, clear_data, acc_data_chat, acc_data_results, data_gallery, data_report_file,
-            data_settings_header, data_desc, model_dd_data, data_memory_chk, reset_data_btn, analysis_type_data,
+            data_desc, model_dd_data, data_memory_chk, reset_data_btn, analysis_type_data,
             # Knowledge Base
             embed_dd, load_embed_btn, unload_embed_btn, acc_embed_detail, embed_detail_md,
             acc_add, file_up, vis_ret_dd, theme_tb, subtheme_tb, up_btn, unload_visual_btn, up_msg,
             acc_kb_docs, refresh_btn, delete_sel_btn, clear_all_btn,
-            # Status bars (Knowledge Base tab + RAG Chat tab)
+            # Status bars
             kb_status_bar, rag_status_bar,
-            # Status indicators (hidden "thinking…" lines) — reset to
-            # hidden on a language switch so a stale visible status from
-            # right before the switch doesn't linger in the old language.
+            # Status indicators
             status_gen, status_rag, status_dr, status_vis, status_data,
-            # "Details" accordions (collapsed long explanations)
+            # "Details" accordions
             acc_ctx_detail, ctx_window_detail_md,
             acc_gen_detail, gen_agentic_detail_md, gen_memory_detail_md,
             acc_rag_detail, rag_agentic_detail_md, rag_memory_detail_md,
@@ -1880,30 +1874,15 @@ def build_ui():
             provider_dd_vlm, provider_dd_stt, provider_dd_embed,
             # Data Analysis load/unload buttons
             reload_data_btn, unload_data_btn,
-            # Whisper server status (reset hidden)
+            # Whisper server status
             whisper_server_status,
         ]
 
         lang_dropdown.change(switch_lang, [lang_dropdown], _lang_outputs)
 
-        # NOTE: no demo.load() re-initializer here. Every component above
-        # is already created with the correct Khmer text/value via `L`
-        # (e.g. label=L["label_llm"], placeholder=L["placeholder_gen"]),
-        # so a startup call re-pushing the same Khmer values into all 68
-        # components across every tab is redundant — and firing that many
-        # updates into tabs the browser hasn't finished mounting yet (any
-        # tab other than the default-active one) can leave those
-        # components stuck showing a perpetual loading state. Only
-        # lang_dropdown.change() needs to touch all of them, and that only
-        # runs after the user explicitly switches languages, well after
-        # the initial page mount has finished.
-
         # ── Live-refresh index stats on tab click ────────────────
-        # NOT done via demo.load() — the embedding model should NOT load
-        # until the user explicitly visits the Knowledge Base or RAG Chat
-        # tab. The .select() hooks below populate the status bars on first
-        # visit and refresh them on every subsequent click.
         tab_kb.select(kb.get_index_stats, [lang_state], [kb_status_bar, rag_status_bar])
         tab_rag.select(kb.get_index_stats, [lang_state], [kb_status_bar, rag_status_bar])
+        tab_settings.select(kb.get_index_stats, [lang_state], [kb_status_bar, rag_status_bar])
 
         return demo

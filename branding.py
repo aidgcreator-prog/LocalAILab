@@ -43,7 +43,7 @@ def about_content_kh(device: str, version: str) -> str:
 
 - **📄 បញ្ជីម៉ូដែល `hf_models.csv` ខាងក្រៅ**៖ បញ្ជីម៉ូដែល HuggingFace ទាំងអស់ត្រូវបានរៀបចំក្នុងឯកសារ CSV ងាយស្រួលកែប្រែ (`hf_models.csv`) ដោយមិនបាច់កែប្រែកូដ Python។ រៀបចំជាពិសេសសម្រាប់ម៉ូដែល **Google**, **Unsloth**, និង **LMStudio** (ជាមួយនឹងម៉ូដែលតូចបំផុត `google/gemma-4-E2B-it-qat-mobile-transformers` ជាលំនាំដើម)។
 - **⚡ ToolCallingAgent ជាលំនាំដើម**៖ ផ្ទាំងសន្ទនាទូទៅ (General Chat) ផ្ទាំង RAG Chat និងផ្ទាំងស្រាវជ្រាវស៊ីជម្រៅ (Deep Research) ប្រើ `ToolCallingAgent` ជាលំនាំដើម ដើមបីជៀសវាងកំហុស parsing កូដ Python លើ local models។ ផ្ទាំងវិភាគទិន្នន័យ (Data Analysis) នៅតែប្រើ `CodeAgent` សម្រាប់ប្រតិបត្តិការកូដ Python លើ pandas/matplotlib។
-- **🧠 ឧបករណ៍វិភាគ Smart Parser ឆ្លាតវៃ**៖ បន្ថែម `_smart_parse_code_blobs` និង `_smart_parse_json_blob` សម្រាប់ចាប់យក និងបំលែងចម្លើយអត្ថបទធម្មតា ឬទម្រង់ tool call បែប `call:web_search{query:...}` របស់ Gemma-4 និង local LLM ផ្សេងទៀត ដោយគ្មានកំហុស retry loop ឡើយ។
+- **🧠 ឧបករណ៍វិភាគ Smart Parser ឆ្លាតវៃ**៖ បន្ថែម `_smart_parse_code_blobs` និង `_smart_parse_json_blob` សម្រាប់ចាប់យក និងបំលែងចម្លើយអត្ថបទធម្មតា ឬទម្រង់ tool call បែប `call:web_search{{query:...}}` របស់ Gemma-4 និង local LLM ផ្សេងទៀត ដោយគ្មានកំហុស retry loop ឡើយ។
 - **🔑 ធ្វើសមកាលកម្ម HF Token & `.env`**៖ គាំទ្រការផ្ទុក `.env` ដោយស្វ័យប្រវត្តិ និងធ្វើសមកាលកម្មអថេរបរិស្ថាន `HF_TOKEN` ទៅកាន់ `os.environ` និង `.env` ដោយគ្មានសារព្រមានអត់ token ពី Hugging Face Hub ទៀតឡើយ។
 - **🎨 សម្រួលទម្រង់ UI និងប្រព័ន្ធពណ៌**៖ បង្កើតទម្រង់ visually distinct សម្រាប់ **🧠 Reasoning (Amber Gold)**, **⚙️ 🛠️ Step Logs & Tool Calls (Tech Slate / Cyan)**, និង **✨ 💬 Final Answer (Emerald Green)** ព្រមទាំងបន្ថែម font fallbacks សកល (`Segoe UI Emoji`, `Apple Color Emoji`, `Noto Color Emoji`)។
 
@@ -101,7 +101,7 @@ HuggingFace (transformers) models or local GGUF models via llama.cpp. Built by L
 
 - **📄 External `hf_models.csv` Registry**: HuggingFace model options are now stored in an external CSV file (`hf_models.csv`) for easy user editing without modifying Python source code. Tailored to **Google**, **Unsloth**, and **LMStudio** models (with `google/gemma-4-E2B-it-qat-mobile-transformers` as default).
 - **⚡ Default `ToolCallingAgent` Architecture**: General Chat, RAG Chat, and Deep Research now default to `ToolCallingAgent` for structured tool calling without code execution errors. `CodeAgent` remains dedicated to Data Analysis (Python pandas & matplotlib data science).
-- **🧠 Smart Parser Fallbacks**: Introduced `_smart_parse_code_blobs` and `_smart_parse_json_blob` to automatically handle plain text final answers and parse Gemma-4 `call:web_search{query:...}` tool calls with 0 error retries.
+- **🧠 Smart Parser Fallbacks**: Introduced `_smart_parse_code_blobs` and `_smart_parse_json_blob` to automatically handle plain text final answers and parse Gemma-4 `call:web_search{{query:...}}` tool calls with 0 error retries.
 - **🔑 Automatic HF Token & `.env` Syncing**: Full `.env` file loading (`load_dotenv()`) and environment variable synchronization for `HF_TOKEN` across `os.environ` and `.env` for warning-free Hugging Face Hub downloads.
 - **🎨 Enhanced Chat & Response UI Aesthetics**: High-contrast UI theme distinguishing **🧠 Reasoning Process (Amber Gold)**, **⚙️ 🛠️ Step Logs & Tool Calls (Tech Slate / Cyan)**, and **✨ 💬 Final Answers (Emerald Green)** with global cross-platform emoji font fallbacks (`Segoe UI Emoji`, `Apple Color Emoji`, `Noto Color Emoji`).
 
