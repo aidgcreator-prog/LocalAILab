@@ -1,11 +1,6 @@
-# ----------------------------------------------------------------------
-# Installer Build Output (Inno Setup / PyInstaller / Release Bundles)
-# ----------------------------------------------------------------------
-Output/
-output/
-*.exe
-*.msi
-*.iss.bak
+# ======================================================================
+# LocalAILab .gitignore
+# ======================================================================
 
 # ----------------------------------------------------------------------
 # Python Virtual Environments
@@ -14,24 +9,34 @@ output/
 venv/
 ENV/
 env/
+env.bak/
+venv.bak/
 
 # ----------------------------------------------------------------------
-# Python Cache & Bytecode
+# Python Cache, Bytecode & Packaging
 # ----------------------------------------------------------------------
 __pycache__/
 *.py[cod]
 *$py.class
 *.egg-info/
 .eggs/
+*.egg
+*.whl
 
 # ----------------------------------------------------------------------
-# Build & Distribution Artifacts
+# Build, Distribution & Installer Artifacts
 # ----------------------------------------------------------------------
 build/
 dist/
+Output/
+output/
+*.exe
+*.msi
+*.iss.bak
+*.spec
 
 # ----------------------------------------------------------------------
-# Vector Stores, AI Database & State
+# Vector Stores, AI Database, State & Memory
 # ----------------------------------------------------------------------
 chroma_db/
 visual_index/
@@ -40,19 +45,28 @@ user_config.json
 graphify-out/
 old_files/
 data_analysis/
+user_data/
+exports/
+reports/
+downloads/
 
 # ----------------------------------------------------------------------
-# Heavy AI Weights & Binaries
+# Heavy AI Weights, Models & External Binaries
 # ----------------------------------------------------------------------
 poppler/
+models_cache/
+hf_cache/
+whisper_models/
 *.gguf
 *.bin
 *.safetensors
 *.pt
+*.pth
 *.onnx
+*.tflite
 
 # ----------------------------------------------------------------------
-# Logs & Audio Cache
+# Logs, Audio Cache & Temporary Files
 # ----------------------------------------------------------------------
 *.log
 *.tmp
@@ -60,6 +74,10 @@ poppler/
 *.wav
 *.mp3
 *.m4a
+*.ogg
+*.flac
+temp/
+tmp/
 
 # ----------------------------------------------------------------------
 # Testing & Code Coverage
@@ -68,6 +86,8 @@ poppler/
 .coverage
 htmlcov/
 .mypy_cache/
+.ruff_cache/
+.hypothesis/
 
 # ----------------------------------------------------------------------
 # Jupyter Notebooks
@@ -75,16 +95,24 @@ htmlcov/
 .ipynb_checkpoints/
 
 # ----------------------------------------------------------------------
-# Environment Variables & Keys
+# Environment Variables & Secrets
 # ----------------------------------------------------------------------
 .env
 .env.*
+*.pem
+*.key
+*.pfx
+*.crt
+*.p12
 
 # ----------------------------------------------------------------------
-# Node.js / npm
+# Node.js, npm & Playwright Artifacts
 # ----------------------------------------------------------------------
 node_modules/
 package-lock.json
+.playwright/
+playwright-report/
+test-results/
 
 # ----------------------------------------------------------------------
 # IDE, Editor & OS Artifacts
@@ -93,5 +121,8 @@ package-lock.json
 .idea/
 .claude/
 .gemini/
+.cursor/
 .DS_Store
 Thumbs.db
+desktop.ini
+*.lnk

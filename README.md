@@ -8,7 +8,7 @@
 
 ជំនួយការ AI ពហុមុខងារ ដោយ **LocalAiLab** ដែលដំណើរការនៅលើម៉ាស៊ីនរបស់អ្នកផ្ទាល់ បានបង្កើតឡើងដោយប្រើ [smolagents](https://github.com/huggingface/smolagents)។ មានចំណុចប្រទាក់ Gradio ការសន្ទនាទូទៅ វិភាគឯកសារតាមរយៈ RAG (Retrieval-Augmented Generation) ជាមួយការផ្ទុកទិន្នន័យជាប់លាប់ដោយ ChromaDB សមត្ថភាពពហុម៉ូដាល (រូបភាព/VLM) ការបំលែងសំឡេងទៅជាអក្សរ និងការវិភាគទិន្នន័យ CSV/Excel ដោយ AI Agent។ ប្រព័ន្ធនេះរកឃើញ និងប្រើ GPU (CUDA ឬ AMD) ដោយស្វ័យប្រវត្តិប្រសិនបើមាន ឬប្រើ CPU ជំនួសវិញ។ ក្រៅពីម៉ូដែល HuggingFace/transformers ជាលំនាំដើម កម្មវិធីនេះក៏អាចប្រើម៉ូដែលមូលដ្ឋាន **GGUF តាមរយៈ llama.cpp** ផងដែរ។
 
-> ⚠️ **វេទិកា៖ Windows តែប៉ុណ្ណោះ។** ស្គ្រីបដំឡើង/ដំណើរការទាំងអស់ (`SETUP.bat/.ps1`, `RUN.bat/.ps1`, `install.bat/.ps1`) សរសេរជា PowerShell/Batch ហើយត្រូវការតែលើ Windows ប៉ុណ្ណោះ។ កម្មវិធីនេះ **មិនត្រូវបានគាំទ្រ ឬសាកល្បងលើ macOS (Mac) ទេ** — `requirements.txt` រួមមាន `bitsandbytes` ដែលជាធម្មតាមិនមាន wheel សម្រាប់ Apple Silicon/Intel Mac ដូច្នេះការដំឡើងអាចនឹងបរាជ័យតាំងពីជំហានដំបូង។ សូមមើលផ្នែក "🍎 macOS" ខាងក្រោមសម្រាប់ព័ត៌មានលម្អិត។
+> ⚠️ **វេទិកា៖ Windows តែប៉ុណ្ណោះ។** ស្គ្រីបដំឡើង/ដំណើរការទាំងអស់ (`SETUP.bat/.ps1`, `RUN.bat/.ps1`) សរសេរជា PowerShell/Batch ហើយត្រូវការតែលើ Windows ប៉ុណ្ណោះ។ កម្មវិធីនេះ **មិនត្រូវបានគាំទ្រ ឬសាកល្បងលើ macOS (Mac) ទេ** — `requirements.txt` រួមមាន `bitsandbytes` ដែលជាធម្មតាមិនមាន wheel សម្រាប់ Apple Silicon/Intel Mac ដូច្នេះការដំឡើងអាចនឹងបរាជ័យតាំងពីជំហានដំបូង។ សូមមើលផ្នែក "🍎 macOS" ខាងក្រោមសម្រាប់ព័ត៌មានលម្អិត។
 
 ចំណុចប្រទាក់អាចប្តូរភាសាបានភ្លាមៗ (**ខ្មែរ** ⇄ **អង់គ្លេស**) នៅជ្រុងខាងលើស្តាំ។ ផ្ទាំង **ℹ️ អំពីកម្មវិធី** បង្ហាញព័ត៌មានទាំងពីរភាសាជានិច្ច (ខ្មែរខាងលើ អង់គ្លេសខាងក្រោម) ដោយមិនអាស្រ័យលើបញ្ជីទម្លាក់ភាសានោះទេ។
 
@@ -74,15 +74,18 @@ pip install -r requirements.txt
 pip install torch torchvision
 ```
 
-#### 💻 ដំឡើងតែមួយបន្ទាត់ (ម៉ាស៊ីនថ្មី)
+#### 💻 ការដំឡើង និងរៀបចំបរិស្ថានលើ Windows
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/smolagent_modular/install.ps1 | iex
+# ក្លូន repository និងចូលទៅកាន់ folder
+git clone https://github.com/aidgcreator-prog/LocalAILab.git
+cd LocalAILab
+
+# ដំណើរការ setup ដើម្បីបង្កើត Python venv និងដំឡើង PyTorch តាម hardware (GPU/CPU)
+.\SETUP.bat
 ```
 
-ពាក្យបញ្ជាតែមួយនេះ ដំឡើង Python + Git (បើគ្មាន) ទាញយក repo បង្កើត Python environment រកឃើញ GPU ដំឡើង PyTorch + dependencies ទាំងអស់ និងបង្កើត shortcut លើ Desktop។
-
-បើម៉ាស៊ីនអ្នកមាន Python រួចហើយ គ្រាន់តែចុចពីរដងលើ **SETUP.bat** ដើម្បីធ្វើ GPU detection + dependency install ដោយស្វ័យប្រវត្តិ។
+ស្គ្រីប **SETUP.bat** នឹងបង្កើត Python environment រកឃើញ GPU ដំឡើង PyTorch និង dependencies ទាំងអស់ដោយស្វ័យប្រវត្តិ។
 
 <details>
 <summary><strong>ជម្រើស — ការគាំទ្រម៉ូដែល llama.cpp (GGUF)</strong></summary>
@@ -121,7 +124,7 @@ pip install llama-cpp-python --no-cache-dir --force-reinstall
 
 កម្មវិធីនេះ **មិនអាចដំណើរការលើ macOS បានទេ** ក្នុងស្ថានភាពបច្ចុប្បន្ន៖
 
-- `SETUP.bat`/`SETUP.ps1`, `RUN.bat`/`RUN.ps1` និង `install.bat`/`install.ps1` សុទ្ធតែជាស្គ្រីប PowerShell/Batch ដែលមិនអាចដំណើរការនៅលើ Mac ទាល់តែសោះ — គ្មានវិធីចាប់ផ្តើមកម្មវិធីតាមរបៀបធម្មតាទេ។
+- `SETUP.bat`/`SETUP.ps1` និង `RUN.bat`/`RUN.ps1` សុទ្ធតែជាស្គ្រីប PowerShell/Batch ដែលមិនអាចដំណើរការនៅលើ Mac ទាល់តែសោះ — គ្មានវិធីចាប់ផ្តើមកម្មវិធីតាមរបៀបធម្មតាទេ។
 - `requirements.txt` រួមមាន `bitsandbytes>=0.43.0` ដែលជាធម្មតាគ្មាន wheel ត្រឹមត្រូវសម្រាប់ Apple Silicon ឬ Intel Mac ទេ — `pip install -r requirements.txt` អាចនឹងបរាជ័យតាំងពីដើម។
 - ការណែនាំបង្កើត `llama-cpp-python` ជាមួយ GPU (សូមមើលខាងលើ) ប្រើតែ `-DGGML_CUDA=on` (NVIDIA) ប៉ុណ្ណោះ — គ្មានការណែនាំ/សាកល្បងសម្រាប់ Metal (`-DGGML_METAL=on`) លើ Mac ទេ។
 - ការបញ្ចូល PDF បែបចក្ខុវិស័យត្រូវការ Poppler ដែលការណែនាំដំឡើងក្នុង README នេះសរសេរសម្រាប់ Windows តែប៉ុណ្ណោះ។
@@ -277,7 +280,6 @@ python app.py
 ├── requirements.txt   # Dependencies របស់ Python (រួមទាំង python-docx)
 ├── SETUP.bat/.ps1    # កម្មវិធីដំឡើងលើ Windows (GPU detection, venv, deps)
 ├── RUN.bat/.ps1      # កម្មវិធីដំណើរការលើ Windows ដោយចុចតែម្តង
-├── install.bat/.ps1  # កម្មវិធីដំឡើងតាមអ៊ីនធឺណិត (Python+Git+clone+setup+shortcut)
 ├── README.md         # ឯកសារនេះ
 ├── chroma_db/        # បង្កើតដោយស្វ័យប្រវត្តិ; ការផ្ទុកទិន្នន័យជាប់លាប់របស់ ChromaDB
 └── visual_index/     # បង្កើតដោយស្វ័យប្រវត្តិ; ការផ្ទុក Visual Index
@@ -290,7 +292,7 @@ python app.py
 
 A local, multipurpose AI assistant built by **LocalAiLab** with [smolagents](https://github.com/huggingface/smolagents), featuring a Gradio UI, general chat, document RAG (Retrieval-Augmented Generation) with persistent ChromaDB storage, multi-modal capabilities (Vision/VLM), Speech-to-Text transcription, and AI-driven CSV/Excel data analysis. It automatically detects and uses your GPU (CUDA or AMD) if available, falling back to CPU otherwise. Besides the default HuggingFace/transformers models, the app can also run local **GGUF models via llama.cpp**.
 
-> ⚠️ **Platform: Windows only.** Every install/launch script (`SETUP.bat/.ps1`, `RUN.bat/.ps1`, `install.bat/.ps1`) is PowerShell/Batch and only runs on Windows. This app is **not supported or tested on macOS (Mac)** — `requirements.txt` includes `bitsandbytes`, which typically has no working wheel for Apple Silicon or Intel Mac, so `pip install -r requirements.txt` can fail right at the start. See the "🍎 macOS" section below for details.
+> ⚠️ **Platform: Windows only.** Every install/launch script (`SETUP.bat/.ps1`, `RUN.bat/.ps1`) is PowerShell/Batch and only runs on Windows. This app is **not supported or tested on macOS (Mac)** — `requirements.txt` includes `bitsandbytes`, which typically has no working wheel for Apple Silicon or Intel Mac, so `pip install -r requirements.txt` can fail right at the start. See the "🍎 macOS" section below for details.
 
 The UI is fully bilingual — switch between **Khmer** and **English** instantly using the language dropdown in the top-right corner. The **ℹ️ About** tab always shows both languages (Khmer above, English below), regardless of that dropdown.
 
@@ -355,15 +357,18 @@ pip install -r requirements.txt
 pip install torch torchvision
 ```
 
-#### 💻 One-liner Windows install (fresh machine)
+#### 💻 Windows Setup (Recommended)
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/smolagent_modular/install.ps1 | iex
+# Clone the repository and navigate into the folder
+git clone https://github.com/aidgcreator-prog/LocalAILab.git
+cd LocalAILab
+
+# Run the automated setup script
+.\SETUP.bat
 ```
 
-This single command installs Python + Git (if missing), clones the repo, sets up the Python environment, detects your GPU, installs PyTorch + all dependencies, and creates a desktop shortcut — zero clicks required after the prompt.
-
-On a machine that already has Python, just double-click **SETUP.bat** to do the GPU detection + dependency install automatically.
+Double-clicking or running **SETUP.bat** will create the Python environment, detect your GPU (CUDA, AMD, or CPU), and install PyTorch with all dependencies automatically.
 
 <details>
 <summary><strong>Optional — llama.cpp (GGUF) model support</strong></summary>
@@ -402,7 +407,7 @@ pip install llama-cpp-python --no-cache-dir --force-reinstall
 
 This app **does not run on macOS** in its current state:
 
-- `SETUP.bat`/`SETUP.ps1`, `RUN.bat`/`RUN.ps1`, and `install.bat`/`install.ps1` are all PowerShell/Batch scripts that simply don't run on Mac — there's no normal way to launch the app.
+- `SETUP.bat`/`SETUP.ps1` and `RUN.bat`/`RUN.ps1` are all PowerShell/Batch scripts that simply don't run on Mac — there's no normal way to launch the app.
 - `requirements.txt` includes `bitsandbytes>=0.43.0`, which typically has no working wheel for Apple Silicon or Intel Mac — `pip install -r requirements.txt` can fail right away.
 - The GPU build instructions for `llama-cpp-python` above only cover `-DGGML_CUDA=on` (NVIDIA) — there's no documented/tested Metal build (`-DGGML_METAL=on`) for Mac.
 - Visual PDF indexing needs Poppler, and this README's install instructions for it are Windows-only.
@@ -558,7 +563,6 @@ For people with beefier hardware who want noticeably stronger local models than 
 ├── requirements.txt   # Python dependencies (incl. python-docx)
 ├── SETUP.bat/.ps1     # Windows one-click installer (GPU detection, venv, deps)
 ├── RUN.bat/.ps1       # Windows one-click launcher
-├── install.bat/.ps1   # Windows one-liner installer (Python+Git+clone+setup+shortcut)
 ├── README.md          # This file
 ├── chroma_db/         # Auto-created; ChromaDB persistent storage
 └── visual_index/      # Auto-created; visual index storage
