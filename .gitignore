@@ -1,13 +1,18 @@
 # ----------------------------------------------------------------------
-# Installer Build Output (Inno Setup / PyInstaller / Release Bundles)
+# Installer Build & Script Files (Local Only - Never Push to Public Repo)
 # ----------------------------------------------------------------------
 Output/
 output/
 *.exe
 *.msi
+*.iss
 *.iss.bak
-#BUILD_INSTALLER.bat
-#installer.iss
+BUILD_INSTALLER.bat
+INSTALLER_GUIDE.md
+install.bat
+install.ps1
+install_progress.txt
+install_status.txt
 
 # ----------------------------------------------------------------------
 # Python Virtual Environments
