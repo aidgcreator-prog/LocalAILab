@@ -81,23 +81,13 @@ pip install -r requirements.txt
 pip install torch torchvision
 ```
 
-#### 📦 ជម្រើស ១ — ដំឡើងតាមរយ: Windows Setup Wizard (ណែនាំសម្រាប់អ្នកប្រើប្រាស់)
+#### ⚡ វិធីដំឡើងរហ័សលើ Windows (ស្វ័យប្រវត្តិ)
 
-ទាញយក និងដំណើរការ **`Output\LocalAiLab_Setup_v0.0.3.exe`**៖
-- អនុញ្ញាតឱ្យអ្នកជ្រើសរើសផ្លូវដំឡើងដែលចង់បាន (ឧ. `E:\LocalAiLab`)
-- ដំណើរការបង្កើត `.venv` និងដំឡើង PyTorch + AI dependencies ទាំងអស់ដោយស្វ័យប្រវត្តិ ជាមួយការបង្ហាញ progress bar (0%–100%)
-- មានប៊ូតុង Cancel អាចចុចបោះបង់ការដំឡើងបានគ្រប់ពេល
-- បង្កើត Shortcut លើ Desktop និង Start Menu ដោយស្វ័យប្រវត្តិ
-
-#### 💻 ជម្រើស ២ — ដំឡើងតាមរយ: ស្គ្រីប បន្ទាត់តែមួយ
-
-```powershell
-iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/smolagent_modular/install.ps1 | iex
-```
-
-ពាក្យបញ្ជាតែមួយនេះ ដំឡើង Python + Git (បើគ្មាន) ទាញយក repo បង្កើត Python environment រកឃើញ GPU ដំឡើង PyTorch + dependencies ទាំងអស់ និងបង្កើត shortcut លើ Desktop។
-
-បើម៉ាស៊ីនអ្នកមាន Python រួចហើយ គ្រាន់តែចុចពីរដងលើ **SETUP.bat** ដើម្បីធ្វើ GPU detection + dependency install ដោយស្វ័យប្រវត្តិ។
+គ្រាន់តែចុចពីរដង (Double-click) លើ **`SETUP.bat`** (ឬដំណើរការ `.\SETUP.ps1` ក្នុង PowerShell)៖
+- រកឃើញ GPU (NVIDIA CUDA / AMD / CPU) ដោយស្វ័យប្រវត្តិ
+- បង្កើត Python virtual environment (`.venv`)
+- ដំឡើង PyTorch និង AI dependencies ទាំងអស់ដោយស្វ័យប្រវត្តិ
+- បង្កើត Shortcut លើ Desktop សម្រាប់ដំណើរការរហ័ស
 
 <details>
 <summary><strong>ជម្រើស — ការគាំទ្រម៉ូដែល llama.cpp (GGUF)</strong></summary>
@@ -382,23 +372,13 @@ pip install -r requirements.txt
 pip install torch torchvision
 ```
 
-#### 📦 Option 1 — Windows GUI Setup Wizard (Recommended for End Users)
+#### ⚡ Quick Automated Setup (Windows)
 
-Download and run **`Output\LocalAiLab_Setup_v0.0.3.exe`**:
-- Lets you choose your preferred destination directory (e.g. `E:\LocalAiLab`).
-- Automatically creates `.venv` and installs PyTorch + AI dependencies with a live progress bar (0%–100%).
-- Provides a clickable and enforceable Cancel button.
-- Automatically creates Desktop and Start Menu shortcuts.
-
-#### 💻 Option 2 — One-liner Windows command (fresh machine)
-
-```powershell
-iwr -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/smolagent_modular/install.ps1 | iex
-```
-
-This single command installs Python + Git (if missing), clones the repo, sets up the Python environment, detects your GPU, installs PyTorch + all dependencies, and creates a desktop shortcut — zero clicks required after the prompt.
-
-On a machine that already has Python, just double-click **SETUP.bat** to do the GPU detection + dependency install automatically.
+Simply double-click **`SETUP.bat`** (or run `.\SETUP.ps1` in PowerShell):
+- Automatically detects GPU acceleration (NVIDIA CUDA / AMD / CPU)
+- Creates Python virtual environment (`.venv`)
+- Installs PyTorch and all AI dependencies
+- Creates a Desktop shortcut for instant launching
 
 <details>
 <summary><strong>Optional — llama.cpp (GGUF) model support</strong></summary>
