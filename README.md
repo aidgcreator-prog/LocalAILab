@@ -8,7 +8,7 @@
 
 ជំនួយការ AI ពហុមុខងារ ដោយ **LocalAiLab** ដែលដំណើរការនៅលើម៉ាស៊ីនរបស់អ្នកផ្ទាល់ បានបង្កើតឡើងដោយប្រើ [smolagents](https://github.com/huggingface/smolagents)។ មានចំណុចប្រទាក់ Gradio ការសន្ទនាទូទៅ វិភាគឯកសារតាមរយៈ RAG (Retrieval-Augmented Generation) ជាមួយការផ្ទុកទិន្នន័យជាប់លាប់ដោយ ChromaDB សមត្ថភាពពហុម៉ូដាល (រូបភាព/VLM) ការបំលែងសំឡេងទៅជាអក្សរ និងការវិភាគទិន្នន័យ CSV/Excel ដោយ AI Agent។ ប្រព័ន្ធនេះរកឃើញ និងប្រើ GPU (CUDA ឬ AMD) ដោយស្វ័យប្រវត្តិប្រសិនបើមាន ឬប្រើ CPU ជំនួសវិញ។ ក្រៅពីម៉ូដែល HuggingFace/transformers ជាលំនាំដើម កម្មវិធីនេះក៏អាចប្រើម៉ូដែលមូលដ្ឋាន **GGUF តាមរយៈ llama.cpp** ផងដែរ។
 
-> ⚠️ **វេទិកា៖ Windows តែប៉ុណ្ណោះ។** ស្គ្រីបដំឡើង/ដំណើរការទាំងអស់ (`SETUP.bat/.ps1`, `RUN.bat/.ps1`, `install.bat/.ps1`) សរសេរជា PowerShell/Batch ហើយត្រូវការតែលើ Windows ប៉ុណ្ណោះ។ កម្មវិធីនេះ **មិនត្រូវបានគាំទ្រ ឬសាកល្បងលើ macOS (Mac) ទេ** — `requirements.txt` រួមមាន `bitsandbytes` ដែលជាធម្មតាមិនមាន wheel សម្រាប់ Apple Silicon/Intel Mac ដូច្នេះការដំឡើងអាចនឹងបរាជ័យតាំងពីជំហានដំបូង។ សូមមើលផ្នែក "🍎 macOS" ខាងក្រោមសម្រាប់ព័ត៌មានលម្អិត។
+> ⚠️ **វេទិកា៖ Windows តែប៉ុណ្ណោះ។** ស្គ្រីបដំឡើង/ដំណើរការទាំងអស់ (`SETUP.bat/.ps1`, `RUN.bat/.ps1`) សរសេរជា PowerShell/Batch ហើយត្រូវការតែលើ Windows ប៉ុណ្ណោះ។ កម្មវិធីនេះ **មិនត្រូវបានគាំទ្រ ឬសាកល្បងលើ macOS (Mac) ទេ** — `requirements.txt` រួមមាន `bitsandbytes` ដែលជាធម្មតាមិនមាន wheel សម្រាប់ Apple Silicon/Intel Mac ដូច្នេះការដំឡើងអាចនឹងបរាជ័យតាំងពីជំហានដំបូង។ សូមមើលផ្នែក "🍎 macOS" ខាងក្រោមសម្រាប់ព័ត៌មានលម្អិត។
 
 ចំណុចប្រទាក់អាចប្តូរភាសាបានភ្លាមៗ (**ខ្មែរ** ⇄ **អង់គ្លេស**) នៅជ្រុងខាងលើស្តាំ។ ផ្ទាំង **ℹ️ អំពីកម្មវិធី** បង្ហាញព័ត៌មានទាំងពីរភាសាជានិច្ច (ខ្មែរខាងលើ អង់គ្លេសខាងក្រោម) ដោយមិនអាស្រ័យលើបញ្ជីទម្លាក់ភាសានោះទេ។
 
@@ -19,7 +19,7 @@
 - **🧠 ឧបករណ៍វិភាគ Smart Parser ឆ្លាតវៃ**៖ បន្ថែម `_smart_parse_code_blobs` និង `_smart_parse_json_blob` សម្រាប់ចាប់យក និងបំលែងចម្លើយអត្ថបទធម្មតា ឬទម្រង់ tool call បែប `call:web_search{query:...}` របស់ Gemma-4 និង local LLM ផ្សេងទៀត ដោយគ្មានកំហុស retry loop ឡើយ។
 - **🔑 ធ្វើសមកាលកម្ម HF Token & `.env`**៖ គាំទ្រការផ្ទុក `.env` ដោយស្វ័យប្រវត្តិ និងធ្វើសមកាលកម្មអថេរបរិស្ថាន `HF_TOKEN` ទៅកាន់ `os.environ` និង `.env` ដោយគ្មានសារព្រមានអត់ token ពី Hugging Face Hub ទៀតឡើយ។
 - **🎨 សម្រួលទម្រង់ UI និងប្រព័ន្ធពណ៌**៖ បង្កើតទម្រង់ visually distinct សម្រាប់ **🧠 Reasoning (Amber Gold)**, **⚙️ 🛠️ Step Logs & Tool Calls (Tech Slate / Cyan)**, និង **✨ 💬 Final Answer (Emerald Green)** ព្រមទាំងបន្ថែម font fallbacks សកល (`Segoe UI Emoji`, `Apple Color Emoji`, `Noto Color Emoji`)។
-- **📦 កម្មវិធីដំឡើង Setup Wizard (`LocalAiLab_Setup_v0.0.3.exe`)**៖ បង្កើតឡើងដោយ Inno Setup ដែលអនុញ្ញាតឱ្យអ្នកប្រើប្រាស់ជ្រើសរើសផ្លូវដំឡើង (ឧ. `D:\LocalAiLab`) ដោយមិនត្រូវការសិទ្ធិ Admin (`PrivilegesRequired=lowest`) បង្ហាញរបារកើនឡើង Progress Bar (0%–100%) ជាមួយព័ត៌មានលម្អិតបន្តផ្ទាល់ (live status) ពេលដំឡើង `.venv` & PyTorch/dependencies មានប៊ូតុង **បោះបង់ (Cancel)** អាចចុចនិងបង្ខំបិទបាន និងបង្កើត shortcut លើ Desktop/Start Menu ដោយស្វ័យប្រវត្តិ
+- **📦 ស្គ្រីបដំឡើងស្វ័យប្រវត្តិ (`SETUP.bat` / `SETUP.ps1`)**៖ រកឃើញ GPU (NVIDIA CUDA / AMD / CPU) ដោយស្វ័យប្រវត្តិ បង្កើត `.venv` និងដំឡើង PyTorch ព្រមទាំង AI dependencies ទាំងអស់ដោយស្វ័យប្រវត្តិ និងបង្កើត shortcut លើ Desktop/Start Menu
 - **⚙️ Accordion "ការកំណត់ម៉ូដែល" ជាសកល**៖ ការកំណត់ provider/backend រួម (HF API token/model/provider, LiteLLM, ផ្លូវ `llama-server.exe`, ផ្លូវ `whisper-server.exe`, ថតម៉ូដែល GGUF) ត្រូវបានប្រមូលផ្តុំក្នុង accordion តែមួយនៅផ្នែកខាងលើកម្មវិធី។ ចំណែក **provider + model dropdown របស់ផ្ទាំងនីមួយៗ (និងប៊ូតុង Load/Unload)** នៅតែស្ថិតនៅក្នុងជ្រុងខាងស្តាំរបស់ផ្ទាំងនោះផ្ទាល់ (មិនមែនប្រមូលទៅក្នុង accordion កណ្តាលនោះទេ)។ ការកំណត់ Generation (វិន្ដូបរិបទ, Max New Tokens, ប្តូរបិទ/បើក Reasoning, "💥 ទំនេរ VRAM ទាំងអស់") សុទ្ធតែស្ថិតនៅផ្ទាំង 💬 ការសន្ទនាទូទៅ ប៉ុន្តែមានឥទ្ធិពលទៅលើកម្មវិធីទាំងមូល ព្រោះវារក្សាទុកជា setting សកល
 - **🔗 LiteLLM provider**៖ ក្រៅពី HuggingFace API អ្នកអាចភ្ជាប់ទៅ OpenAI/Anthropic/Groq/… ណាមួយដែល LiteLLM គាំទ្រ តាមរយៈ Model ID + API Key + API Base ផ្ទាល់ខ្លួន (មានតែសម្រាប់ LLM tab ប៉ុណ្ណោះ មិនមែន VLM/STT/Embedding ទេ)
 - **🖥️ whisper.cpp server backend** (`whisper_cpp_backend.py`)៖ STT អាចដំណើរការតាមរយៈ `whisper-server.exe` ដោយមានការគ្រប់គ្រង subprocess និង model discovery ដោយស្វ័យប្រវត្តិ
@@ -126,7 +126,7 @@ pip install llama-cpp-python --no-cache-dir --force-reinstall
 
 កម្មវិធីនេះ **មិនអាចដំណើរការលើ macOS បានទេ** ក្នុងស្ថានភាពបច្ចុប្បន្ន៖
 
-- `SETUP.bat`/`SETUP.ps1`, `RUN.bat`/`RUN.ps1` និង `install.bat`/`install.ps1` សុទ្ធតែជាស្គ្រីប PowerShell/Batch ដែលមិនអាចដំណើរការនៅលើ Mac ទាល់តែសោះ — គ្មានវិធីចាប់ផ្តើមកម្មវិធីតាមរបៀបធម្មតាទេ។
+- `SETUP.bat`/`SETUP.ps1` និង `RUN.bat`/`RUN.ps1` សុទ្ធតែជាស្គ្រីប PowerShell/Batch ដែលមិនអាចដំណើរការនៅលើ Mac ទាល់តែសោះ — គ្មានវិធីចាប់ផ្តើមកម្មវិធីតាមរបៀបធម្មតាទេ។
 - `requirements.txt` រួមមាន `bitsandbytes>=0.43.0` ដែលជាធម្មតាគ្មាន wheel ត្រឹមត្រូវសម្រាប់ Apple Silicon ឬ Intel Mac ទេ — `pip install -r requirements.txt` អាចនឹងបរាជ័យតាំងពីដើម។
 - ការណែនាំបង្កើត `llama-cpp-python` ជាមួយ GPU (សូមមើលខាងលើ) ប្រើតែ `-DGGML_CUDA=on` (NVIDIA) ប៉ុណ្ណោះ — គ្មានការណែនាំ/សាកល្បងសម្រាប់ Metal (`-DGGML_METAL=on`) លើ Mac ទេ។
 - ការបញ្ចូល PDF បែបចក្ខុវិស័យត្រូវការ Poppler ដែលការណែនាំដំឡើងក្នុង README នេះសរសេរសម្រាប់ Windows តែប៉ុណ្ណោះ។
@@ -285,10 +285,6 @@ python app.py
 ├── requirements.txt   # Dependencies របស់ Python (រួមទាំង python-docx)
 ├── SETUP.bat/.ps1    # កម្មវិធីដំឡើងលើ Windows (GPU detection, venv, deps)
 ├── RUN.bat/.ps1      # កម្មវិធីដំណើរការលើ Windows ដោយចុចតែម្តង
-├── install.bat/.ps1  # កម្មវិធីដំឡើងតាមអ៊ីនធឺណិត (Python+Git+clone+setup+shortcut)
-├── installer.iss     # ស្គ្រីប Inno Setup GUI Wizard (LocalAiLab_Setup_v0.0.3.exe)
-├── BUILD_INSTALLER.bat # ស្គ្រីបសម្រាប់ compile installer.iss ទៅជា .exe
-├── Output/           # ថតលទ្ធផល compile installer wizard (LocalAiLab_Setup_v0.0.3.exe)
 ├── README.md         # ឯកសារនេះ
 ├── chroma_db/        # បង្កើតដោយស្វ័យប្រវត្តិ; ការផ្ទុកទិន្នន័យជាប់លាប់របស់ ChromaDB
 └── visual_index/     # បង្កើតដោយស្វ័យប្រវត្តិ; ការផ្ទុក Visual Index
@@ -301,7 +297,7 @@ python app.py
 
 A local, multipurpose AI assistant built by **LocalAiLab** with [smolagents](https://github.com/huggingface/smolagents), featuring a Gradio UI, general chat, document RAG (Retrieval-Augmented Generation) with persistent ChromaDB storage, multi-modal capabilities (Vision/VLM), Speech-to-Text transcription, and AI-driven CSV/Excel data analysis. It automatically detects and uses your GPU (CUDA or AMD) if available, falling back to CPU otherwise. Besides the default HuggingFace/transformers models, the app can also run local **GGUF models via llama.cpp**.
 
-> ⚠️ **Platform: Windows only.** Every install/launch script (`SETUP.bat/.ps1`, `RUN.bat/.ps1`, `install.bat/.ps1`) is PowerShell/Batch and only runs on Windows. This app is **not supported or tested on macOS (Mac)** — `requirements.txt` includes `bitsandbytes`, which typically has no working wheel for Apple Silicon or Intel Mac, so `pip install -r requirements.txt` can fail right at the start. See the "🍎 macOS" section below for details.
+> ⚠️ **Platform: Windows only.** Every install/launch script (`SETUP.bat/.ps1`, `RUN.bat/.ps1`) is PowerShell/Batch and only runs on Windows. This app is **not supported or tested on macOS (Mac)** — `requirements.txt` includes `bitsandbytes`, which typically has no working wheel for Apple Silicon or Intel Mac, so `pip install -r requirements.txt` can fail right at the start. See the "🍎 macOS" section below for details.
 
 The UI is fully bilingual — switch between **Khmer** and **English** instantly using the language dropdown in the top-right corner. The **ℹ️ About** tab always shows both languages (Khmer above, English below), regardless of that dropdown.
 
@@ -312,7 +308,7 @@ The UI is fully bilingual — switch between **Khmer** and **English** instantly
 - **🧠 Smart Parser Fallbacks**: Introduced `_smart_parse_code_blobs` and `_smart_parse_json_blob` to automatically handle plain text final answers and parse Gemma-4 `call:web_search{query:...}` tool calls with 0 error retries.
 - **🔑 Automatic HF Token & `.env` Syncing**: Full `.env` file loading (`load_dotenv()`) and environment variable synchronization for `HF_TOKEN` across `os.environ` and `.env` for warning-free Hugging Face Hub downloads.
 - **🎨 Enhanced Chat & Response UI Aesthetics**: High-contrast UI theme distinguishing **🧠 Reasoning Process (Amber Gold)**, **⚙️ 🛠️ Step Logs & Tool Calls (Tech Slate / Cyan)**, and **✨ 💬 Final Answers (Emerald Green)** with global cross-platform emoji font fallbacks (`Segoe UI Emoji`, `Apple Color Emoji`, `Noto Color Emoji`).
-- **📦 Windows GUI Setup Wizard (`LocalAiLab_Setup_v0.0.3.exe`)**: Built with Inno Setup. Allows users to choose any custom installation path (e.g. `E:\LocalAiLab`), shows a real-time progress bar (0%–100%) with live setup status during `.venv` creation & PyTorch/dependency installation, includes an active and enforceable **Cancel** button, and automatically creates Desktop & Start Menu shortcuts.
+- **📦 Automated Windows Setup (`SETUP.bat` / `SETUP.ps1`)**: Automatically detects GPU acceleration (NVIDIA CUDA / AMD / CPU), configures `.venv` environment, installs PyTorch and dependencies, and creates Desktop shortcuts.
 - **⚙️ Global "Model Settings" accordion**: shared provider/backend config (HF API token/model/provider, LiteLLM, `llama-server.exe` path, `whisper-server.exe` path, GGUF model folder) is collected into a single accordion near the top of the app. Each tab's own **provider dropdown + model dropdown + Load/Unload buttons** still live in that tab's own sidebar column (not moved into the central accordion). Generation settings (Context Window, Max New Tokens, the Reasoning toggle, "💥 Free All VRAM") live in the 💬 General Chat tab's sidebar, but apply app-wide since they're persisted global settings.
 - **🔗 LiteLLM provider**: besides the HF Inference API, the LLM tab can now point at any OpenAI/Anthropic/Groq/etc. endpoint LiteLLM supports, via a Model ID + API Key + API Base you configure yourself (LLM only — not available for VLM/STT/Embedding).
 - **🖥️ whisper.cpp server backend** (`whisper_cpp_backend.py`): STT can now run via a `whisper-server.exe` subprocess, with automatic model file discovery, port management, and settings persistence.
@@ -417,7 +413,7 @@ pip install llama-cpp-python --no-cache-dir --force-reinstall
 
 This app **does not run on macOS** in its current state:
 
-- `SETUP.bat`/`SETUP.ps1`, `RUN.bat`/`RUN.ps1`, and `install.bat`/`install.ps1` are all PowerShell/Batch scripts that simply don't run on Mac — there's no normal way to launch the app.
+- `SETUP.bat`/`SETUP.ps1` and `RUN.bat`/`RUN.ps1` are PowerShell/Batch scripts that simply don't run on Mac — there's no normal way to launch the app.
 - `requirements.txt` includes `bitsandbytes>=0.43.0`, which typically has no working wheel for Apple Silicon or Intel Mac — `pip install -r requirements.txt` can fail right away.
 - The GPU build instructions for `llama-cpp-python` above only cover `-DGGML_CUDA=on` (NVIDIA) — there's no documented/tested Metal build (`-DGGML_METAL=on`) for Mac.
 - Visual PDF indexing needs Poppler, and this README's install instructions for it are Windows-only.
@@ -575,10 +571,6 @@ For people with beefier hardware who want noticeably stronger local models than 
 ├── requirements.txt   # Python dependencies (incl. python-docx)
 ├── SETUP.bat/.ps1     # Windows one-click installer (GPU detection, venv, deps)
 ├── RUN.bat/.ps1       # Windows one-click launcher
-├── install.bat/.ps1   # Windows one-liner installer (Python+Git+clone+setup+shortcut)
-├── installer.iss      # Inno Setup GUI Wizard script (LocalAiLab_Setup_v0.0.3.exe)
-├── BUILD_INSTALLER.bat # Batch script to compile installer.iss into .exe
-├── Output/            # Output folder for compiled setup wizard (LocalAiLab_Setup_v0.0.3.exe)
 ├── README.md          # This file
 ├── chroma_db/         # Auto-created; ChromaDB persistent storage
 └── visual_index/      # Auto-created; visual index storage
