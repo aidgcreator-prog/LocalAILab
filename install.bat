@@ -7,7 +7,7 @@ REM  install.bat — Double-click / CMD launcher for install.ps1
 REM ──────────────────────────────────────────────────────────────────────────
 REM
 REM  The main entry point for fresh installs is the PowerShell one-liner:
-REM      irm -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/v0.0.2beta/install.ps1 | iex
+REM      irm -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/v0.0.2-beta/install.ps1 | iex
 REM
 REM  This .bat is here for convenience: if you already have the repo cloned
 REM  (or saved the script locally), you can double-click this file instead
@@ -22,7 +22,7 @@ if not exist "%SCRIPT_DIR%install.ps1" (
     echo [ERROR] install.ps1 not found next to this file.
     echo.
     echo Download the installer with:
-    echo   irm -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/v0.0.2beta/install.ps1 ^| iex
+    echo   irm -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/v0.0.2-beta/install.ps1 ^| iex
     pause
     exit /b 1
 )

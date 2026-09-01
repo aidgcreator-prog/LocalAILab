@@ -7,7 +7,7 @@
     shortcut. Run this script on a FRESH machine to go from zero to running.
 
     USAGE (one-liner — paste into PowerShell):
-        irm -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/v0.0.2beta/install.ps1 | iex
+        irm -useb https://raw.githubusercontent.com/aidgcreator-prog/LocalAILab/v0.0.2-beta/install.ps1 | iex
 
 .PARAMETER InstallDir
     Directory to clone the repo into  (default: current directory).
@@ -222,7 +222,7 @@ if (Test-Path $targetDir) {
     }
 } else {
     Write-Host "  Cloning $REPO_URL ..."
-    git clone --branch v0.0.2beta $REPO_URL $targetDir 2>&1 | ForEach-Object { "  $_" }
+    git clone --branch v0.0.2-beta $REPO_URL $targetDir 2>&1 | ForEach-Object { "  $_" }
     if ($LASTEXITCODE -ne 0) {
         Write-Err "Failed to clone repository. Check your internet connection."
         exit 1
